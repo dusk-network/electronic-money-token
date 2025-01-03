@@ -7,9 +7,8 @@ use core::cmp::Ordering;
 
 use bytecheck::CheckBytes;
 use rkyv::{Archive, Deserialize, Serialize};
-
-use execution_core::signatures::bls::{PublicKey, SecretKey, Signature};
-use execution_core::ContractId;
+use dusk_core::abi::ContractId;
+use dusk_core::signatures::bls::{PublicKey, SecretKey, Signature};
 
 /// The label for an account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]

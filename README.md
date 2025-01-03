@@ -1,5 +1,7 @@
 # Dusk - Transparent Token
 
+> Unstable : No guarantees can be made regarding the function signatures stability, the project is in development.
+
 This repository proposes a standard for building transparent tokens on the Dusk chain, as well as a
 barebones implementation of said standard.
 
@@ -39,7 +41,7 @@ Some of the functionality of the contract requires data to be sent to it that as
 given public key, as well as ensuring the non-repeatability of certain calls. The data that a user
 will use to interact with this contract is defined in the [`types` crate] in this repository. The
 example contract implementation in the [`contract` crate] makes use of [`rkyv`] serialization. This
-is convenient for the implementation since [`rusk-abi`] supports it natively, however it is not a
+is convenient for the implementation since [`dusk-core`] abi supports it natively, however it is not a
 requirement, and implementors may choose any serialization they wish. This will result in different
 gas costs. As a consequence, this specification *does not require* specific serialization from
 contracts wishing to implement it.
@@ -47,7 +49,7 @@ contracts wishing to implement it.
 [`types` crate]: ./types
 [`contract` crate]: ./contract
 [`rkyv`]: https://github.com/rkyv/rkyv
-[`rusk-abi`]: https://github.com/dusk-network/rusk/rusk-abi
+[`dusk-abi`]: https://github.com/dusk-network/rusk/core/src/abi.rs
 
 ### Functions
 

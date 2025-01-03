@@ -7,8 +7,7 @@ edition.workspace = true
 [dependencies]
 ttoken-types = { workspace = true }
 
-execution-core = { workspace = true }
-rusk-abi = { workspace = true, features = ["abi", "dlmalloc"] }
+dusk-core = { workspace = true, features = ["abi-dlmalloc"] }
 
 [lib]
 crate-type = ["cdylib"]
