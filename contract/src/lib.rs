@@ -19,6 +19,9 @@ use ttoken_types::ownership::payloads::{RenounceOwnership, TransferOwnership};
 use ttoken_types::ownership::{
     EXPECT_CONTRACT, OWNER_NOT_SET, UNAUTHORIZED_CONTRACT, UNAUTHORIZED_EXT_ACCOUNT,
 };
+use ttoken_types::supply_management::events::{BurnEvent, MintEvent};
+use ttoken_types::supply_management::payloads::{Burn, Mint};
+use ttoken_types::supply_management::SUPPLY_OVERFLOW;
 use ttoken_types::*;
 
 /// The state of the token contract.
@@ -162,6 +165,73 @@ impl TokenState {
             OwnerShipRenouncedEvent::TOPIC,
             OwnerShipRenouncedEvent::new(owner),
         );
+    }
+}
+
+/// Supply management implementation.
+impl TokenState {
+    fn mint(&mut self, mint: Mint) {
+        let owner = self.owner();
+        let sig = *mint.signature();
+        let sig_msg = mint.signature_message().to_vec();
+
+        self.authorize_owner(sig_msg, sig);
+
+        let owner_account = self
+            .accounts
+            .get_mut(&owner)
+            .expect("The account has no tokens to transfer");
+
+        if mint.nonce() != owner_account.nonce + 1 {
+            panic!("Nonces must be sequential");
+        }
+
+        owner_account.nonce += 1;
+
+        let recipient = *mint.recipient();
+        let recipient_account = self.accounts.entry(recipient).or_insert(AccountInfo::EMPTY);
+
+        let value = mint.amount();
+
+        // Prevent overflow
+        self.supply = match self.supply.checked_add(value) {
+            Some(supply) => supply,
+            None => panic!("{}", SUPPLY_OVERFLOW),
+        };
+
+        recipient_account.balance += value;
+
+        abi::emit(MintEvent::TOPIC, MintEvent::new(value, recipient));
+    }
+
+    fn burn(&mut self, burn: Burn) {
+        let owner = self.owner();
+        let sig = *burn.signature();
+        let sig_msg = burn.signature_message().to_vec();
+
+        self.authorize_owner(sig_msg, sig);
+
+        let burn_account = self
+            .accounts
+            .get_mut(&owner)
+            .expect("The account does not exist");
+
+        if burn.nonce() != burn_account.nonce + 1 {
+            panic!("Nonces must be sequential");
+        }
+
+        burn_account.nonce += 1;
+
+        let value = burn.amount();
+        if burn_account.balance < value {
+            panic!("The account doesn't have enough tokens to burn");
+        } else {
+            burn_account.balance -= value;
+        }
+
+        self.supply -= value;
+
+        abi::emit(BurnEvent::TOPIC, BurnEvent::new(value, owner));
     }
 }
 
@@ -481,4 +551,18 @@ unsafe fn renounce_ownership(arg_len: u32) -> u32 {
 #[no_mangle]
 unsafe fn owner(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |_: ()| STATE.owner())
+}
+
+/*
+* Supply management functions
+*/
+
+#[no_mangle]
+unsafe fn mint(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |arg| STATE.mint(arg))
+}
+
+#[no_mangle]
+unsafe fn burn(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |arg| STATE.burn(arg))
 }
