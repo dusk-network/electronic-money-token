@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-use execution_core::ContractId;
+use dusk_core::abi::{self, ContractId};
 
 use ttoken_types::*;
 
@@ -14,7 +14,7 @@ struct TokenState {
 
 impl TokenState {
     fn init(&mut self, token_contract: ContractId, balance: u64) {
-        self.this_contract = rusk_abi::self_id();
+        self.this_contract = abi::self_id();
         self.token_contract = token_contract;
         self.balance = balance;
     }
@@ -29,7 +29,7 @@ static mut STATE: TokenState = TokenState {
 impl TokenState {
     fn token_send(&mut self, transfer: TransferFromContract) {
         if let Err(err) =
-            rusk_abi::call::<_, ()>(self.token_contract, "transfer_from_contract", &transfer)
+            abi::call::<_, ()>(self.token_contract, "transfer_from_contract", &transfer)
         {
             panic!("Failed sending tokens: {err}");
         }
@@ -48,17 +48,17 @@ impl TokenState {
 
 #[no_mangle]
 unsafe fn init(arg_len: u32) -> u32 {
-    rusk_abi::wrap_call(arg_len, |(token_contract, balance)| {
+    abi::wrap_call(arg_len, |(token_contract, balance)| {
         STATE.init(token_contract, balance)
     })
 }
 
 #[no_mangle]
 unsafe fn token_send(arg_len: u32) -> u32 {
-    rusk_abi::wrap_call(arg_len, |arg| STATE.token_send(arg))
+    abi::wrap_call(arg_len, |arg| STATE.token_send(arg))
 }
 
 #[no_mangle]
 unsafe fn token_received(arg_len: u32) -> u32 {
-    rusk_abi::wrap_call(arg_len, |arg| STATE.token_received(arg))
+    abi::wrap_call(arg_len, |arg| STATE.token_received(arg))
 }

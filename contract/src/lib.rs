@@ -6,6 +6,7 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use dusk_core::abi;
 use ttoken_types::*;
 
 struct TokenState {
@@ -84,7 +85,7 @@ impl TokenState {
 
         let sig = *transfer.signature();
         let sig_msg = transfer.signature_message().to_vec();
-        if !rusk_abi::verify_bls(sig_msg, from_key, sig) {
+        if !abi::verify_bls(sig_msg, from_key, sig) {
             panic!("Invalid signature");
         }
 
@@ -93,7 +94,7 @@ impl TokenState {
 
         to_account.balance += value;
 
-        rusk_abi::emit(
+        abi::emit(
             "transfer",
             TransferEvent {
                 owner: from,
@@ -106,9 +107,11 @@ impl TokenState {
         // if the transfer is to a contract, the acceptance function of said contract is called. if
         // it fails (panic or OoG) the transfer also fails.
         if let Account::Contract(contract) = to {
-            if let Err(err) =
-                rusk_abi::call::<_, ()>(contract, "token_received", &TransferInfo { from, value })
-            {
+            if let Err(err) = abi::call::<_, ()>(
+                contract,
+                "token_received",
+                &TransferInfo { from, value },
+            ) {
                 panic!("Failed calling `token_received` on the receiving contract: {err}");
             }
         }
@@ -127,7 +130,7 @@ impl TokenState {
 
         let sig = *transfer.signature();
         let sig_msg = transfer.signature_message().to_vec();
-        if !rusk_abi::verify_bls(sig_msg, spender_key, sig) {
+        if !abi::verify_bls(sig_msg, spender_key, sig) {
             panic!("Invalid signature");
         }
 
@@ -162,7 +165,7 @@ impl TokenState {
 
         to_account.balance += value;
 
-        rusk_abi::emit(
+        abi::emit(
             "transfer",
             TransferEvent {
                 owner,
@@ -175,7 +178,7 @@ impl TokenState {
         // if the transfer is to a contract, the acceptance function of said contract is called. if
         // it fails (panic or OoG) the transfer also fails.
         if let Account::Contract(contract) = to {
-            if let Err(err) = rusk_abi::call::<_, ()>(
+            if let Err(err) = abi::call::<_, ()>(
                 contract,
                 "token_received",
                 &TransferInfo { from: owner, value },
@@ -186,7 +189,7 @@ impl TokenState {
     }
 
     fn transfer_from_contract(&mut self, transfer: TransferFromContract) {
-        let contract = rusk_abi::caller().expect("Must be called by a contract");
+        let contract = abi::caller().expect("Must be called by a contract");
         let contract = Account::Contract(contract);
 
         let contract_account = self
@@ -207,7 +210,7 @@ impl TokenState {
 
         to_account.balance += transfer.value;
 
-        rusk_abi::emit(
+        abi::emit(
             "transfer",
             TransferEvent {
                 owner: contract,
@@ -220,7 +223,7 @@ impl TokenState {
         // if the transfer is to a contract, the acceptance function of said contract is called. if
         // it fails (panic or OoG) the transfer also fails.
         if let Account::Contract(to_contract) = transfer.to {
-            if let Err(err) = rusk_abi::call::<_, ()>(
+            if let Err(err) = abi::call::<_, ()>(
                 to_contract,
                 "token_received",
                 &TransferInfo {
@@ -246,7 +249,7 @@ impl TokenState {
 
         let sig = *approve.signature();
         let sig_msg = approve.signature_message().to_vec();
-        if !rusk_abi::verify_bls(sig_msg, owner_key, sig) {
+        if !abi::verify_bls(sig_msg, owner_key, sig) {
             panic!("Invalid signature");
         }
 
@@ -257,7 +260,7 @@ impl TokenState {
         let value = approve.value();
         allowances.insert(spender, value);
 
-        rusk_abi::emit(
+        abi::emit(
             "approve",
             ApproveEvent {
                 owner,
@@ -270,55 +273,55 @@ impl TokenState {
 
 #[no_mangle]
 unsafe fn init(arg_len: u32) -> u32 {
-    rusk_abi::wrap_call(arg_len, |arg| STATE.init(arg))
+    abi::wrap_call(arg_len, |arg| STATE.init(arg))
 }
 
 #[no_mangle]
 unsafe fn name(arg_len: u32) -> u32 {
-    rusk_abi::wrap_call(arg_len, |_: ()| STATE.name())
+    abi::wrap_call(arg_len, |_: ()| STATE.name())
 }
 
 #[no_mangle]
 unsafe fn symbol(arg_len: u32) -> u32 {
-    rusk_abi::wrap_call(arg_len, |_: ()| STATE.symbol())
+    abi::wrap_call(arg_len, |_: ()| STATE.symbol())
 }
 
 #[no_mangle]
 unsafe fn decimals(arg_len: u32) -> u32 {
-    rusk_abi::wrap_call(arg_len, |_: ()| STATE.decimals())
+    abi::wrap_call(arg_len, |_: ()| STATE.decimals())
 }
 
 #[no_mangle]
 unsafe fn total_supply(arg_len: u32) -> u32 {
-    rusk_abi::wrap_call(arg_len, |_: ()| STATE.total_supply())
+    abi::wrap_call(arg_len, |_: ()| STATE.total_supply())
 }
 
 #[no_mangle]
 unsafe fn account(arg_len: u32) -> u32 {
-    rusk_abi::wrap_call(arg_len, |arg| STATE.account(arg))
+    abi::wrap_call(arg_len, |arg| STATE.account(arg))
 }
 
 #[no_mangle]
 unsafe fn allowance(arg_len: u32) -> u32 {
-    rusk_abi::wrap_call(arg_len, |arg| STATE.allowance(arg))
+    abi::wrap_call(arg_len, |arg| STATE.allowance(arg))
 }
 
 #[no_mangle]
 unsafe fn transfer(arg_len: u32) -> u32 {
-    rusk_abi::wrap_call(arg_len, |arg| STATE.transfer(arg))
+    abi::wrap_call(arg_len, |arg| STATE.transfer(arg))
 }
 
 #[no_mangle]
 unsafe fn transfer_from(arg_len: u32) -> u32 {
-    rusk_abi::wrap_call(arg_len, |arg| STATE.transfer_from(arg))
+    abi::wrap_call(arg_len, |arg| STATE.transfer_from(arg))
 }
 
 #[no_mangle]
 unsafe fn transfer_from_contract(arg_len: u32) -> u32 {
-    rusk_abi::wrap_call(arg_len, |arg| STATE.transfer_from_contract(arg))
+    abi::wrap_call(arg_len, |arg| STATE.transfer_from_contract(arg))
 }
 
 #[no_mangle]
 unsafe fn approve(arg_len: u32) -> u32 {
-    rusk_abi::wrap_call(arg_len, |arg| STATE.approve(arg))
+    abi::wrap_call(arg_len, |arg| STATE.approve(arg))
 }

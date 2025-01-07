@@ -1,6 +1,6 @@
-use execution_core::signatures::bls::{PublicKey, SecretKey};
-use execution_core::{ContractId, StandardBufSerializer};
-use rusk_abi::{CallReceipt, ContractData, PiecrustError, Session};
+use dusk_core::abi::{ContractId, StandardBufSerializer};
+use dusk_core::signatures::bls::{PublicKey, SecretKey};
+use dusk_vm::{CallReceipt, ContractData, Error as VMError, Session, VM};
 
 use bytecheck::CheckBytes;
 use rkyv::validation::validators::DefaultValidator;
@@ -22,7 +22,7 @@ const INITIAL_HOLDER_BALANCE: u64 = 1000;
 
 const OWNER: [u8; 64] = [0u8; 64];
 
-type Result<T, Error = PiecrustError> = std::result::Result<T, Error>;
+type Result<T, Error = VMError> = std::result::Result<T, Error>;
 
 struct ContractSession {
     deploy_pk: PublicKey,
@@ -32,8 +32,8 @@ struct ContractSession {
 
 impl ContractSession {
     fn new() -> Self {
-        let vm = rusk_abi::new_ephemeral_vm().expect("Creating VM should succeed");
-        let mut session = rusk_abi::new_genesis_session(&vm);
+        let vm = VM::ephemeral().expect("Creating VM should succeed");
+        let mut session = VM::genesis_session(&vm, 1);
 
         let mut rng = StdRng::seed_from_u64(0xF0CACC1A);
         let deploy_sk = SecretKey::random(&mut rng);
@@ -47,7 +47,7 @@ impl ContractSession {
                 TOKEN_BYTECODE,
                 ContractData::builder()
                     .owner(OWNER)
-                    .constructor_arg(&vec![
+                    .init_arg(&vec![
                         (deploy_account, INITIAL_BALANCE),
                         (holder_account, INITIAL_HOLDER_BALANCE),
                     ])
@@ -61,7 +61,7 @@ impl ContractSession {
                 HOLDER_BYTECODE,
                 ContractData::builder()
                     .owner(OWNER)
-                    .constructor_arg(&(TOKEN_ID, INITIAL_HOLDER_BALANCE))
+                    .init_arg(&(TOKEN_ID, INITIAL_HOLDER_BALANCE))
                     .contract_id(HOLDER_ID),
                 u64::MAX,
             )

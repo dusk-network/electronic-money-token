@@ -9,8 +9,8 @@ publish = false
 [dependencies]
 ttoken-types = { workspace = true }
 
-execution-core = { workspace = true }
-rusk-abi = { workspace = true, features = ["host"] }
+dusk-core = { workspace = true }
+dusk-vm = { workspace = true }
 
 bytecheck = { workspace = true }
 rkyv = { workspace = true }
