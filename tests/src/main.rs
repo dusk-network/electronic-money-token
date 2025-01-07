@@ -9,12 +9,15 @@ use dusk_core::signatures::bls::{PublicKey, SecretKey};
 use dusk_vm::{CallReceipt, ContractData, Error as VMError, Session, VM};
 
 use bytecheck::CheckBytes;
+
 use rkyv::validation::validators::DefaultValidator;
 use rkyv::{Archive, Deserialize, Infallible, Serialize};
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
+use ttoken_types::ownership::payloads::{RenounceOwnership, TransferOwnership};
+use ttoken_types::ownership::{OWNER_NOT_SET, UNAUTHORIZED_EXT_ACCOUNT};
 use ttoken_types::*;
 
 const TOKEN_BYTECODE: &[u8] = include_bytes!("../../build/ttoken_contract.wasm");
@@ -33,6 +36,8 @@ type Result<T, Error = VMError> = std::result::Result<T, Error>;
 struct ContractSession {
     deploy_pk: PublicKey,
     deploy_sk: SecretKey,
+    owner_sk: SecretKey,
+    owner: Account,
     session: Session,
 }
 
@@ -48,15 +53,21 @@ impl ContractSession {
         let deploy_account = Account::External(deploy_pk);
         let holder_account = Account::Contract(HOLDER_ID);
 
+        let owner_sk = deploy_sk.clone();
+        let owner = deploy_account;
+
         session
             .deploy(
                 TOKEN_BYTECODE,
                 ContractData::builder()
                     .owner(OWNER)
-                    .init_arg(&vec![
-                        (deploy_account, INITIAL_BALANCE),
-                        (holder_account, INITIAL_HOLDER_BALANCE),
-                    ])
+                    .init_arg(&(
+                        vec![
+                            (deploy_account, INITIAL_BALANCE),
+                            (holder_account, INITIAL_HOLDER_BALANCE),
+                        ],
+                        owner,
+                    ))
                     .contract_id(TOKEN_ID),
                 u64::MAX,
             )
@@ -76,6 +87,8 @@ impl ContractSession {
         Self {
             deploy_sk,
             deploy_pk,
+            owner_sk,
+            owner,
             session,
         }
     }
@@ -94,6 +107,16 @@ impl ContractSession {
         self.session.call(TOKEN_ID, fn_name, fn_arg, u64::MAX)
     }
 
+    /// Helper function to call a "view" function on the token contract that does not take any arguments.
+    fn call_getter<R>(&mut self, fn_name: &str) -> Result<CallReceipt<R>>
+    where
+        R: Archive,
+        R::Archived: Deserialize<R, Infallible> + for<'b> CheckBytes<DefaultValidator<'b>>,
+    {
+        // TODO: find out if there is another way to do that instead of passing &() as fn_arg
+        self.session.call::<(), R>(TOKEN_ID, fn_name, &(), u64::MAX)
+    }
+
     fn call_holder<A, R>(&mut self, fn_name: &str, fn_arg: &A) -> Result<CallReceipt<R>>
     where
         A: for<'b> Serialize<StandardBufSerializer<'b>>,
@@ -108,6 +131,10 @@ impl ContractSession {
         self.call_token("account", &account.into())
             .expect("Querying an account should succeed")
             .data
+    }
+
+    fn owner(&mut self) -> Result<CallReceipt<Account>> {
+        self.call_getter("owner")
     }
 
     fn allowance(&mut self, owner: impl Into<Account>, spender: impl Into<Account>) -> u64 {
@@ -340,6 +367,90 @@ fn transfer_from() {
         APPROVED_AMOUNT - TRANSFERRED_AMOUNT,
         "The account should have the transferred amount subtracted from its allowance"
     );
+}
+
+#[test]
+fn transfer_ownership() {
+    let mut session = ContractSession::new();
+
+    let mut rng = StdRng::seed_from_u64(0xBEEF);
+    let new_owner_sk = SecretKey::random(&mut rng);
+    let new_owner_pk = PublicKey::from(&new_owner_sk);
+
+    let new_owner = Account::External(new_owner_pk);
+
+    let transfer_ownership = TransferOwnership::new(&session.owner_sk, new_owner, 1);
+    session
+        .call_token::<_, ()>("transfer_ownership", &transfer_ownership)
+        .expect("Transferring ownership should succeed");
+
+    assert_eq!(
+        session
+            .owner()
+            .expect("Querying an existing owner should succeed")
+            .data,
+        new_owner
+    );
+}
+
+#[test]
+fn ownership_wrong_owner() {
+    let mut session = ContractSession::new();
+
+    let mut rng = StdRng::seed_from_u64(0x1618);
+    let wrong_owner_sk: SecretKey = SecretKey::random(&mut rng);
+    let pk = PublicKey::from(&wrong_owner_sk);
+
+    let new_owner = Account::External(pk);
+
+    let transfer_ownership = TransferOwnership::new(&wrong_owner_sk, new_owner, 1);
+    let receipt = session.call_token::<_, ()>("transfer_ownership", &transfer_ownership);
+
+    match receipt.err() {
+        Some(VMError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, UNAUTHORIZED_EXT_ACCOUNT);
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
+
+    let renounce_ownership = RenounceOwnership::new(&wrong_owner_sk, 1);
+    let receipt = session.call_token::<_, ()>("renounce_ownership", &renounce_ownership);
+
+    match receipt.err() {
+        Some(VMError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, UNAUTHORIZED_EXT_ACCOUNT);
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
+
+    assert_eq!(
+        session
+            .owner()
+            .expect("Querying an existing owner should succeed")
+            .data,
+        session.owner
+    );
+}
+
+#[test]
+fn renounce_ownership() {
+    let mut session = ContractSession::new();
+
+    let renounce_ownership = RenounceOwnership::new(&session.owner_sk, 1);
+    session
+        .call_token::<_, ()>("renounce_ownership", &renounce_ownership)
+        .expect("Renouncing ownership should succeed");
+
+    match session.owner().err() {
+        Some(VMError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, OWNER_NOT_SET);
+        }
+        _ => panic!("Expected a panic error"),
+    }
 }
 
 fn main() {
