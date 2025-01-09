@@ -14,6 +14,9 @@ use alloc::vec::Vec;
 
 use dusk_core::abi;
 use dusk_core::signatures::bls::Signature;
+use ttoken_types::admin_management::arguments::PauseToggle;
+use ttoken_types::admin_management::events::PauseToggled;
+use ttoken_types::admin_management::PAUSED_MESSAGE;
 use ttoken_types::ownership::arguments::{RenounceOwnership, TransferOwnership};
 use ttoken_types::ownership::events::{OwnerShipRenouncedEvent, OwnershipTransferredEvent};
 use ttoken_types::ownership::{
@@ -32,6 +35,8 @@ struct TokenState {
 
     // TODO: remove Option and find a way to set an owner through a const fn
     owner: Option<Account>,
+
+    is_paused: bool,
 }
 
 impl TokenState {
@@ -57,6 +62,7 @@ static mut STATE: TokenState = TokenState {
     allowances: BTreeMap::new(),
     supply: 0,
     owner: None,
+    is_paused: false,
 };
 
 /// Access control implementation.
@@ -66,7 +72,7 @@ impl TokenState {
     }
 
     fn authorize_owner(&self, sig_msg: Vec<u8>, sig: Signature) {
-        let owner = self.owner().clone();
+        let owner = self.owner();
 
         match owner {
             Account::External(pk) => {
@@ -87,7 +93,7 @@ impl TokenState {
     fn transfer_ownership(&mut self, transfer_owner: TransferOwnership) {
         let sig = *transfer_owner.signature();
         let sig_msg = transfer_owner.signature_message().to_vec();
-        let previous_owner = self.owner().clone();
+        let previous_owner = self.owner();
 
         let prev_owner_account = self
             .accounts
@@ -233,11 +239,12 @@ impl TokenState {
 
         let value = burn.amount();
         if burn_account.balance < value {
-            panic!("The account doesn't have enough tokens to burn");
+            panic!("{}", BALANCE_TOO_LOW);
         } else {
             burn_account.balance -= value;
         }
 
+        // this can never fail, as the balance is checked above
         self.supply -= value;
 
         abi::emit(
@@ -245,6 +252,86 @@ impl TokenState {
             BurnEvent {
                 amount_burned: value,
                 burned_by: owner,
+            },
+        );
+    }
+}
+
+/// Administrative functions.
+impl TokenState {
+    fn is_paused(&self) -> bool {
+        self.is_paused
+    }
+
+    fn toggle_pause(&mut self, toggle: PauseToggle) {
+        let sig = *toggle.signature();
+        let sig_msg = toggle.signature_message().to_vec();
+
+        self.authorize_owner(sig_msg, sig);
+        let owner_account = self
+            .accounts
+            .get_mut(&self.owner())
+            .expect("The account does not exist");
+
+        if toggle.nonce() != owner_account.nonce + 1 {
+            panic!("Nonces must be sequential");
+        }
+
+        owner_account.nonce += 1;
+
+        self.is_paused = !self.is_paused;
+
+        abi::emit(
+            PauseToggled::TOPIC,
+            PauseToggled {
+                paused: self.is_paused,
+            },
+        );
+    }
+
+    /// note: this function will fail if the balance of the obliged sender is too low. It will **not** default to the maximum available balance.
+    fn force_transfer(&mut self, transfer: Transfer) {
+        self.authorize_owner(transfer.signature_message().to_vec(), *transfer.signature());
+
+        let obliged_sender = *transfer.from();
+
+        let owner_account = self
+            .accounts
+            .get_mut(&self.owner())
+            .expect("The account does not exist");
+
+        if transfer.nonce() != owner_account.nonce + 1 {
+            panic!("Nonces must be sequential");
+        }
+
+        owner_account.nonce += 1;
+
+        let obliged_sender_account = self
+            .accounts
+            .get_mut(&obliged_sender.into())
+            .expect("The account has no tokens to transfer");
+
+        let value = transfer.value();
+
+        if obliged_sender_account.balance < value {
+            panic!("{}", BALANCE_TOO_LOW);
+        }
+
+        obliged_sender_account.balance -= value;
+
+        let to = *transfer.to();
+        let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
+
+        // this can never overflow as value + balance is never higher than total supply
+        to_account.balance += value;
+
+        abi::emit(
+            TransferEvent::FORCE_TRANSFER_TOPIC,
+            TransferEvent {
+                owner: obliged_sender,
+                spender: None,
+                to,
+                value,
             },
         );
     }
@@ -283,8 +370,13 @@ impl TokenState {
     }
 
     fn transfer(&mut self, transfer: Transfer) {
-        let from_key = *transfer.from();
-        let from = Account::External(from_key);
+        assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
+
+        let Account::External(from_key) = *transfer.from() else {
+            panic!("Only external accounts can call this transfer function");
+        };
+
+        let from = *transfer.from();
 
         let from_account = self
             .accounts
@@ -293,7 +385,7 @@ impl TokenState {
 
         let value = transfer.value();
         if from_account.balance < value {
-            panic!("The account doesn't have enough tokens");
+            panic!("{}", BALANCE_TOO_LOW);
         }
 
         if transfer.nonce() != from_account.nonce + 1 {
@@ -305,6 +397,7 @@ impl TokenState {
 
         let sig = *transfer.signature();
         let sig_msg = transfer.signature_message().to_vec();
+
         if !abi::verify_bls(sig_msg, from_key, sig) {
             panic!("Invalid signature");
         }
@@ -312,10 +405,11 @@ impl TokenState {
         let to = *transfer.to();
         let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
 
+        // this can never overflow as value + balance is never higher than total supply
         to_account.balance += value;
 
         abi::emit(
-            "transfer",
+            TransferEvent::TRANSFER_TOPIC,
             TransferEvent {
                 owner: from,
                 spender: None,
@@ -337,6 +431,8 @@ impl TokenState {
     }
 
     fn transfer_from(&mut self, transfer: TransferFrom) {
+        assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
+
         let spender_key = *transfer.spender();
         let spender = Account::External(spender_key);
 
@@ -373,7 +469,7 @@ impl TokenState {
             .expect("The account has no tokens to transfer");
 
         if owner_account.balance < value {
-            panic!("The account doesn't have enough tokens");
+            panic!("{}", BALANCE_TOO_LOW);
         }
 
         *allowance -= value;
@@ -382,10 +478,11 @@ impl TokenState {
         let to = *transfer.to();
         let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
 
+        // this can never overflow as value + balance is never higher than total supply
         to_account.balance += value;
 
         abi::emit(
-            "transfer",
+            TransferEvent::TRANSFER_TOPIC,
             TransferEvent {
                 owner,
                 spender: Some(spender),
@@ -409,6 +506,8 @@ impl TokenState {
     }
 
     fn transfer_from_contract(&mut self, transfer: TransferFromContract) {
+        assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
+
         let contract = abi::caller().expect("Must be called by a contract");
         let contract = Account::Contract(contract);
 
@@ -418,7 +517,7 @@ impl TokenState {
             .expect("Contract has no tokens to transfer");
 
         if contract_account.balance < transfer.value {
-            panic!("The contract doesn't have enough tokens");
+            panic!("{}", BALANCE_TOO_LOW);
         }
 
         contract_account.balance -= transfer.value;
@@ -580,4 +679,23 @@ unsafe fn mint(arg_len: u32) -> u32 {
 #[no_mangle]
 unsafe fn burn(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.burn(arg))
+}
+
+/*
+ * Administrative functions
+ */
+
+#[no_mangle]
+unsafe fn toggle_pause(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |arg| STATE.toggle_pause(arg))
+}
+
+#[no_mangle]
+unsafe fn is_paused(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |_: ()| STATE.is_paused())
+}
+
+#[no_mangle]
+unsafe fn force_transfer(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |arg| STATE.force_transfer(arg))
 }
