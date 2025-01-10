@@ -13,6 +13,8 @@
 pub mod admin_management;
 /// Types used for access control through ownership.
 pub mod ownership;
+/// Types used for sanctions.
+pub mod sanctions;
 /// Types used for supply management.
 pub mod supply_management;
 
@@ -25,6 +27,9 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 /// Error messages for when an account doesn't have enough tokens to perform the desired operation.
 pub const BALANCE_TOO_LOW: &str = "The account doesn't have enough tokens";
+
+/// Error message for when the account is not found in the contract.
+pub const ACCOUNT_NOT_FOUND: &str = "The account does not exist";
 
 /// The label for an account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
@@ -112,6 +117,14 @@ pub struct AccountInfo {
     /// The current nonce of the account. Use the current value +1 to perform
     /// an interaction with the account.
     pub nonce: u64,
+    /// Status of the account.
+    ///
+    /// # Variants
+    /// 0: No Status
+    /// 1: Frozen
+    /// 2: Blocked
+    // TODO: We want to have this as a `Role` enum soon, but for serialization we use u64 temporarily.
+    pub status: u64,
 }
 
 impl AccountInfo {
@@ -119,7 +132,38 @@ impl AccountInfo {
     pub const EMPTY: Self = Self {
         balance: 0,
         nonce: 0,
+        status: 0,
     };
+
+    /// Check if the account is blocked.
+    pub fn is_blocked(&self) -> bool {
+        self.status == 2
+    }
+
+    /// Check if the account is frozen.
+    pub fn is_frozen(&self) -> bool {
+        self.status == 1
+    }
+
+    /// Freeze the account.
+    pub fn freeze(&mut self) {
+        self.status = 1;
+    }
+
+    /// Block the account.
+    pub fn block(&mut self) {
+        self.status = 2;
+    }
+
+    /// Unfreeze the account.
+    pub fn unfreeze(&mut self) {
+        self.status = 0;
+    }
+
+    /// Unblock the account.
+    pub fn unblock(&mut self) {
+        self.status = 0;
+    }
 }
 
 /// Arguments to query for how much of an allowance a spender has of the `owner`
