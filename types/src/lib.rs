@@ -167,6 +167,12 @@ impl AccountInfo {
     pub fn unblock(&mut self) {
         self.status = 0;
     }
+
+    /// Increment the nonce of the account and return the new value.
+    pub fn increment_nonce(&mut self) -> u64 {
+        self.nonce += 1;
+        self.nonce
+    }
 }
 
 /// Arguments to query for how much of an allowance a spender has of the `owner`

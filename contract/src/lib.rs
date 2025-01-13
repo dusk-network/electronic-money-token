@@ -104,8 +104,7 @@ impl TokenState {
             .get_mut(&previous_owner)
             .expect(OWNER_NOT_FOUND);
 
-        prev_owner_account.nonce += 1;
-        if transfer_owner.nonce() != prev_owner_account.nonce {
+        if transfer_owner.nonce() != prev_owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
@@ -149,8 +148,7 @@ impl TokenState {
             .get_mut(&previous_owner)
             .expect(OWNER_NOT_FOUND);
 
-        owner_account.nonce += 1;
-        if renounce_owner.nonce() != owner_account.nonce {
+        if renounce_owner.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
@@ -207,8 +205,7 @@ impl TokenState {
 
         let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
 
-        owner_account.nonce += 1;
-        if block_account.nonce() != owner_account.nonce {
+        if block_account.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
@@ -234,8 +231,7 @@ impl TokenState {
 
         let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
 
-        owner_account.nonce += 1;
-        if freeze_account.nonce() != owner_account.nonce {
+        if freeze_account.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
@@ -259,8 +255,7 @@ impl TokenState {
 
         let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
 
-        owner_account.nonce += 1;
-        if unblock_account.nonce() != owner_account.nonce {
+        if unblock_account.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
@@ -286,8 +281,7 @@ impl TokenState {
 
         let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
 
-        owner_account.nonce += 1;
-        if unfreeze_account.nonce() != owner_account.nonce {
+        if unfreeze_account.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
@@ -316,8 +310,7 @@ impl TokenState {
 
         let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
 
-        owner_account.nonce += 1;
-        if mint.nonce() != owner_account.nonce {
+        if mint.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
@@ -352,8 +345,7 @@ impl TokenState {
 
         let burn_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
 
-        burn_account.nonce += 1;
-        if burn.nonce() != burn_account.nonce {
+        if burn.nonce() != burn_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
@@ -390,8 +382,7 @@ impl TokenState {
         self.authorize_owner(sig_msg, sig);
         let owner_account = self.accounts.get_mut(&self.owner()).expect(OWNER_NOT_FOUND);
 
-        owner_account.nonce += 1;
-        if toggle.nonce() != owner_account.nonce {
+        if toggle.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
@@ -413,8 +404,7 @@ impl TokenState {
 
         let owner_account = self.accounts.get_mut(&self.owner()).expect(OWNER_NOT_FOUND);
 
-        owner_account.nonce += 1;
-        if transfer.nonce() != owner_account.nonce {
+        if transfer.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
@@ -502,8 +492,7 @@ impl TokenState {
             panic!("{}", BALANCE_TOO_LOW);
         }
 
-        from_account.nonce += 1;
-        if transfer.nonce() != from_account.nonce {
+        if transfer.nonce() != from_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
@@ -560,8 +549,7 @@ impl TokenState {
         assert!(!spender_account.is_blocked(), "{}", BLOCKED);
         assert!(!spender_account.is_frozen(), "{}", FROZEN);
 
-        spender_account.nonce += 1;
-        if transfer.nonce() != spender_account.nonce {
+        if transfer.nonce() != spender_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
@@ -687,8 +675,7 @@ impl TokenState {
 
         let owner_account = self.accounts.entry(owner).or_insert(AccountInfo::EMPTY);
 
-        owner_account.nonce += 1;
-        if approve.nonce() != owner_account.nonce {
+        if approve.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
