@@ -9,12 +9,15 @@
 #![no_std]
 #![deny(missing_docs)]
 
+/// Types used for access control through ownership.
+pub mod ownership;
+
 use core::cmp::Ordering;
 
 use bytecheck::CheckBytes;
-use rkyv::{Archive, Deserialize, Serialize};
 use dusk_core::abi::ContractId;
 use dusk_core::signatures::bls::{PublicKey, SecretKey, Signature};
+use rkyv::{Archive, Deserialize, Serialize};
 
 /// The label for an account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
@@ -63,8 +66,9 @@ impl From<ContractId> for Account {
     }
 }
 
-// The implementations of `PartialOrd` and `Ord`, while technically meaningless, are extremely
-// useful for using `Account` as keys of a `BTreeMap` in the contract.
+// The implementations of `PartialOrd` and `Ord`, while technically meaningless,
+// are extremely useful for using `Account` as keys of a `BTreeMap` in the
+// contract.
 
 impl PartialOrd for Account {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -83,8 +87,9 @@ impl Ord for Account {
                 lhs.cmp(&rhs)
             }
             (Contract(lhs), Contract(rhs)) => lhs.cmp(rhs),
-            // An externally owned account is defined as always "smaller" than a contract account.
-            // This ensures they are never mixed when ordering.
+            // An externally owned account is defined as always "smaller" than a
+            // contract account. This ensures they are never mixed
+            // when ordering.
             (External(_lhs), Contract(_rhs)) => Ordering::Greater,
             (Contract(_lhs), External(_rhs)) => Ordering::Less,
         }
@@ -97,8 +102,8 @@ impl Ord for Account {
 pub struct AccountInfo {
     /// The balance of the account.
     pub balance: u64,
-    /// The current nonce of the account. Use the current value +1 to perform an interaction with
-    /// the account.
+    /// The current nonce of the account. Use the current value +1 to perform
+    /// an interaction with the account.
     pub nonce: u64,
 }
 
@@ -110,7 +115,8 @@ impl AccountInfo {
     };
 }
 
-/// Arguments to query for how much of an allowance a spender has of the `owner` account.
+/// Arguments to query for how much of an allowance a spender has of the `owner`
+/// account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct Allowance {
@@ -204,7 +210,8 @@ impl Transfer {
     }
 }
 
-/// Data used to transfer tokens from an owner to a recipient, by an allowed party.
+/// Data used to transfer tokens from an owner to a recipient, by an allowed
+/// party.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct TransferFrom {
@@ -307,14 +314,15 @@ impl TransferFrom {
 
 /// Data used to approve spending tokens from a contract's account.
 ///
-/// Note that there is no need for a signature, since contracts are essentially asserting via their
-/// code that they wish the transaction to be made.
+/// Note that there is no need for a signature, since contracts are essentially
+/// asserting via their code that they wish the transaction to be made.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct TransferFromContract {
     /// The account to transfer to.
     pub to: Account,
-    /// The owner of the funds to transfer from. If `None` it will be assumed to be the contract itself.
+    /// The owner of the funds to transfer from. If `None` it will be assumed
+    /// to be the contract itself.
     pub from: Option<Account>,
     /// The value to transfer.
     pub value: u64,
