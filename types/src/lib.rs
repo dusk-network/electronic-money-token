@@ -25,6 +25,9 @@ use dusk_core::abi::ContractId;
 use dusk_core::signatures::bls::{PublicKey, SecretKey, Signature};
 use rkyv::{Archive, Deserialize, Serialize};
 
+/// Error message for when a nonce is not sequential.
+pub const NONCE_NOT_SEQUENTIAL: &str = "Nonces must be sequential";
+
 /// Error messages for when an account doesn't have enough tokens to perform the desired operation.
 pub const BALANCE_TOO_LOW: &str = "The account doesn't have enough tokens";
 

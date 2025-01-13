@@ -106,7 +106,7 @@ impl TokenState {
 
         prev_owner_account.nonce += 1;
         if transfer_owner.nonce() != prev_owner_account.nonce {
-            panic!("Nonces must be sequential");
+            panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
         match previous_owner {
@@ -151,7 +151,7 @@ impl TokenState {
 
         owner_account.nonce += 1;
         if renounce_owner.nonce() != owner_account.nonce {
-            panic!("Nonces must be sequential");
+            panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
         match previous_owner {
@@ -209,7 +209,7 @@ impl TokenState {
 
         owner_account.nonce += 1;
         if block_account.nonce() != owner_account.nonce {
-            panic!("Nonces must be sequential");
+            panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
         let account = *block_account.account();
@@ -236,7 +236,7 @@ impl TokenState {
 
         owner_account.nonce += 1;
         if freeze_account.nonce() != owner_account.nonce {
-            panic!("Nonces must be sequential");
+            panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
         let account = *freeze_account.account();
@@ -261,7 +261,7 @@ impl TokenState {
 
         owner_account.nonce += 1;
         if unblock_account.nonce() != owner_account.nonce {
-            panic!("Nonces must be sequential");
+            panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
         let account = *unblock_account.account();
@@ -288,7 +288,7 @@ impl TokenState {
 
         owner_account.nonce += 1;
         if unfreeze_account.nonce() != owner_account.nonce {
-            panic!("Nonces must be sequential");
+            panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
         let account = *unfreeze_account.account();
@@ -318,7 +318,7 @@ impl TokenState {
 
         owner_account.nonce += 1;
         if mint.nonce() != owner_account.nonce {
-            panic!("Nonces must be sequential");
+            panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
         let recipient = *mint.recipient();
@@ -354,7 +354,7 @@ impl TokenState {
 
         burn_account.nonce += 1;
         if burn.nonce() != burn_account.nonce {
-            panic!("Nonces must be sequential");
+            panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
         let value = burn.amount();
@@ -392,7 +392,7 @@ impl TokenState {
 
         owner_account.nonce += 1;
         if toggle.nonce() != owner_account.nonce {
-            panic!("Nonces must be sequential");
+            panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
         self.is_paused = !self.is_paused;
@@ -415,7 +415,7 @@ impl TokenState {
 
         owner_account.nonce += 1;
         if transfer.nonce() != owner_account.nonce {
-            panic!("Nonces must be sequential");
+            panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
         let obliged_sender_account = self
@@ -504,7 +504,7 @@ impl TokenState {
 
         from_account.nonce += 1;
         if transfer.nonce() != from_account.nonce {
-            panic!("Nonces must be sequential");
+            panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
         from_account.balance -= value;
@@ -562,7 +562,7 @@ impl TokenState {
 
         spender_account.nonce += 1;
         if transfer.nonce() != spender_account.nonce {
-            panic!("Nonces must be sequential");
+            panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
         let sig = *transfer.signature();
@@ -689,7 +689,7 @@ impl TokenState {
 
         owner_account.nonce += 1;
         if approve.nonce() != owner_account.nonce {
-            panic!("Nonces must be sequential");
+            panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
         let sig = *approve.signature();
