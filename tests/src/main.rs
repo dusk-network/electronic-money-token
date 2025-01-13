@@ -16,8 +16,10 @@ use rkyv::{Archive, Deserialize, Infallible, Serialize};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use ttoken_types::ownership::payloads::{RenounceOwnership, TransferOwnership};
+use ttoken_types::ownership::arguments::{RenounceOwnership, TransferOwnership};
 use ttoken_types::ownership::{OWNER_NOT_SET, UNAUTHORIZED_EXT_ACCOUNT};
+use ttoken_types::supply_management::arguments::{Burn, Mint};
+use ttoken_types::supply_management::SUPPLY_OVERFLOW;
 use ttoken_types::*;
 
 const TOKEN_BYTECODE: &[u8] = include_bytes!("../../build/ttoken_contract.wasm");
@@ -28,6 +30,7 @@ const HOLDER_ID: ContractId = ContractId::from_bytes([2; 32]);
 
 const INITIAL_BALANCE: u64 = 1000;
 const INITIAL_HOLDER_BALANCE: u64 = 1000;
+const INITIAL_SUPPLY: u64 = INITIAL_BALANCE + INITIAL_HOLDER_BALANCE;
 
 const OWNER: [u8; 64] = [0u8; 64];
 
@@ -135,6 +138,12 @@ impl ContractSession {
 
     fn owner(&mut self) -> Result<CallReceipt<Account>> {
         self.call_getter("owner")
+    }
+
+    fn total_supply(&mut self) -> u64 {
+        self.call_getter("total_supply")
+            .expect("Querying the supply should succeed")
+            .data
     }
 
     fn allowance(&mut self, owner: impl Into<Account>, spender: impl Into<Account>) -> u64 {
@@ -450,6 +459,98 @@ fn renounce_ownership() {
             assert_eq!(panic_msg, OWNER_NOT_SET);
         }
         _ => panic!("Expected a panic error"),
+    }
+}
+
+#[test]
+fn test_mint() {
+    let mut session = ContractSession::new();
+    let mint_amount = 1000;
+
+    let mint = Mint::new(&session.owner_sk, mint_amount, session.owner, 1);
+
+    session
+        .call_token::<_, ()>("mint", &mint)
+        .expect("Minting should succeed");
+
+    assert_eq!(session.total_supply(), INITIAL_SUPPLY + mint_amount);
+
+    // mint overflow
+    let mint_amount = u64::MAX;
+
+    let mint = Mint::new(&session.owner_sk, mint_amount, session.owner, 2);
+
+    let receipt = session.call_token::<_, ()>("mint", &mint);
+
+    match receipt.err() {
+        Some(VMError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, SUPPLY_OVERFLOW);
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
+
+    // unauthorized pk
+    let mut rng = StdRng::seed_from_u64(0x1618);
+    let sk = SecretKey::random(&mut rng);
+
+    let mint = Mint::new(&sk, mint_amount, session.owner, 3);
+    let receipt = session.call_token::<_, ()>("mint", &mint);
+
+    match receipt.err() {
+        Some(VMError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, UNAUTHORIZED_EXT_ACCOUNT);
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
+}
+
+#[test]
+fn test_burn() {
+    let mut session = ContractSession::new();
+    let burn_amount = 1000;
+
+    let burn = Burn::new(&session.owner_sk, burn_amount, 1);
+
+    session
+        .call_token::<_, ()>("burn", &burn)
+        .expect("Burning should succeed");
+
+    assert_eq!(session.total_supply(), INITIAL_SUPPLY - burn_amount);
+
+    // burn more than the account has
+    let burn_amount = u64::MAX;
+
+    let burn = Burn::new(&session.owner_sk, burn_amount, 2);
+
+    let receipt = session.call_token::<_, ()>("burn", &burn);
+
+    match receipt.err() {
+        Some(VMError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, "The account doesn't have enough tokens to burn");
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
+
+    // unauthorized pk
+    let mut rng = StdRng::seed_from_u64(0x1618);
+    let sk = SecretKey::random(&mut rng);
+
+    let burn = Burn::new(&sk, burn_amount, 3);
+    let receipt = session.call_token::<_, ()>("burn", &burn);
+
+    match receipt.err() {
+        Some(VMError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, UNAUTHORIZED_EXT_ACCOUNT);
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
     }
 }
 

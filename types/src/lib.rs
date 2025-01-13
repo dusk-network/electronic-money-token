@@ -11,6 +11,8 @@
 
 /// Types used for access control through ownership.
 pub mod ownership;
+/// Types used for supply management.
+pub mod supply_management;
 
 use core::cmp::Ordering;
 
