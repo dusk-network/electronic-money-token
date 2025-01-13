@@ -20,8 +20,12 @@ use ttoken_types::admin_management::PAUSED_MESSAGE;
 use ttoken_types::ownership::arguments::{RenounceOwnership, TransferOwnership};
 use ttoken_types::ownership::events::{OwnerShipRenouncedEvent, OwnershipTransferredEvent};
 use ttoken_types::ownership::{
-    EXPECT_CONTRACT, OWNER_NOT_SET, UNAUTHORIZED_CONTRACT, UNAUTHORIZED_EXT_ACCOUNT,
+    EXPECT_CONTRACT, OWNER_NOT_FOUND, OWNER_NOT_SET, UNAUTHORIZED_CONTRACT,
+    UNAUTHORIZED_EXT_ACCOUNT,
 };
+use ttoken_types::sanctions::arguments::Sanction;
+use ttoken_types::sanctions::events::AccountStatusEvent;
+use ttoken_types::sanctions::{BLOCKED, FROZEN};
 use ttoken_types::supply_management::arguments::{Burn, Mint};
 use ttoken_types::supply_management::events::{BurnEvent, MintEvent};
 use ttoken_types::supply_management::SUPPLY_OVERFLOW;
@@ -98,9 +102,10 @@ impl TokenState {
         let prev_owner_account = self
             .accounts
             .get_mut(&previous_owner)
-            .expect("The account does not exist");
+            .expect(OWNER_NOT_FOUND);
 
-        if transfer_owner.nonce() != prev_owner_account.nonce + 1 {
+        prev_owner_account.nonce += 1;
+        if transfer_owner.nonce() != prev_owner_account.nonce {
             panic!("Nonces must be sequential");
         }
 
@@ -118,8 +123,6 @@ impl TokenState {
                 UNAUTHORIZED_CONTRACT
             ),
         }
-
-        prev_owner_account.nonce += 1;
 
         self.owner = Some(*transfer_owner.new_owner());
         // Always insert owner
@@ -144,13 +147,12 @@ impl TokenState {
         let owner_account = self
             .accounts
             .get_mut(&previous_owner)
-            .expect("The account does not exist");
-
-        if renounce_owner.nonce() != owner_account.nonce + 1 {
-            panic!("Nonces must be sequential");
-        }
+            .expect(OWNER_NOT_FOUND);
 
         owner_account.nonce += 1;
+        if renounce_owner.nonce() != owner_account.nonce {
+            panic!("Nonces must be sequential");
+        }
 
         match previous_owner {
             Account::External(pk) => {
@@ -175,6 +177,132 @@ impl TokenState {
             OwnerShipRenouncedEvent { previous_owner },
         );
     }
+
+    fn blocked(&self, account: Account) -> bool {
+        let owner_account = self.accounts.get(&account);
+
+        match owner_account {
+            Some(account) => account.is_blocked(),
+            None => false,
+        }
+    }
+
+    fn frozen(&self, account: Account) -> bool {
+        let owner_account = self.accounts.get(&account);
+
+        match owner_account {
+            Some(account) => account.is_frozen(),
+            None => false,
+        }
+    }
+
+    fn block(&mut self, block_account: Sanction) {
+        assert!(block_account.sanction_type() == 2, "Invalid sanction type");
+
+        let owner = self.owner();
+        let sig = *block_account.signature();
+        let sig_msg = block_account.signature_message().to_vec();
+
+        self.authorize_owner(sig_msg, sig);
+
+        let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
+
+        owner_account.nonce += 1;
+        if block_account.nonce() != owner_account.nonce {
+            panic!("Nonces must be sequential");
+        }
+
+        let account = *block_account.account();
+        let account_info = self.accounts.get_mut(&account).expect(OWNER_NOT_FOUND);
+
+        account_info.block();
+
+        abi::emit(
+            AccountStatusEvent::BLOCKED_TOPIC,
+            AccountStatusEvent::blocked(account),
+        );
+    }
+
+    fn freeze(&mut self, freeze_account: Sanction) {
+        assert!(freeze_account.sanction_type() == 1, "Invalid sanction type");
+
+        let owner = self.owner();
+        let sig = *freeze_account.signature();
+        let sig_msg = freeze_account.signature_message().to_vec();
+
+        self.authorize_owner(sig_msg, sig);
+
+        let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
+
+        owner_account.nonce += 1;
+        if freeze_account.nonce() != owner_account.nonce {
+            panic!("Nonces must be sequential");
+        }
+
+        let account = *freeze_account.account();
+        let account_info = self.accounts.get_mut(&account).expect(OWNER_NOT_FOUND);
+
+        account_info.freeze();
+
+        abi::emit(
+            AccountStatusEvent::FROZEN_TOPIC,
+            AccountStatusEvent::frozen(account),
+        );
+    }
+
+    fn unblock(&mut self, unblock_account: Sanction) {
+        let owner = self.owner();
+        let sig = *unblock_account.signature();
+        let sig_msg = unblock_account.signature_message().to_vec();
+
+        self.authorize_owner(sig_msg, sig);
+
+        let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
+
+        owner_account.nonce += 1;
+        if unblock_account.nonce() != owner_account.nonce {
+            panic!("Nonces must be sequential");
+        }
+
+        let account = *unblock_account.account();
+        let account_info = self.accounts.get_mut(&account).expect(OWNER_NOT_FOUND);
+
+        assert!(account_info.is_blocked(), "The account is not blocked");
+
+        account_info.unblock();
+
+        abi::emit(
+            AccountStatusEvent::UNBLOCKED_TOPIC,
+            AccountStatusEvent::unblocked(account),
+        );
+    }
+
+    fn unfreeze(&mut self, unfreeze_account: Sanction) {
+        let owner = self.owner();
+        let sig = *unfreeze_account.signature();
+        let sig_msg = unfreeze_account.signature_message().to_vec();
+
+        self.authorize_owner(sig_msg, sig);
+
+        let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
+
+        owner_account.nonce += 1;
+        if unfreeze_account.nonce() != owner_account.nonce {
+            panic!("Nonces must be sequential");
+        }
+
+        let account = *unfreeze_account.account();
+        let account_info = self.accounts.get_mut(&account).expect(OWNER_NOT_FOUND);
+
+        assert!(account_info.is_frozen(), "The account is not frozen");
+
+        account_info.unfreeze();
+
+        abi::emit(
+            AccountStatusEvent::UNFROZEN_TOPIC,
+            AccountStatusEvent::unfrozen(account),
+        );
+    }
 }
 
 /// Supply management implementation.
@@ -186,16 +314,12 @@ impl TokenState {
 
         self.authorize_owner(sig_msg, sig);
 
-        let owner_account = self
-            .accounts
-            .get_mut(&owner)
-            .expect("The account has no tokens to transfer");
-
-        if mint.nonce() != owner_account.nonce + 1 {
-            panic!("Nonces must be sequential");
-        }
+        let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
 
         owner_account.nonce += 1;
+        if mint.nonce() != owner_account.nonce {
+            panic!("Nonces must be sequential");
+        }
 
         let recipient = *mint.recipient();
         let recipient_account = self.accounts.entry(recipient).or_insert(AccountInfo::EMPTY);
@@ -226,16 +350,12 @@ impl TokenState {
 
         self.authorize_owner(sig_msg, sig);
 
-        let burn_account = self
-            .accounts
-            .get_mut(&owner)
-            .expect("The account does not exist");
-
-        if burn.nonce() != burn_account.nonce + 1 {
-            panic!("Nonces must be sequential");
-        }
+        let burn_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
 
         burn_account.nonce += 1;
+        if burn.nonce() != burn_account.nonce {
+            panic!("Nonces must be sequential");
+        }
 
         let value = burn.amount();
         if burn_account.balance < value {
@@ -268,16 +388,12 @@ impl TokenState {
         let sig_msg = toggle.signature_message().to_vec();
 
         self.authorize_owner(sig_msg, sig);
-        let owner_account = self
-            .accounts
-            .get_mut(&self.owner())
-            .expect("The account does not exist");
-
-        if toggle.nonce() != owner_account.nonce + 1 {
-            panic!("Nonces must be sequential");
-        }
+        let owner_account = self.accounts.get_mut(&self.owner()).expect(OWNER_NOT_FOUND);
 
         owner_account.nonce += 1;
+        if toggle.nonce() != owner_account.nonce {
+            panic!("Nonces must be sequential");
+        }
 
         self.is_paused = !self.is_paused;
 
@@ -295,21 +411,17 @@ impl TokenState {
 
         let obliged_sender = *transfer.from();
 
-        let owner_account = self
-            .accounts
-            .get_mut(&self.owner())
-            .expect("The account does not exist");
-
-        if transfer.nonce() != owner_account.nonce + 1 {
-            panic!("Nonces must be sequential");
-        }
+        let owner_account = self.accounts.get_mut(&self.owner()).expect(OWNER_NOT_FOUND);
 
         owner_account.nonce += 1;
+        if transfer.nonce() != owner_account.nonce {
+            panic!("Nonces must be sequential");
+        }
 
         let obliged_sender_account = self
             .accounts
             .get_mut(&obliged_sender.into())
-            .expect("The account has no tokens to transfer");
+            .expect(ACCOUNT_NOT_FOUND);
 
         let value = transfer.value();
 
@@ -369,6 +481,9 @@ impl TokenState {
         }
     }
 
+    /// Note:
+    /// the sender must not be blocked or frozen.
+    /// the recipient must not be blocked but can be frozen.
     fn transfer(&mut self, transfer: Transfer) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
@@ -378,22 +493,21 @@ impl TokenState {
 
         let from = *transfer.from();
 
-        let from_account = self
-            .accounts
-            .get_mut(&from)
-            .expect("The account has no tokens to transfer");
+        let from_account = self.accounts.get_mut(&from).expect(ACCOUNT_NOT_FOUND);
+        assert!(!from_account.is_blocked(), "{}", BLOCKED);
+        assert!(!from_account.is_frozen(), "{}", FROZEN);
 
         let value = transfer.value();
         if from_account.balance < value {
             panic!("{}", BALANCE_TOO_LOW);
         }
 
-        if transfer.nonce() != from_account.nonce + 1 {
+        from_account.nonce += 1;
+        if transfer.nonce() != from_account.nonce {
             panic!("Nonces must be sequential");
         }
 
         from_account.balance -= value;
-        from_account.nonce += 1;
 
         let sig = *transfer.signature();
         let sig_msg = transfer.signature_message().to_vec();
@@ -404,6 +518,8 @@ impl TokenState {
 
         let to = *transfer.to();
         let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
+
+        assert!(!to_account.is_blocked(), "{}", BLOCKED);
 
         // this can never overflow as value + balance is never higher than total supply
         to_account.balance += value;
@@ -430,6 +546,10 @@ impl TokenState {
         }
     }
 
+    /// Note:
+    /// the spender must not be blocked or frozen.
+    /// the actual owner of the funds must not be blocked or frozen.
+    /// the recipient must not be blocked but can be frozen.
     fn transfer_from(&mut self, transfer: TransferFrom) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
@@ -437,11 +557,13 @@ impl TokenState {
         let spender = Account::External(spender_key);
 
         let spender_account = self.accounts.entry(spender).or_insert(AccountInfo::EMPTY);
-        if transfer.nonce() != spender_account.nonce + 1 {
-            panic!("Nonces must be sequential");
-        }
+        assert!(!spender_account.is_blocked(), "{}", BLOCKED);
+        assert!(!spender_account.is_frozen(), "{}", FROZEN);
 
         spender_account.nonce += 1;
+        if transfer.nonce() != spender_account.nonce {
+            panic!("Nonces must be sequential");
+        }
 
         let sig = *transfer.signature();
         let sig_msg = transfer.signature_message().to_vec();
@@ -463,10 +585,9 @@ impl TokenState {
             panic!("The spender can't spent the defined amount");
         }
 
-        let owner_account = self
-            .accounts
-            .get_mut(&owner)
-            .expect("The account has no tokens to transfer");
+        let owner_account = self.accounts.get_mut(&owner).expect(ACCOUNT_NOT_FOUND);
+        assert!(!owner_account.is_blocked(), "{}", BLOCKED);
+        assert!(!owner_account.is_frozen(), "{}", FROZEN);
 
         if owner_account.balance < value {
             panic!("{}", BALANCE_TOO_LOW);
@@ -477,6 +598,7 @@ impl TokenState {
 
         let to = *transfer.to();
         let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
+        assert!(!to_account.is_blocked(), "{}", BLOCKED);
 
         // this can never overflow as value + balance is never higher than total supply
         to_account.balance += value;
@@ -505,16 +627,18 @@ impl TokenState {
         }
     }
 
+    /// Note:
+    /// the sender must not be blocked or frozen.
+    /// the recipient must not be blocked but can be frozen.
     fn transfer_from_contract(&mut self, transfer: TransferFromContract) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
         let contract = abi::caller().expect("Must be called by a contract");
         let contract = Account::Contract(contract);
 
-        let contract_account = self
-            .accounts
-            .get_mut(&contract)
-            .expect("Contract has no tokens to transfer");
+        let contract_account = self.accounts.get_mut(&contract).expect(ACCOUNT_NOT_FOUND);
+        assert!(!contract_account.is_blocked(), "{}", BLOCKED);
+        assert!(!contract_account.is_frozen(), "{}", FROZEN);
 
         if contract_account.balance < transfer.value {
             panic!("{}", BALANCE_TOO_LOW);
@@ -526,6 +650,7 @@ impl TokenState {
             .accounts
             .entry(transfer.to)
             .or_insert(AccountInfo::EMPTY);
+        assert!(!to_account.is_blocked(), "{}", BLOCKED);
 
         to_account.balance += transfer.value;
 
@@ -561,11 +686,11 @@ impl TokenState {
         let owner = Account::External(owner_key);
 
         let owner_account = self.accounts.entry(owner).or_insert(AccountInfo::EMPTY);
-        if approve.nonce() != owner_account.nonce + 1 {
-            panic!("Nonces must be sequential");
-        }
 
         owner_account.nonce += 1;
+        if approve.nonce() != owner_account.nonce {
+            panic!("Nonces must be sequential");
+        }
 
         let sig = *approve.signature();
         let sig_msg = approve.signature_message().to_vec();
@@ -698,4 +823,38 @@ unsafe fn is_paused(arg_len: u32) -> u32 {
 #[no_mangle]
 unsafe fn force_transfer(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.force_transfer(arg))
+}
+
+/*
+ * Sanctions functions
+ */
+
+#[no_mangle]
+unsafe fn block(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |arg| STATE.block(arg))
+}
+
+#[no_mangle]
+unsafe fn freeze(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |arg| STATE.freeze(arg))
+}
+
+#[no_mangle]
+unsafe fn unblock(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |arg| STATE.unblock(arg))
+}
+
+#[no_mangle]
+unsafe fn unfreeze(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |arg| STATE.unfreeze(arg))
+}
+
+#[no_mangle]
+unsafe fn blocked(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |arg| STATE.blocked(arg))
+}
+
+#[no_mangle]
+unsafe fn frozen(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |arg| STATE.frozen(arg))
 }

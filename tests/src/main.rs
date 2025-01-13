@@ -20,6 +20,8 @@ use ttoken_types::admin_management::arguments::PauseToggle;
 use ttoken_types::admin_management::PAUSED_MESSAGE;
 use ttoken_types::ownership::arguments::{RenounceOwnership, TransferOwnership};
 use ttoken_types::ownership::{OWNER_NOT_SET, UNAUTHORIZED_EXT_ACCOUNT};
+use ttoken_types::sanctions::arguments::Sanction;
+use ttoken_types::sanctions::{BLOCKED, FROZEN};
 use ttoken_types::supply_management::arguments::{Burn, Mint};
 use ttoken_types::supply_management::SUPPLY_OVERFLOW;
 use ttoken_types::*;
@@ -32,9 +34,10 @@ const HOLDER_ID: ContractId = ContractId::from_bytes([2; 32]);
 
 const INITIAL_BALANCE: u64 = 1000;
 const INITIAL_HOLDER_BALANCE: u64 = 1000;
-const INITIAL_SUPPLY: u64 = INITIAL_BALANCE + INITIAL_HOLDER_BALANCE;
+const INITIAL_OWNER_BALANCE: u64 = 1000;
+const INITIAL_SUPPLY: u64 = INITIAL_BALANCE + INITIAL_HOLDER_BALANCE + INITIAL_OWNER_BALANCE;
 
-const OWNER: [u8; 64] = [0u8; 64];
+const DEPLOYER: [u8; 64] = [0u8; 64];
 
 type Result<T, Error = VMError> = std::result::Result<T, Error>;
 
@@ -58,20 +61,24 @@ impl ContractSession {
         let deploy_account = Account::External(deploy_pk);
         let holder_account = Account::Contract(HOLDER_ID);
 
-        let owner_sk = deploy_sk.clone();
-        let owner = deploy_account;
+        let owner_sk = SecretKey::random(&mut rng);
+        let owner_account = Account::External(PublicKey::from(&owner_sk));
+
+        // never set owner to deploy
+        assert_ne!(owner_sk, deploy_sk);
 
         session
             .deploy(
                 TOKEN_BYTECODE,
                 ContractData::builder()
-                    .owner(OWNER)
+                    .owner(DEPLOYER)
                     .init_arg(&(
                         vec![
                             (deploy_account, INITIAL_BALANCE),
                             (holder_account, INITIAL_HOLDER_BALANCE),
+                            (owner_account, INITIAL_OWNER_BALANCE),
                         ],
-                        owner,
+                        owner_account,
                     ))
                     .contract_id(TOKEN_ID),
                 u64::MAX,
@@ -82,7 +89,7 @@ impl ContractSession {
             .deploy(
                 HOLDER_BYTECODE,
                 ContractData::builder()
-                    .owner(OWNER)
+                    .owner(DEPLOYER)
                     .init_arg(&(TOKEN_ID, INITIAL_HOLDER_BALANCE))
                     .contract_id(HOLDER_ID),
                 u64::MAX,
@@ -93,7 +100,7 @@ impl ContractSession {
             deploy_sk,
             deploy_pk,
             owner_sk,
-            owner,
+            owner: owner_account,
             session,
         }
     }
@@ -184,7 +191,7 @@ fn empty_account() {
 
 #[test]
 fn transfer() {
-    const TRANSFERRED_AMOUNT: u64 = INITIAL_BALANCE / 2;
+    const TRANSFERRED_AMOUNT: u64 = INITIAL_BALANCE - 1;
 
     let mut session = ContractSession::new();
 
@@ -228,7 +235,7 @@ fn transfer() {
 
 #[test]
 fn transfer_to_contract() {
-    const TRANSFERRED_AMOUNT: u64 = INITIAL_BALANCE / 2;
+    const TRANSFERRED_AMOUNT: u64 = INITIAL_BALANCE - 1;
 
     let mut session = ContractSession::new();
 
@@ -268,7 +275,7 @@ fn transfer_to_contract() {
 
 #[test]
 fn transfer_from_contract() {
-    const TRANSFERRED_AMOUNT: u64 = INITIAL_BALANCE / 2;
+    const TRANSFERRED_AMOUNT: u64 = INITIAL_BALANCE - 1;
 
     let mut session = ContractSession::new();
 
@@ -306,7 +313,7 @@ fn transfer_from_contract() {
 
 #[test]
 fn approve() {
-    const APPROVED_AMOUNT: u64 = INITIAL_BALANCE / 2;
+    const APPROVED_AMOUNT: u64 = INITIAL_BALANCE - 1;
 
     let mut session = ContractSession::new();
 
@@ -334,7 +341,7 @@ fn approve() {
 
 #[test]
 fn transfer_from() {
-    const APPROVED_AMOUNT: u64 = INITIAL_BALANCE / 2;
+    const APPROVED_AMOUNT: u64 = INITIAL_BALANCE - 1;
     const TRANSFERRED_AMOUNT: u64 = APPROVED_AMOUNT / 2;
 
     let mut session = ContractSession::new();
@@ -570,6 +577,8 @@ fn test_burn() {
 
 #[test]
 fn test_pause() {
+    const VALUE: u64 = INITIAL_BALANCE - 1;
+
     let mut session = ContractSession::new();
 
     let pause_toggle = PauseToggle::new(&session.owner_sk, 1);
@@ -603,13 +612,7 @@ fn test_pause() {
         "The account to transfer to should have no balance"
     );
 
-    let transfer = Transfer::new(
-        &session.deploy_sk,
-        session.deploy_pk,
-        pk,
-        INITIAL_BALANCE / 2,
-        1,
-    );
+    let transfer = Transfer::new(&session.deploy_sk, session.deploy_pk, pk, VALUE, 1);
     let receipt = session.call_token::<_, ()>("transfer", &transfer);
 
     match receipt.err() {
@@ -635,14 +638,6 @@ fn test_pause() {
         false
     );
 
-    let transfer = Transfer::new(
-        &session.deploy_sk,
-        session.deploy_pk,
-        pk,
-        INITIAL_BALANCE / 2,
-        3,
-    );
-
     session
         .call_token::<_, ()>("transfer", &transfer)
         .expect("Transferring should now succeed");
@@ -650,7 +645,7 @@ fn test_pause() {
 
 #[test]
 fn test_force_transfer() {
-    const VALUE: u64 = INITIAL_BALANCE / 2;
+    const VALUE: u64 = INITIAL_BALANCE - 1;
     let mut session = ContractSession::new();
 
     let mut rng = StdRng::seed_from_u64(0x1618);
@@ -673,13 +668,13 @@ fn test_force_transfer() {
         "The account transferred to should have the transferred amount"
     );
 
-    let force_transfer = Transfer::new(&session.owner_sk, pk, session.owner, VALUE, 2);
+    let force_transfer = Transfer::new(&session.owner_sk, pk, session.owner, VALUE, 1);
 
     session
         .call_token::<_, ()>("force_transfer", &force_transfer)
         .expect("Force transferring should succeed");
 
-    let force_transfer = Transfer::new(&session.owner_sk, pk, session.owner, VALUE, 3);
+    let force_transfer = Transfer::new(&session.owner_sk, pk, session.owner, VALUE, 2);
 
     match session
         .call_token::<_, ()>("force_transfer", &force_transfer)
@@ -692,6 +687,126 @@ fn test_force_transfer() {
             panic!("Expected a panic error");
         }
     }
+}
+
+#[test]
+fn test_sanctions() {
+    // TODO: unify transfer logic in the contract so that this implicitly checks the invariants of transferFrom and
+    // any other potential function leading to a "transfer" that updates the balance
+
+    const VALUE: u64 = INITIAL_BALANCE / 3;
+    let mut session = ContractSession::new();
+
+    let mut rng = StdRng::seed_from_u64(0x1618);
+    let test_sk = SecretKey::random(&mut rng);
+    let test_pk = PublicKey::from(&test_sk); // not blocked, not frozen
+
+    // Transfer VALUE to test account
+    let transfer = Transfer::new(&session.deploy_sk, session.deploy_pk, test_pk, VALUE, 1);
+    session
+        .call_token::<_, ()>("transfer", &transfer)
+        .expect("Transferring should succeed");
+
+    // Block test account
+    let sanction = Sanction::block_account(&session.owner_sk, test_pk, 1);
+    session
+        .call_token::<_, ()>("block", &sanction)
+        .expect("Blocking should succeed");
+
+    assert_eq!(
+        session
+            .call_token::<_, bool>("blocked", &Account::External(test_pk))
+            .expect("Querying the state should succeed")
+            .data,
+        true
+    );
+
+    // Unfreeze test account
+    let unsanction = Sanction::unsanction_account(&session.owner_sk, test_pk, 2);
+    match session.call_token::<_, ()>("unfreeze", &unsanction).err() {
+        Some(VMError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, "The account is not frozen");
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
+
+    // Transfer VALUE to test account
+    let transfer = Transfer::new(&session.deploy_sk, session.deploy_pk, test_pk, VALUE, 2);
+    match session.call_token::<_, ()>("transfer", &transfer).err() {
+        Some(VMError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, BLOCKED);
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
+
+    // Transfer VALUE from test account
+    let transfer = Transfer::new(&test_sk, test_pk, session.deploy_pk(), VALUE, 1);
+    match session.call_token::<_, ()>("transfer", &transfer).err() {
+        Some(VMError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, BLOCKED);
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
+
+    // Freeze test account
+    let sanction = Sanction::freeze_account(&session.owner_sk, test_pk, 2);
+    session
+        .call_token::<_, ()>("freeze", &sanction)
+        .expect("Freezing should succeed");
+
+    assert_eq!(
+        session
+            .call_token::<_, bool>("frozen", &Account::External(test_pk))
+            .expect("Querying the state should succeed")
+            .data,
+        true
+    );
+
+    // Transfer VALUE to test account
+    let transfer = Transfer::new(&session.deploy_sk, session.deploy_pk, test_pk, VALUE, 2);
+    session
+        .call_token::<_, ()>("transfer", &transfer)
+        .expect("Transfer to frozen account should succeed");
+
+    // Transfer VALUE from test account
+    let transfer = Transfer::new(&test_sk, test_pk, session.deploy_pk(), VALUE, 1);
+    match session.call_token::<_, ()>("transfer", &transfer).err() {
+        Some(VMError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, FROZEN);
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
+
+    // Unsanction test account
+    let unsanction = Sanction::unsanction_account(&session.owner_sk, test_pk, 3);
+    match session.call_token::<_, ()>("unblock", &unsanction).err() {
+        Some(VMError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, "The account is not blocked");
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
+
+    // Unfreeze test account
+    let unsanction = Sanction::unsanction_account(&session.owner_sk, test_pk, 3);
+    session
+        .call_token::<_, ()>("unfreeze", &unsanction)
+        .expect("Unfreezing should succeed");
+
+    // Transfer VALUE from test account
+    let transfer = Transfer::new(&test_sk, test_pk, session.deploy_pk(), VALUE, 1);
+    session
+        .call_token::<_, ()>("transfer", &transfer)
+        .expect("Transfer should succeed again");
 }
 
 fn main() {
