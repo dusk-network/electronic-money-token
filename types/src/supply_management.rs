@@ -6,8 +6,8 @@ use crate::Account;
 /// Error messages for overflow when minting tokens.
 pub const SUPPLY_OVERFLOW: &str = "Supply overflow";
 
-/// Payloads for supply management (mint, burn) transactions.
-pub mod payloads {
+/// Arguments for supply management (mint, burn) transactions.
+pub mod arguments {
     use dusk_core::signatures::bls::{SecretKey, Signature};
 
     use super::*;
@@ -49,9 +49,17 @@ pub mod payloads {
         pub fn signature_message(&self) -> [u8; Self::SIGNATURE_MSG_SIZE] {
             let mut msg = [0u8; Self::SIGNATURE_MSG_SIZE];
 
-            msg[..8].copy_from_slice(&self.amount.to_le_bytes());
-            msg[8..202].copy_from_slice(&self.recipient.to_bytes());
-            msg[202..].copy_from_slice(&self.nonce.to_le_bytes());
+            let mut offset = 0;
+            let bytes = self.amount.to_le_bytes();
+            msg[offset..offset + bytes.len()].copy_from_slice(&bytes);
+            offset += bytes.len();
+
+            let bytes = self.recipient.to_bytes();
+            msg[offset..offset + bytes.len()].copy_from_slice(&bytes);
+            offset += bytes.len();
+
+            let bytes = self.nonce.to_le_bytes();
+            msg[offset..offset + bytes.len()].copy_from_slice(&bytes);
 
             msg
         }
@@ -110,8 +118,14 @@ pub mod payloads {
         pub fn signature_message(&self) -> [u8; Self::SIGNATURE_MSG_SIZE] {
             let mut msg = [0u8; Self::SIGNATURE_MSG_SIZE];
 
-            msg[..8].copy_from_slice(&self.amount.to_le_bytes());
-            msg[8..].copy_from_slice(&self.nonce.to_le_bytes());
+            let mut offset = 0;
+
+            let bytes = self.amount.to_le_bytes();
+            msg[..offset + bytes.len()].copy_from_slice(&bytes);
+            offset += bytes.len();
+
+            let bytes = self.nonce.to_le_bytes();
+            msg[offset..offset + bytes.len()].copy_from_slice(&bytes);
             msg
         }
 
@@ -141,31 +155,15 @@ pub mod events {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
     #[archive_attr(derive(CheckBytes))]
     pub struct MintEvent {
-        amount_minted: u64,
-        recipient: Account,
+        /// The amount of tokens minted.
+        pub amount_minted: u64,
+        /// the recipient of the minted tokens.
+        pub recipient: Account,
     }
 
     impl MintEvent {
         /// The topic of the event.
         pub const TOPIC: &'static str = "Mint";
-
-        /// Create a new `MintEvent`.
-        pub fn new(amount_minted: u64, recipient: Account) -> Self {
-            Self {
-                amount_minted,
-                recipient,
-            }
-        }
-
-        /// Get the amount of tokens minted.
-        pub fn amount_minted(&self) -> u64 {
-            self.amount_minted
-        }
-
-        /// Get the recipient of the minted tokens.
-        pub fn recipient(&self) -> &Account {
-            &self.recipient
-        }
     }
 
     /// Event emitted when tokens are burned.
@@ -173,30 +171,14 @@ pub mod events {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
     #[archive_attr(derive(CheckBytes))]
     pub struct BurnEvent {
-        amount_burned: u64,
-        burned_by: Account,
+        /// The amount of burned tokens.
+        pub amount_burned: u64,
+        /// The account that burned the tokens.
+        pub burned_by: Account,
     }
 
     impl BurnEvent {
         /// The topic of the event.
         pub const TOPIC: &'static str = "Burn";
-
-        /// Create a new `BurnEvent`.
-        pub fn new(amount_burned: u64, burned_by: Account) -> Self {
-            Self {
-                amount_burned,
-                burned_by,
-            }
-        }
-
-        /// Get the amount of tokens burned.
-        pub fn amount_burned(&self) -> u64 {
-            self.amount_burned
-        }
-
-        /// Get the account that burned the tokens.
-        pub fn burned_by(&self) -> &Account {
-            &self.burned_by
-        }
     }
 }

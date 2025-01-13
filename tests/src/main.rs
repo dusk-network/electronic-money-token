@@ -16,9 +16,9 @@ use rkyv::{Archive, Deserialize, Infallible, Serialize};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use ttoken_types::ownership::payloads::{RenounceOwnership, TransferOwnership};
+use ttoken_types::ownership::arguments::{RenounceOwnership, TransferOwnership};
 use ttoken_types::ownership::{OWNER_NOT_SET, UNAUTHORIZED_EXT_ACCOUNT};
-use ttoken_types::supply_management::payloads::{Burn, Mint};
+use ttoken_types::supply_management::arguments::{Burn, Mint};
 use ttoken_types::supply_management::SUPPLY_OVERFLOW;
 use ttoken_types::*;
 

@@ -14,13 +14,13 @@ use alloc::vec::Vec;
 
 use dusk_core::abi;
 use dusk_core::signatures::bls::Signature;
+use ttoken_types::ownership::arguments::{RenounceOwnership, TransferOwnership};
 use ttoken_types::ownership::events::{OwnerShipRenouncedEvent, OwnershipTransferredEvent};
-use ttoken_types::ownership::payloads::{RenounceOwnership, TransferOwnership};
 use ttoken_types::ownership::{
     EXPECT_CONTRACT, OWNER_NOT_SET, UNAUTHORIZED_CONTRACT, UNAUTHORIZED_EXT_ACCOUNT,
 };
+use ttoken_types::supply_management::arguments::{Burn, Mint};
 use ttoken_types::supply_management::events::{BurnEvent, MintEvent};
-use ttoken_types::supply_management::payloads::{Burn, Mint};
 use ttoken_types::supply_management::SUPPLY_OVERFLOW;
 use ttoken_types::*;
 
@@ -87,18 +87,18 @@ impl TokenState {
     fn transfer_ownership(&mut self, transfer_owner: TransferOwnership) {
         let sig = *transfer_owner.signature();
         let sig_msg = transfer_owner.signature_message().to_vec();
-        let prev_owner = self.owner().clone();
+        let previous_owner = self.owner().clone();
 
         let prev_owner_account = self
             .accounts
-            .get_mut(&prev_owner)
+            .get_mut(&previous_owner)
             .expect("The account does not exist");
 
         if transfer_owner.nonce() != prev_owner_account.nonce + 1 {
             panic!("Nonces must be sequential");
         }
 
-        match prev_owner {
+        match previous_owner {
             Account::External(pk) => {
                 assert!(
                     abi::verify_bls(sig_msg, pk, sig),
@@ -123,27 +123,30 @@ impl TokenState {
 
         abi::emit(
             OwnershipTransferredEvent::TOPIC,
-            OwnershipTransferredEvent::new(prev_owner, self.owner()),
+            OwnershipTransferredEvent {
+                previous_owner,
+                new_owner: self.owner(),
+            },
         );
     }
 
-    fn renounce_ownership(&mut self, payload: RenounceOwnership) {
-        let sig = *payload.signature();
-        let sig_msg = payload.signature_message().to_vec();
-        let owner = self.owner();
+    fn renounce_ownership(&mut self, renounce_owner: RenounceOwnership) {
+        let sig = *renounce_owner.signature();
+        let sig_msg = renounce_owner.signature_message().to_vec();
+        let previous_owner = self.owner();
 
         let owner_account = self
             .accounts
-            .get_mut(&owner)
+            .get_mut(&previous_owner)
             .expect("The account does not exist");
 
-        if payload.nonce() != owner_account.nonce + 1 {
+        if renounce_owner.nonce() != owner_account.nonce + 1 {
             panic!("Nonces must be sequential");
         }
 
         owner_account.nonce += 1;
 
-        match owner {
+        match previous_owner {
             Account::External(pk) => {
                 assert!(
                     abi::verify_bls(sig_msg, pk, sig),
@@ -163,7 +166,7 @@ impl TokenState {
 
         abi::emit(
             OwnerShipRenouncedEvent::TOPIC,
-            OwnerShipRenouncedEvent::new(owner),
+            OwnerShipRenouncedEvent { previous_owner },
         );
     }
 }
@@ -191,17 +194,23 @@ impl TokenState {
         let recipient = *mint.recipient();
         let recipient_account = self.accounts.entry(recipient).or_insert(AccountInfo::EMPTY);
 
-        let value = mint.amount();
+        let amount_minted = mint.amount();
 
         // Prevent overflow
-        self.supply = match self.supply.checked_add(value) {
+        self.supply = match self.supply.checked_add(amount_minted) {
             Some(supply) => supply,
             None => panic!("{}", SUPPLY_OVERFLOW),
         };
 
-        recipient_account.balance += value;
+        recipient_account.balance += amount_minted;
 
-        abi::emit(MintEvent::TOPIC, MintEvent::new(value, recipient));
+        abi::emit(
+            MintEvent::TOPIC,
+            MintEvent {
+                amount_minted,
+                recipient,
+            },
+        );
     }
 
     fn burn(&mut self, burn: Burn) {
@@ -231,7 +240,13 @@ impl TokenState {
 
         self.supply -= value;
 
-        abi::emit(BurnEvent::TOPIC, BurnEvent::new(value, owner));
+        abi::emit(
+            BurnEvent::TOPIC,
+            BurnEvent {
+                amount_burned: value,
+                burned_by: owner,
+            },
+        );
     }
 }
 
