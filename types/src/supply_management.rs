@@ -163,7 +163,7 @@ pub mod events {
 
     impl MintEvent {
         /// The topic of the event.
-        pub const TOPIC: &'static str = "Mint";
+        pub const TOPIC: &'static str = "mint";
     }
 
     /// Event emitted when tokens are burned.
@@ -179,6 +179,6 @@ pub mod events {
 
     impl BurnEvent {
         /// The topic of the event.
-        pub const TOPIC: &'static str = "Burn";
+        pub const TOPIC: &'static str = "burn";
     }
 }

@@ -16,6 +16,8 @@ use rkyv::{Archive, Deserialize, Infallible, Serialize};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
+use ttoken_types::admin_management::arguments::PauseToggle;
+use ttoken_types::admin_management::PAUSED_MESSAGE;
 use ttoken_types::ownership::arguments::{RenounceOwnership, TransferOwnership};
 use ttoken_types::ownership::{OWNER_NOT_SET, UNAUTHORIZED_EXT_ACCOUNT};
 use ttoken_types::supply_management::arguments::{Burn, Mint};
@@ -201,7 +203,13 @@ fn transfer() {
         "The account to transfer to should have no balance"
     );
 
-    let transfer = Transfer::new(&session.deploy_sk, pk, TRANSFERRED_AMOUNT, 1);
+    let transfer = Transfer::new(
+        &session.deploy_sk,
+        session.deploy_pk,
+        pk,
+        TRANSFERRED_AMOUNT,
+        1,
+    );
     session
         .call_token::<_, ()>("transfer", &transfer)
         .expect("Transferring should succeed");
@@ -235,7 +243,13 @@ fn transfer_to_contract() {
         "The contract to transfer to should have its initial balance"
     );
 
-    let transfer = Transfer::new(&session.deploy_sk, HOLDER_ID, TRANSFERRED_AMOUNT, 1);
+    let transfer = Transfer::new(
+        &session.deploy_sk,
+        session.deploy_pk,
+        HOLDER_ID,
+        TRANSFERRED_AMOUNT,
+        1,
+    );
     session
         .call_token::<_, ()>("transfer", &transfer)
         .expect("Transferring should succeed");
@@ -530,7 +544,7 @@ fn test_burn() {
 
     match receipt.err() {
         Some(VMError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, "The account doesn't have enough tokens to burn");
+            assert_eq!(panic_msg, BALANCE_TOO_LOW);
         }
         _ => {
             panic!("Expected a panic error");
@@ -547,6 +561,132 @@ fn test_burn() {
     match receipt.err() {
         Some(VMError::Panic(panic_msg)) => {
             assert_eq!(panic_msg, UNAUTHORIZED_EXT_ACCOUNT);
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
+}
+
+#[test]
+fn test_pause() {
+    let mut session = ContractSession::new();
+
+    let pause_toggle = PauseToggle::new(&session.owner_sk, 1);
+
+    session
+        .call_token::<_, ()>("toggle_pause", &pause_toggle)
+        .expect("Pausing should succeed");
+
+    assert_eq!(
+        session
+            .call_getter::<bool>("is_paused")
+            .expect("Querying the pause state should succeed")
+            .data,
+        true
+    );
+
+    // test transfer
+    let mut rng = StdRng::seed_from_u64(0x1618);
+    let sk = SecretKey::random(&mut rng);
+    let pk = PublicKey::from(&sk);
+
+    assert_eq!(
+        session.account(session.deploy_pk()).balance,
+        INITIAL_BALANCE,
+        "The deployed account should have the initial balance"
+    );
+
+    assert_eq!(
+        session.account(pk).balance,
+        0,
+        "The account to transfer to should have no balance"
+    );
+
+    let transfer = Transfer::new(
+        &session.deploy_sk,
+        session.deploy_pk,
+        pk,
+        INITIAL_BALANCE / 2,
+        1,
+    );
+    let receipt = session.call_token::<_, ()>("transfer", &transfer);
+
+    match receipt.err() {
+        Some(VMError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, PAUSED_MESSAGE);
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
+
+    let pause_toggle = PauseToggle::new(&session.owner_sk, 2);
+
+    session
+        .call_token::<_, ()>("toggle_pause", &pause_toggle)
+        .expect("Unpausing should succeed");
+
+    assert_eq!(
+        session
+            .call_getter::<bool>("is_paused")
+            .expect("Querying the pause state should succeed")
+            .data,
+        false
+    );
+
+    let transfer = Transfer::new(
+        &session.deploy_sk,
+        session.deploy_pk,
+        pk,
+        INITIAL_BALANCE / 2,
+        3,
+    );
+
+    session
+        .call_token::<_, ()>("transfer", &transfer)
+        .expect("Transferring should now succeed");
+}
+
+#[test]
+fn test_force_transfer() {
+    const VALUE: u64 = INITIAL_BALANCE / 2;
+    let mut session = ContractSession::new();
+
+    let mut rng = StdRng::seed_from_u64(0x1618);
+    let sk = SecretKey::random(&mut rng);
+    let pk = PublicKey::from(&sk);
+
+    let transfer = Transfer::new(&session.deploy_sk, session.deploy_pk, pk, VALUE, 1);
+    session
+        .call_token::<_, ()>("transfer", &transfer)
+        .expect("Transferring should succeed");
+
+    assert_eq!(
+        session.account(session.deploy_pk()).balance,
+        INITIAL_BALANCE - VALUE,
+        "The deployed account should have the transferred amount subtracted"
+    );
+    assert_eq!(
+        session.account(pk).balance,
+        VALUE,
+        "The account transferred to should have the transferred amount"
+    );
+
+    let force_transfer = Transfer::new(&session.owner_sk, pk, session.owner, VALUE, 2);
+
+    session
+        .call_token::<_, ()>("force_transfer", &force_transfer)
+        .expect("Force transferring should succeed");
+
+    let force_transfer = Transfer::new(&session.owner_sk, pk, session.owner, VALUE, 3);
+
+    match session
+        .call_token::<_, ()>("force_transfer", &force_transfer)
+        .err()
+    {
+        Some(VMError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, BALANCE_TOO_LOW);
         }
         _ => {
             panic!("Expected a panic error");

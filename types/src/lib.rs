@@ -9,6 +9,8 @@
 #![no_std]
 #![deny(missing_docs)]
 
+/// Types used for administrative functions.
+pub mod admin_management;
 /// Types used for access control through ownership.
 pub mod ownership;
 /// Types used for supply management.
@@ -20,6 +22,9 @@ use bytecheck::CheckBytes;
 use dusk_core::abi::ContractId;
 use dusk_core::signatures::bls::{PublicKey, SecretKey, Signature};
 use rkyv::{Archive, Deserialize, Serialize};
+
+/// Error messages for when an account doesn't have enough tokens to perform the desired operation.
+pub const BALANCE_TOO_LOW: &str = "The account doesn't have enough tokens";
 
 /// The label for an account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
@@ -132,7 +137,7 @@ pub struct Allowance {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct Transfer {
-    from: PublicKey,
+    from: Account,
     to: Account,
     value: u64,
     nonce: u64,
@@ -140,14 +145,18 @@ pub struct Transfer {
 }
 
 impl Transfer {
-    const SIGNATURE_MSG_SIZE: usize = 193 + 194 + 8 + 8;
+    const SIGNATURE_MSG_SIZE: usize = 194 + 194 + 8 + 8;
 
     /// Create a new transfer.
-    pub fn new(from_sk: &SecretKey, to: impl Into<Account>, value: u64, nonce: u64) -> Self {
-        let from = PublicKey::from(from_sk);
-
+    pub fn new(
+        sender_sk: &SecretKey,
+        from: impl Into<Account>,
+        to: impl Into<Account>,
+        value: u64,
+        nonce: u64,
+    ) -> Self {
         let mut transfer = Self {
-            from,
+            from: from.into(),
             to: to.into(),
             value,
             nonce,
@@ -155,14 +164,14 @@ impl Transfer {
         };
 
         let sig_msg = transfer.signature_message();
-        let sig = from_sk.sign(&sig_msg);
+        let sig = sender_sk.sign(&sig_msg);
         transfer.signature = sig;
 
         transfer
     }
 
     /// The account to transfer from.
-    pub fn from(&self) -> &PublicKey {
+    pub fn from(&self) -> &Account {
         &self.from
     }
 
@@ -192,7 +201,7 @@ impl Transfer {
 
         let mut offset = 0;
 
-        let bytes = self.from.to_raw_bytes();
+        let bytes = self.from.to_bytes();
         msg[offset..][..bytes.len()].copy_from_slice(&bytes);
         offset += bytes.len();
 
@@ -426,6 +435,13 @@ pub struct TransferEvent {
     pub to: Account,
     /// The value transferred.
     pub value: u64,
+}
+
+impl TransferEvent {
+    /// Event topic used when a normal transfer is made.
+    pub const TRANSFER_TOPIC: &'static str = "transfer";
+    /// Event topic used when a forced transfer is made.
+    pub const FORCE_TRANSFER_TOPIC: &'static str = "force_transfer";
 }
 
 /// Event emitted when a spender is approved on an account.
