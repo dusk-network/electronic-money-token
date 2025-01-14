@@ -34,6 +34,7 @@ impl Account {
     const SIZE: usize = 194;
 
     /// Convert the account to bytes.
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_bytes(&self) -> [u8; Self::SIZE] {
         match self {
             Account::External(pk) => {
