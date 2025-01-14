@@ -190,8 +190,8 @@ pub struct Allowance {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct Transfer {
-    from: Account,
-    to: Account,
+    sender: Account,
+    recipient: Account,
     value: u64,
     nonce: u64,
     signature: Signature,
@@ -203,14 +203,14 @@ impl Transfer {
     /// Create a new transfer.
     pub fn new(
         sender_sk: &SecretKey,
-        from: impl Into<Account>,
-        to: impl Into<Account>,
+        sender: impl Into<Account>,
+        recipient: impl Into<Account>,
         value: u64,
         nonce: u64,
     ) -> Self {
         let mut transfer = Self {
-            from: from.into(),
-            to: to.into(),
+            sender: sender.into(),
+            recipient: recipient.into(),
             value,
             nonce,
             signature: Signature::default(),
@@ -224,13 +224,13 @@ impl Transfer {
     }
 
     /// The account to transfer from.
-    pub fn from(&self) -> &Account {
-        &self.from
+    pub fn sender(&self) -> &Account {
+        &self.sender
     }
 
     /// The account to transfer to.
-    pub fn to(&self) -> &Account {
-        &self.to
+    pub fn recipient(&self) -> &Account {
+        &self.recipient
     }
 
     /// The value to transfer.
@@ -254,11 +254,11 @@ impl Transfer {
 
         let mut offset = 0;
 
-        let bytes = self.from.to_bytes();
+        let bytes = self.sender.to_bytes();
         msg[offset..][..bytes.len()].copy_from_slice(&bytes);
         offset += bytes.len();
 
-        let bytes = self.to.to_bytes();
+        let bytes = self.recipient.to_bytes();
         msg[offset..][..bytes.len()].copy_from_slice(&bytes);
         offset += bytes.len();
 
@@ -274,14 +274,14 @@ impl Transfer {
     }
 }
 
-/// Data used to transfer tokens from an owner to a recipient, by an allowed
-/// party.
+/// Data used to transfer tokens from an owner (sender) to a recipient, by an allowed
+/// party (spender).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct TransferFrom {
     spender: PublicKey,
-    owner: Account,
-    to: Account,
+    sender: Account,
+    recipient: Account,
     value: u64,
     nonce: u64,
     signature: Signature,
@@ -290,11 +290,11 @@ pub struct TransferFrom {
 impl TransferFrom {
     const SIGNATURE_MSG_SIZE: usize = 193 + 194 + 194 + 8 + 8;
 
-    /// Create a new transfer, spending tokens from the `owner`.
+    /// Create a new transfer, spending tokens from the `sender`.
     pub fn new(
         spender_sk: &SecretKey,
-        owner: impl Into<Account>,
-        to: impl Into<Account>,
+        sender: impl Into<Account>,
+        recipient: impl Into<Account>,
         value: u64,
         nonce: u64,
     ) -> Self {
@@ -302,8 +302,8 @@ impl TransferFrom {
 
         let mut transfer_from = Self {
             spender,
-            owner: owner.into(),
-            to: to.into(),
+            sender: sender.into(),
+            recipient: recipient.into(),
             value,
             nonce,
             signature: Signature::default(),
@@ -322,13 +322,13 @@ impl TransferFrom {
     }
 
     /// The account that owns the tokens being transferred.
-    pub fn owner(&self) -> &Account {
-        &self.owner
+    pub fn sender(&self) -> &Account {
+        &self.sender
     }
 
     /// The account to transfer to.
-    pub fn to(&self) -> &Account {
-        &self.to
+    pub fn recipient(&self) -> &Account {
+        &self.recipient
     }
 
     /// The value to transfer.
@@ -356,11 +356,11 @@ impl TransferFrom {
         msg[offset..][..bytes.len()].copy_from_slice(&bytes);
         offset += bytes.len();
 
-        let bytes = self.owner.to_bytes();
+        let bytes = self.sender.to_bytes();
         msg[offset..][..bytes.len()].copy_from_slice(&bytes);
         offset += bytes.len();
 
-        let bytes = self.to.to_bytes();
+        let bytes = self.recipient.to_bytes();
         msg[offset..][..bytes.len()].copy_from_slice(&bytes);
         offset += bytes.len();
 
@@ -384,10 +384,10 @@ impl TransferFrom {
 #[archive_attr(derive(CheckBytes))]
 pub struct TransferFromContract {
     /// The account to transfer to.
-    pub to: Account,
+    pub recipient: Account,
     /// The owner of the funds to transfer from. If `None` it will be assumed
     /// to be the contract itself.
-    pub from: Option<Account>,
+    pub sender: Option<Account>,
     /// The value to transfer.
     pub value: u64,
 }
@@ -396,7 +396,7 @@ pub struct TransferFromContract {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct Approve {
-    owner: PublicKey,
+    sender: PublicKey,
     spender: Account,
     value: u64,
     nonce: u64,
@@ -407,11 +407,11 @@ impl Approve {
     const SIGNATURE_MSG_SIZE: usize = 193 + 194 + 8 + 8;
 
     /// Create a new approval.
-    pub fn new(owner_sk: &SecretKey, spender: impl Into<Account>, value: u64, nonce: u64) -> Self {
-        let owner = PublicKey::from(owner_sk);
+    pub fn new(sender_sk: &SecretKey, spender: impl Into<Account>, value: u64, nonce: u64) -> Self {
+        let owner = PublicKey::from(sender_sk);
 
         let mut approve = Self {
-            owner,
+            sender: owner,
             spender: spender.into(),
             value,
             nonce,
@@ -419,15 +419,15 @@ impl Approve {
         };
 
         let sig_msg = approve.signature_message();
-        let sig = owner_sk.sign(&sig_msg);
+        let sig = sender_sk.sign(&sig_msg);
         approve.signature = sig;
 
         approve
     }
 
     /// The account to allow the transfer of tokens.
-    pub fn owner(&self) -> &PublicKey {
-        &self.owner
+    pub fn sender(&self) -> &PublicKey {
+        &self.sender
     }
 
     /// The account to allow spending tokens from.
@@ -456,7 +456,7 @@ impl Approve {
 
         let mut offset = 0;
 
-        let bytes = self.owner.to_raw_bytes();
+        let bytes = self.sender.to_raw_bytes();
         msg[offset..][..bytes.len()].copy_from_slice(&bytes);
         offset += bytes.len();
 
@@ -481,11 +481,11 @@ impl Approve {
 #[archive_attr(derive(CheckBytes))]
 pub struct TransferEvent {
     /// The account tokens are transferred from.
-    pub owner: Account,
+    pub sender: Account,
     /// The account spending the tokens, set if `transfer_from` is used.
     pub spender: Option<Account>,
     /// The account receiving the tokens.
-    pub to: Account,
+    pub recipient: Account,
     /// The value transferred.
     pub value: u64,
 }
@@ -502,7 +502,7 @@ impl TransferEvent {
 #[archive_attr(derive(CheckBytes))]
 pub struct ApproveEvent {
     /// The account allowing the transfer.
-    pub owner: Account,
+    pub sender: Account,
     /// The allowed spender.
     pub spender: Account,
     /// The value `spender` is allowed to spend.
@@ -514,7 +514,7 @@ pub struct ApproveEvent {
 #[archive_attr(derive(CheckBytes))]
 pub struct TransferInfo {
     /// The originating account of the funds transferred to the contract.
-    pub from: Account,
+    pub sender: Account,
     /// The number of tokens transferred.
     pub value: u64,
 }

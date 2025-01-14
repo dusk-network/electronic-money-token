@@ -400,7 +400,7 @@ impl TokenState {
     fn force_transfer(&mut self, transfer: Transfer) {
         self.authorize_owner(transfer.signature_message().to_vec(), *transfer.signature());
 
-        let obliged_sender = *transfer.from();
+        let obliged_sender = *transfer.sender();
 
         let owner_account = self.accounts.get_mut(&self.owner()).expect(OWNER_NOT_FOUND);
 
@@ -421,7 +421,7 @@ impl TokenState {
 
         obliged_sender_account.balance -= value;
 
-        let to = *transfer.to();
+        let to = *transfer.recipient();
         let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
 
         // this can never overflow as value + balance is never higher than total supply
@@ -430,9 +430,9 @@ impl TokenState {
         abi::emit(
             TransferEvent::FORCE_TRANSFER_TOPIC,
             TransferEvent {
-                owner: obliged_sender,
+                sender: obliged_sender,
                 spender: None,
-                to,
+                recipient: to,
                 value,
             },
         );
@@ -477,35 +477,35 @@ impl TokenState {
     fn transfer(&mut self, transfer: Transfer) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
-        let Account::External(from_key) = *transfer.from() else {
+        let Account::External(sender_key) = *transfer.sender() else {
             panic!("Only external accounts can call this transfer function");
         };
 
-        let from = *transfer.from();
+        let sender = *transfer.sender();
 
-        let from_account = self.accounts.get_mut(&from).expect(ACCOUNT_NOT_FOUND);
-        assert!(!from_account.is_blocked(), "{}", BLOCKED);
-        assert!(!from_account.is_frozen(), "{}", FROZEN);
+        let sender_account = self.accounts.get_mut(&sender).expect(ACCOUNT_NOT_FOUND);
+        assert!(!sender_account.is_blocked(), "{}", BLOCKED);
+        assert!(!sender_account.is_frozen(), "{}", FROZEN);
 
         let value = transfer.value();
-        if from_account.balance < value {
+        if sender_account.balance < value {
             panic!("{}", BALANCE_TOO_LOW);
         }
 
-        if transfer.nonce() != from_account.increment_nonce() {
+        if transfer.nonce() != sender_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
-        from_account.balance -= value;
+        sender_account.balance -= value;
 
         let sig = *transfer.signature();
         let sig_msg = transfer.signature_message().to_vec();
 
-        if !abi::verify_bls(sig_msg, from_key, sig) {
+        if !abi::verify_bls(sig_msg, sender_key, sig) {
             panic!("Invalid signature");
         }
 
-        let to = *transfer.to();
+        let to = *transfer.recipient();
         let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
 
         assert!(!to_account.is_blocked(), "{}", BLOCKED);
@@ -516,9 +516,9 @@ impl TokenState {
         abi::emit(
             TransferEvent::TRANSFER_TOPIC,
             TransferEvent {
-                owner: from,
+                sender,
                 spender: None,
-                to,
+                recipient: to,
                 value,
             },
         );
@@ -527,9 +527,14 @@ impl TokenState {
         // contract is called. if it fails (panic or OoG) the transfer
         // also fails.
         if let Account::Contract(contract) = to {
-            if let Err(err) =
-                abi::call::<_, ()>(contract, "token_received", &TransferInfo { from, value })
-            {
+            if let Err(err) = abi::call::<_, ()>(
+                contract,
+                "token_received",
+                &TransferInfo {
+                    sender,
+                    value,
+                },
+            ) {
                 panic!("Failed calling `token_received` on the receiving contract: {err}");
             }
         }
@@ -559,7 +564,7 @@ impl TokenState {
             panic!("Invalid signature");
         }
 
-        let owner = *transfer.owner();
+        let owner = *transfer.sender();
 
         let allowance = self
             .allowances
@@ -584,7 +589,7 @@ impl TokenState {
         *allowance -= value;
         owner_account.balance -= value;
 
-        let to = *transfer.to();
+        let to = *transfer.recipient();
         let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
         assert!(!to_account.is_blocked(), "{}", BLOCKED);
 
@@ -594,9 +599,9 @@ impl TokenState {
         abi::emit(
             TransferEvent::TRANSFER_TOPIC,
             TransferEvent {
-                owner,
+                sender: owner,
                 spender: Some(spender),
-                to,
+                recipient: to,
                 value,
             },
         );
@@ -608,7 +613,10 @@ impl TokenState {
             if let Err(err) = abi::call::<_, ()>(
                 contract,
                 "token_received",
-                &TransferInfo { from: owner, value },
+                &TransferInfo {
+                    sender: owner,
+                    value,
+                },
             ) {
                 panic!("Failed calling `token_received` on the receiving contract: {err}");
             }
@@ -636,7 +644,7 @@ impl TokenState {
 
         let to_account = self
             .accounts
-            .entry(transfer.to)
+            .entry(transfer.recipient)
             .or_insert(AccountInfo::EMPTY);
         assert!(!to_account.is_blocked(), "{}", BLOCKED);
 
@@ -645,9 +653,9 @@ impl TokenState {
         abi::emit(
             "transfer",
             TransferEvent {
-                owner: contract,
+                sender: contract,
                 spender: None,
-                to: transfer.to,
+                recipient: transfer.recipient,
                 value: transfer.value,
             },
         );
@@ -655,12 +663,12 @@ impl TokenState {
         // if the transfer is to a contract, the acceptance function of said
         // contract is called. if it fails (panic or OoG) the transfer
         // also fails.
-        if let Account::Contract(to_contract) = transfer.to {
+        if let Account::Contract(to_contract) = transfer.recipient {
             if let Err(err) = abi::call::<_, ()>(
                 to_contract,
                 "token_received",
                 &TransferInfo {
-                    from: contract,
+                    sender: contract,
                     value: transfer.value,
                 },
             ) {
@@ -670,7 +678,7 @@ impl TokenState {
     }
 
     fn approve(&mut self, approve: Approve) {
-        let owner_key = *approve.owner();
+        let owner_key = *approve.sender();
         let owner = Account::External(owner_key);
 
         let owner_account = self.accounts.entry(owner).or_insert(AccountInfo::EMPTY);
@@ -695,7 +703,7 @@ impl TokenState {
         abi::emit(
             "approve",
             ApproveEvent {
-                owner,
+                sender: owner,
                 spender,
                 value,
             },

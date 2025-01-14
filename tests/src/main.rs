@@ -291,8 +291,8 @@ fn transfer_from_contract() {
     );
 
     let transfer = TransferFromContract {
-        to: Account::External(session.deploy_pk()),
-        from: None,
+        recipient: Account::External(session.deploy_pk()),
+        sender: None,
         value: TRANSFERRED_AMOUNT,
     };
     session
