@@ -1,7 +1,7 @@
 use bytecheck::CheckBytes;
 use rkyv::{Archive, Deserialize, Serialize};
 
-use crate::Account;
+use crate::{Account, AccountInfo};
 
 /// Error message for when an account is blocked.
 pub const BLOCKED: &str = "Account is blocked";
@@ -35,7 +35,7 @@ pub mod arguments {
         ) -> Self {
             let mut sanction = Self {
                 account: account.into(),
-                sanction_type: 1,
+                sanction_type: AccountInfo::FROZEN,
                 nonce,
                 signature: Signature::default(),
             };
@@ -55,7 +55,7 @@ pub mod arguments {
         ) -> Self {
             let mut sanction = Self {
                 account: account.into(),
-                sanction_type: 2,
+                sanction_type: AccountInfo::BLOCKED,
                 nonce,
                 signature: Signature::default(),
             };
@@ -75,7 +75,7 @@ pub mod arguments {
         ) -> Self {
             let mut sanction = Self {
                 account: account.into(),
-                sanction_type: 0,
+                sanction_type: AccountInfo::NO_STATUS,
                 nonce,
                 signature: Signature::default(),
             };

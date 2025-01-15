@@ -171,7 +171,7 @@ impl TokenState {
     }
 
     fn block(&mut self, block_account: Sanction) {
-        assert!(block_account.sanction_type() == 2, "Invalid sanction type");
+        assert!(block_account.sanction_type() == AccountInfo::BLOCKED, "Invalid sanction type");
 
         let sig = *block_account.signature();
         let sig_msg = block_account.signature_message().to_vec();
@@ -196,7 +196,7 @@ impl TokenState {
     }
 
     fn freeze(&mut self, freeze_account: Sanction) {
-        assert!(freeze_account.sanction_type() == 1, "Invalid sanction type");
+        assert!(freeze_account.sanction_type() == AccountInfo::FROZEN, "Invalid sanction type");
 
         let sig = *freeze_account.signature();
         let sig_msg = freeze_account.signature_message().to_vec();
