@@ -527,14 +527,9 @@ impl TokenState {
         // contract is called. if it fails (panic or OoG) the transfer
         // also fails.
         if let Account::Contract(contract) = to {
-            if let Err(err) = abi::call::<_, ()>(
-                contract,
-                "token_received",
-                &TransferInfo {
-                    sender,
-                    value,
-                },
-            ) {
+            if let Err(err) =
+                abi::call::<_, ()>(contract, "token_received", &TransferInfo { sender, value })
+            {
                 panic!("Failed calling `token_received` on the receiving contract: {err}");
             }
         }
