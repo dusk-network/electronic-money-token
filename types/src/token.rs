@@ -31,14 +31,15 @@ pub struct Transfer {
     receiver: Account,
     value: u64,
     nonce: u64,
-    signature: Signature,
+    /// The signature is optional as a contract account doesn't need to sign the transfer.
+    signature: Option<Signature>,
 }
 
 impl Transfer {
     const SIGNATURE_MSG_SIZE: usize = 194 + 194 + 8 + 8;
 
-    /// Create a new transfer.
-    pub fn new(
+    /// Create a new transfer with an external account.
+    pub fn new_external(
         sender_sk: &SecretKey,
         sender: impl Into<Account>,
         receiver: impl Into<Account>,
@@ -50,14 +51,30 @@ impl Transfer {
             receiver: receiver.into(),
             value,
             nonce,
-            signature: Signature::default(),
+            signature: None,
         };
 
         let sig_msg = transfer.signature_message();
         let sig = sender_sk.sign(&sig_msg);
-        transfer.signature = sig;
+        transfer.signature = Some(sig);
 
         transfer
+    }
+
+    /// Create a new transfer with a contract account.
+    pub fn new_contract(
+        sender: impl Into<Account>,
+        receiver: impl Into<Account>,
+        value: u64,
+        nonce: u64,
+    ) -> Self {
+        Self {
+            sender: sender.into(),
+            receiver: receiver.into(),
+            value,
+            nonce,
+            signature: None,
+        }
     }
 
     /// The account to transfer from.
@@ -81,8 +98,8 @@ impl Transfer {
     }
 
     /// The signature used for the transfer.
-    pub fn signature(&self) -> &Signature {
-        &self.signature
+    pub fn signature(&self) -> Option<&Signature> {
+        self.signature.as_ref()
     }
 
     /// The message to be signed over.
