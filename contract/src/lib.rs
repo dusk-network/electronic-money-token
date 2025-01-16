@@ -308,16 +308,20 @@ impl TokenState {
 
 /// Basic token contract implementation.
 impl TokenState {
-    fn name(&self) -> String {
-        String::from("Transparent Fungible Token Sample")
+    const NAME: &'static str = "Transparent Fungible Token Sample";
+    const SYMBOL: &'static str = "TFTS";
+    const DECIMALS: u8 = 9;
+
+    fn name(&self) -> &'static str {
+        SELF::NAME
     }
 
-    fn symbol(&self) -> String {
-        String::from("TFTS")
+    fn symbol(&self) -> &'static str {
+        SELF::SYMBOL
     }
 
     fn decimals(&self) -> u8 {
-        18
+        SEF::DECIMALS
     }
 
     fn total_supply(&self) -> u64 {
