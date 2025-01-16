@@ -290,11 +290,15 @@ fn transfer_from_contract() {
         "The contract to transfer to should have its initial balance"
     );
 
-    let transfer = TransferFromContract {
-        receiver: Account::External(session.deploy_pk()),
-        sender: None,
-        value: TRANSFERRED_AMOUNT,
-    };
+    let sender = Account::Contract(HOLDER_ID);
+
+    let transfer = Transfer::new_contract(
+        sender,
+        Account::External(session.deploy_pk()),
+        TRANSFERRED_AMOUNT,
+        0,
+    );
+
     session
         .call_holder::<_, ()>("token_send", &transfer)
         .expect("Transferring should succeed");

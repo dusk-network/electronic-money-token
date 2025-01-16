@@ -247,22 +247,6 @@ impl TransferFrom {
     }
 }
 
-/// Data used to approve spending tokens from a contract's account.
-///
-/// Note that there is no need for a signature, since contracts are essentially
-/// asserting via their code that they wish the transaction to be made.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
-#[archive_attr(derive(CheckBytes))]
-pub struct TransferFromContract {
-    /// The account to transfer to.
-    pub receiver: Account,
-    /// The owner of the funds to transfer from. If `None` it will be assumed
-    /// to be the contract itself.
-    pub sender: Option<Account>,
-    /// The value to transfer.
-    pub value: u64,
-}
-
 /// Data used to approve spending tokens from a user's account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
