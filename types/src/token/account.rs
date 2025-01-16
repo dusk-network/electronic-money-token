@@ -20,6 +20,9 @@ pub const BALANCE_TOO_LOW: &str = "The account doesn't have enough tokens";
 /// Error message for when the account is not found in the contract.
 pub const ACCOUNT_NOT_FOUND: &str = "The account does not exist";
 
+/// Error message for when a wrong contract calls the contract.
+pub const INVALID_CALLER: &str = "Invalid caller";
+
 /// The label for an account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]

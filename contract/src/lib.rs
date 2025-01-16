@@ -374,7 +374,7 @@ impl TokenState {
 
     /// note: this function will fail if the balance of the obliged sender is too low. It will **not** default to the maximum available balance.
     fn force_transfer(&mut self, transfer: Transfer) {
-        self.authorize_owner(transfer.signature_message().to_vec(), *transfer.signature().unwrap_or(&Signature::default()));
+        self.authorize_owner(transfer.signature_message().to_vec(), *transfer.signature());
 
         let obliged_sender = *transfer.sender();
 
@@ -447,9 +447,9 @@ impl TokenState {
         }
     }
 
-    /// Initates a `Transfer` from the sender to the recipient with the specified value.
+    /// Initates a `Transfer` from the sender to the receiver with the specified value.
     ///
-    /// Both the sender and the recipient are accounts.
+    /// Both the sender and the receiver are accounts.
     ///
     /// # Note
     /// the sender must not be blocked or frozen.
@@ -478,7 +478,7 @@ impl TokenState {
         // If the sender is an external account, the signature must be verified with the specified sender pk in the Account.
         // If the sender is a contract, the caller must be verified against the specified sender contract id in the Account.
         if let Account::External(sender_key) = *transfer.sender() {
-            let sig = *transfer.signature().expect("Signature not provided");
+            let sig = *transfer.signature();
             let sig_msg = transfer.signature_message().to_vec();
 
             if !abi::verify_bls(sig_msg, sender_key, sig) {
@@ -487,7 +487,9 @@ impl TokenState {
         } else {
             assert_eq!(
                 *transfer.sender(),
-                Account::Contract(abi::caller().expect(EXPECT_CONTRACT))
+                Account::Contract(abi::caller().expect(EXPECT_CONTRACT)),
+                "{}",
+                INVALID_CALLER
             )
         };
 
@@ -528,8 +530,7 @@ impl TokenState {
     fn transfer_from(&mut self, transfer: TransferFrom) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
-        let spender_key = *transfer.spender();
-        let spender = Account::External(spender_key);
+        let spender = *transfer.spender();
 
         let spender_account = self.accounts.entry(spender).or_insert(AccountInfo::EMPTY);
         assert!(!spender_account.is_blocked(), "{}", BLOCKED);
@@ -539,11 +540,23 @@ impl TokenState {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
-        let sig = *transfer.signature();
-        let sig_msg = transfer.signature_message().to_vec();
-        if !abi::verify_bls(sig_msg, spender_key, sig) {
-            panic!("Invalid signature");
-        }
+        // If the spender is an external account, the signature must be verified with the specified sender pk in the Account.
+        // If the spender is a contract, the caller must be verified against the specified sender contract id in the Account.
+        if let Account::External(sender_key) = *transfer.spender() {
+            let sig = *transfer.signature();
+            let sig_msg = transfer.signature_message().to_vec();
+
+            if !abi::verify_bls(sig_msg, sender_key, sig) {
+                panic!("Invalid signature");
+            }
+        } else {
+            assert_eq!(
+                *transfer.sender(),
+                Account::Contract(abi::caller().expect(EXPECT_CONTRACT)),
+                "{}",
+                INVALID_CALLER
+            )
+        };
 
         let owner = *transfer.sender();
 
@@ -659,24 +672,35 @@ impl TokenState {
     }
 
     fn approve(&mut self, approve: Approve) {
-        let owner_key = *approve.sender();
-        let owner = Account::External(owner_key);
+        let owner = approve.sender();
 
-        let owner_account = self.accounts.entry(owner).or_insert(AccountInfo::EMPTY);
+        let owner_account = self.accounts.entry(*owner).or_insert(AccountInfo::EMPTY);
 
         if approve.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
-        let sig = *approve.signature();
-        let sig_msg = approve.signature_message().to_vec();
-        if !abi::verify_bls(sig_msg, owner_key, sig) {
-            panic!("Invalid signature");
-        }
+        // If the sender is an external account, the signature must be verified with the specified sender pk in the Account.
+        // If the sender is a contract, the caller must be verified against the specified sender contract id in the Account.
+        if let Account::External(sender_key) = *approve.sender() {
+            let sig = *approve.signature();
+            let sig_msg = approve.signature_message().to_vec();
+
+            if !abi::verify_bls(sig_msg, sender_key, sig) {
+                panic!("Invalid signature");
+            }
+        } else {
+            assert_eq!(
+                *approve.sender(),
+                Account::Contract(abi::caller().expect(EXPECT_CONTRACT)),
+                "{}",
+                INVALID_CALLER
+            )
+        };
 
         let spender = *approve.spender();
 
-        let allowances = self.allowances.entry(owner).or_default();
+        let allowances = self.allowances.entry(*owner).or_default();
 
         let value = approve.value();
         allowances.insert(spender, value);
@@ -684,7 +708,7 @@ impl TokenState {
         abi::emit(
             "approve",
             ApproveEvent {
-                sender: owner,
+                sender: *owner,
                 spender,
                 value,
             },

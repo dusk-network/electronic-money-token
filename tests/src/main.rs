@@ -327,7 +327,7 @@ fn approve() {
         "The account should not be allowed to spend tokens from the deployed account"
     );
 
-    let approve = Approve::new(&session.deploy_sk, pk, APPROVED_AMOUNT, 1);
+    let approve = Approve::new_external(&session.deploy_sk, pk, APPROVED_AMOUNT, 1);
     session
         .call_token::<_, ()>("approve", &approve)
         .expect("Approving should succeed");
@@ -366,7 +366,7 @@ fn transfer_from() {
         "The account should not be allowed to spend tokens from the deployed account"
     );
 
-    let approve = Approve::new(&session.deploy_sk, pk, APPROVED_AMOUNT, 1);
+    let approve = Approve::new_external(&session.deploy_sk, pk, APPROVED_AMOUNT, 1);
     session
         .call_token::<_, ()>("approve", &approve)
         .expect("Approving should succeed");
@@ -377,7 +377,8 @@ fn transfer_from() {
         "The account should be allowed to spend tokens from the deployed account"
     );
 
-    let transfer_from = TransferFrom::new(&sk, session.deploy_pk(), pk, TRANSFERRED_AMOUNT, 1);
+    let transfer_from =
+        TransferFrom::new_external(&sk, session.deploy_pk(), pk, TRANSFERRED_AMOUNT, 1);
     session
         .call_token::<_, ()>("transfer_from", &transfer_from)
         .expect("Transferring from should succeed");
