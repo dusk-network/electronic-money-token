@@ -469,15 +469,15 @@ impl TokenState {
             panic!("{}", BALANCE_TOO_LOW);
         }
 
-        if transfer.nonce() != sender_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
-
         sender_account.balance -= value;
 
         // If the sender is an external account, the signature must be verified with the specified sender pk in the Account.
         // If the sender is a contract, the caller must be verified against the specified sender contract id in the Account.
         if let Account::External(sender_key) = *transfer.sender() {
+            if transfer.nonce() != sender_account.increment_nonce() {
+                panic!("{}", NONCE_NOT_SEQUENTIAL);
+            }
+
             let sig = *transfer.signature();
             let sig_msg = transfer.signature_message().to_vec();
 
@@ -536,13 +536,13 @@ impl TokenState {
         assert!(!spender_account.is_blocked(), "{}", BLOCKED);
         assert!(!spender_account.is_frozen(), "{}", FROZEN);
 
-        if transfer.nonce() != spender_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
-
         // If the spender is an external account, the signature must be verified with the specified sender pk in the Account.
         // If the spender is a contract, the caller must be verified against the specified sender contract id in the Account.
         if let Account::External(sender_key) = *transfer.spender() {
+            if transfer.nonce() != spender_account.increment_nonce() {
+                panic!("{}", NONCE_NOT_SEQUENTIAL);
+            }
+
             let sig = *transfer.signature();
             let sig_msg = transfer.signature_message().to_vec();
 
@@ -617,72 +617,18 @@ impl TokenState {
         }
     }
 
-    /// Note:
-    /// the sender must not be blocked or frozen.
-    /// the receiver must not be blocked but can be frozen.
-    fn transfer_from_contract(&mut self, transfer: TransferFromContract) {
-        assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
-
-        let contract = abi::caller().expect("Must be called by a contract");
-        let contract = Account::Contract(contract);
-
-        let contract_account = self.accounts.get_mut(&contract).expect(ACCOUNT_NOT_FOUND);
-        assert!(!contract_account.is_blocked(), "{}", BLOCKED);
-        assert!(!contract_account.is_frozen(), "{}", FROZEN);
-
-        if contract_account.balance < transfer.value {
-            panic!("{}", BALANCE_TOO_LOW);
-        }
-
-        contract_account.balance -= transfer.value;
-
-        let to_account = self
-            .accounts
-            .entry(transfer.receiver)
-            .or_insert(AccountInfo::EMPTY);
-        assert!(!to_account.is_blocked(), "{}", BLOCKED);
-
-        to_account.balance += transfer.value;
-
-        abi::emit(
-            "transfer",
-            TransferEvent {
-                sender: contract,
-                spender: None,
-                receiver: transfer.receiver,
-                value: transfer.value,
-            },
-        );
-
-        // if the transfer is to a contract, the acceptance function of said
-        // contract is called. if it fails (panic or OoG) the transfer
-        // also fails.
-        if let Account::Contract(to_contract) = transfer.receiver {
-            if let Err(err) = abi::call::<_, ()>(
-                to_contract,
-                "token_received",
-                &TransferInfo {
-                    sender: contract,
-                    value: transfer.value,
-                },
-            ) {
-                panic!("Failed calling `token_received` on the receiving contract: {err}");
-            }
-        }
-    }
-
     fn approve(&mut self, approve: Approve) {
         let owner = approve.sender();
 
         let owner_account = self.accounts.entry(*owner).or_insert(AccountInfo::EMPTY);
 
-        if approve.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
-
         // If the sender is an external account, the signature must be verified with the specified sender pk in the Account.
         // If the sender is a contract, the caller must be verified against the specified sender contract id in the Account.
         if let Account::External(sender_key) = *approve.sender() {
+            if approve.nonce() != owner_account.increment_nonce() {
+                panic!("{}", NONCE_NOT_SEQUENTIAL);
+            }
+
             let sig = *approve.signature();
             let sig_msg = approve.signature_message().to_vec();
 
@@ -761,11 +707,6 @@ unsafe fn transfer(arg_len: u32) -> u32 {
 #[no_mangle]
 unsafe fn transfer_from(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.transfer_from(arg))
-}
-
-#[no_mangle]
-unsafe fn transfer_from_contract(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.transfer_from_contract(arg))
 }
 
 #[no_mangle]
