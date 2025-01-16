@@ -14,7 +14,6 @@
 extern crate alloc;
 
 use alloc::collections::BTreeMap;
-use alloc::string::String;
 use alloc::vec::Vec;
 
 use dusk_core::abi;
@@ -334,16 +333,20 @@ impl TokenState {
 
 /// Basic token-contract implementation.
 impl TokenState {
-    fn name() -> String {
-        String::from("Transparent Fungible Token Sample")
+    const NAME: [u8; 29] = *b"Electronic Money Token Sample";
+    const SYMBOL: [u8; 4] = *b"EMTS";
+    const DECIMALS: u8 = 9;
+
+    const fn name() -> [u8; 29] {
+        Self::NAME
     }
 
-    fn symbol() -> String {
-        String::from("TFTS")
+    const fn symbol() -> [u8; 4] {
+        Self::SYMBOL
     }
 
-    fn decimals() -> u8 {
-        18
+    const fn decimals() -> u8 {
+        Self::DECIMALS
     }
 
     fn total_supply(&self) -> u64 {

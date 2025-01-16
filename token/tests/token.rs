@@ -28,7 +28,24 @@ use instantiate::{
 
 #[test]
 fn deploy() {
-    TestSession::new();
+    let mut session = TestSession::new();
+
+    // test metadata
+    let name = session
+        .call_getter::<[u8; 29]>("name")
+        .expect("Querying the name should succeed")
+        .data;
+
+    let name = String::from_utf8(name.to_vec()).unwrap();
+    assert_eq!(name, "Electronic Money Token Sample");
+
+    let symbol = session
+        .call_getter::<[u8; 4]>("symbol")
+        .expect("Querying the symbol should succeed")
+        .data;
+
+    let symbol = String::from_utf8(symbol.to_vec()).unwrap();
+    assert_eq!(symbol, "EMTS")
 }
 
 #[test]
