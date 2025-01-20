@@ -12,7 +12,7 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use dusk_core::abi;
+use dusk_core::abi::{self, ContractId, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::Signature;
 use ttoken_types::admin_management::arguments::PauseToggle;
 use ttoken_types::admin_management::events::PauseToggled;
@@ -20,8 +20,7 @@ use ttoken_types::admin_management::PAUSED_MESSAGE;
 use ttoken_types::ownership::arguments::{RenounceOwnership, TransferOwnership};
 use ttoken_types::ownership::events::{OwnerShipRenouncedEvent, OwnershipTransferredEvent};
 use ttoken_types::ownership::{
-    EXPECT_CONTRACT, OWNER_NOT_FOUND, OWNER_NOT_SET, UNAUTHORIZED_CONTRACT,
-    UNAUTHORIZED_EXT_ACCOUNT,
+    EXPECT_CONTRACT, OWNER_NOT_FOUND, UNAUTHORIZED_CONTRACT, UNAUTHORIZED_EXT_ACCOUNT,
 };
 use ttoken_types::sanctions::arguments::Sanction;
 use ttoken_types::sanctions::events::AccountStatusEvent;
@@ -31,14 +30,15 @@ use ttoken_types::supply_management::events::{BurnEvent, MintEvent};
 use ttoken_types::supply_management::SUPPLY_OVERFLOW;
 use ttoken_types::*;
 
+const DEFAULT_OWNER: Account = Account::Contract(ContractId::from_bytes([0; CONTRACT_ID_BYTES]));
+
 /// The state of the token contract.
 struct TokenState {
     accounts: BTreeMap<Account, AccountInfo>,
     allowances: BTreeMap<Account, BTreeMap<Account, u64>>,
     supply: u64,
 
-    // TODO: remove Option and find a way to set an owner through a const fn
-    owner: Option<Account>,
+    owner: Account,
 
     is_paused: bool,
 }
@@ -52,11 +52,11 @@ impl TokenState {
         }
 
         // Set the owner
-        self.owner = Some(owner);
+        self.owner = owner;
 
         // Always insert owner
         self.accounts
-            .entry(self.owner())
+            .entry(self.owner)
             .or_insert(AccountInfo::EMPTY);
     }
 }
@@ -65,29 +65,27 @@ static mut STATE: TokenState = TokenState {
     accounts: BTreeMap::new(),
     allowances: BTreeMap::new(),
     supply: 0,
-    owner: None,
+    owner: DEFAULT_OWNER,
     is_paused: false,
 };
 
 /// Access control implementation.
 impl TokenState {
-    fn owner(&self) -> Account {
-        self.owner.clone().expect(OWNER_NOT_SET)
+    fn owner_info_mut(&mut self) -> &mut AccountInfo {
+        self.accounts.get_mut(&self.owner).expect(OWNER_NOT_FOUND)
     }
 
     fn authorize_owner(&self, sig_msg: Vec<u8>, sig: Signature) {
-        let owner = self.owner();
-
-        match owner {
+        match &self.owner {
             Account::External(pk) => {
                 assert!(
-                    abi::verify_bls(sig_msg, pk, sig),
+                    abi::verify_bls(sig_msg, *pk, sig),
                     "{}",
                     UNAUTHORIZED_EXT_ACCOUNT
                 )
             }
             Account::Contract(contract_id) => assert!(
-                abi::caller().expect(EXPECT_CONTRACT) == contract_id,
+                &abi::caller().expect(EXPECT_CONTRACT) == contract_id,
                 "{}",
                 UNAUTHORIZED_CONTRACT
             ),
@@ -97,17 +95,14 @@ impl TokenState {
     fn transfer_ownership(&mut self, transfer_owner: TransferOwnership) {
         let sig = *transfer_owner.signature();
         let sig_msg = transfer_owner.signature_message().to_vec();
-        let previous_owner = self.owner();
 
-        let prev_owner_account = self
-            .accounts
-            .get_mut(&previous_owner)
-            .expect(OWNER_NOT_FOUND);
+        let prev_owner_account = self.owner_info_mut();
 
         if transfer_owner.nonce() != prev_owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
+        let previous_owner = self.owner;
         match previous_owner {
             Account::External(pk) => {
                 assert!(
@@ -123,17 +118,16 @@ impl TokenState {
             ),
         }
 
-        self.owner = Some(*transfer_owner.new_owner());
+        let new_owner = *transfer_owner.new_owner();
+        self.owner = new_owner;
         // Always insert owner
-        self.accounts
-            .entry(*transfer_owner.new_owner())
-            .or_insert(AccountInfo::EMPTY);
+        self.accounts.entry(new_owner).or_insert(AccountInfo::EMPTY);
 
         abi::emit(
             OwnershipTransferredEvent::TOPIC,
             OwnershipTransferredEvent {
                 previous_owner,
-                new_owner: self.owner(),
+                new_owner,
             },
         );
     }
@@ -141,34 +135,16 @@ impl TokenState {
     fn renounce_ownership(&mut self, renounce_owner: RenounceOwnership) {
         let sig = *renounce_owner.signature();
         let sig_msg = renounce_owner.signature_message().to_vec();
-        let previous_owner = self.owner();
 
-        let owner_account = self
-            .accounts
-            .get_mut(&previous_owner)
-            .expect(OWNER_NOT_FOUND);
+        let owner_account = self.owner_info_mut();
 
         if renounce_owner.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
+        self.authorize_owner(sig_msg, sig);
 
-        match previous_owner {
-            Account::External(pk) => {
-                assert!(
-                    abi::verify_bls(sig_msg, pk, sig),
-                    "{}",
-                    UNAUTHORIZED_EXT_ACCOUNT
-                )
-            }
-            Account::Contract(contract_id) => assert_eq!(
-                abi::caller().expect(EXPECT_CONTRACT),
-                contract_id,
-                "{}",
-                UNAUTHORIZED_CONTRACT
-            ),
-        }
-
-        self.owner = None;
+        let previous_owner = self.owner;
+        self.owner = DEFAULT_OWNER;
 
         abi::emit(
             OwnerShipRenouncedEvent::TOPIC,
@@ -197,13 +173,12 @@ impl TokenState {
     fn block(&mut self, block_account: Sanction) {
         assert!(block_account.sanction_type() == 2, "Invalid sanction type");
 
-        let owner = self.owner();
         let sig = *block_account.signature();
         let sig_msg = block_account.signature_message().to_vec();
 
         self.authorize_owner(sig_msg, sig);
 
-        let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
+        let owner_account = self.owner_info_mut();
 
         if block_account.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
@@ -223,13 +198,12 @@ impl TokenState {
     fn freeze(&mut self, freeze_account: Sanction) {
         assert!(freeze_account.sanction_type() == 1, "Invalid sanction type");
 
-        let owner = self.owner();
         let sig = *freeze_account.signature();
         let sig_msg = freeze_account.signature_message().to_vec();
 
         self.authorize_owner(sig_msg, sig);
 
-        let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
+        let owner_account = self.owner_info_mut();
 
         if freeze_account.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
@@ -247,13 +221,12 @@ impl TokenState {
     }
 
     fn unblock(&mut self, unblock_account: Sanction) {
-        let owner = self.owner();
         let sig = *unblock_account.signature();
         let sig_msg = unblock_account.signature_message().to_vec();
 
         self.authorize_owner(sig_msg, sig);
 
-        let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
+        let owner_account = self.owner_info_mut();
 
         if unblock_account.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
@@ -273,13 +246,12 @@ impl TokenState {
     }
 
     fn unfreeze(&mut self, unfreeze_account: Sanction) {
-        let owner = self.owner();
         let sig = *unfreeze_account.signature();
         let sig_msg = unfreeze_account.signature_message().to_vec();
 
         self.authorize_owner(sig_msg, sig);
 
-        let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
+        let owner_account = self.owner_info_mut();
 
         if unfreeze_account.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
@@ -302,13 +274,12 @@ impl TokenState {
 /// Supply management implementation.
 impl TokenState {
     fn mint(&mut self, mint: Mint) {
-        let owner = self.owner();
         let sig = *mint.signature();
         let sig_msg = mint.signature_message().to_vec();
 
         self.authorize_owner(sig_msg, sig);
 
-        let owner_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
+        let owner_account = self.owner_info_mut();
 
         if mint.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
@@ -337,13 +308,12 @@ impl TokenState {
     }
 
     fn burn(&mut self, burn: Burn) {
-        let owner = self.owner();
         let sig = *burn.signature();
         let sig_msg = burn.signature_message().to_vec();
 
         self.authorize_owner(sig_msg, sig);
 
-        let burn_account = self.accounts.get_mut(&owner).expect(OWNER_NOT_FOUND);
+        let burn_account = self.owner_info_mut();
 
         if burn.nonce() != burn_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
@@ -363,7 +333,7 @@ impl TokenState {
             BurnEvent::TOPIC,
             BurnEvent {
                 amount_burned: value,
-                burned_by: owner,
+                burned_by: self.owner,
             },
         );
     }
@@ -380,7 +350,7 @@ impl TokenState {
         let sig_msg = toggle.signature_message().to_vec();
 
         self.authorize_owner(sig_msg, sig);
-        let owner_account = self.accounts.get_mut(&self.owner()).expect(OWNER_NOT_FOUND);
+        let owner_account = self.owner_info_mut();
 
         if toggle.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
@@ -402,7 +372,7 @@ impl TokenState {
 
         let obliged_sender = *transfer.sender();
 
-        let owner_account = self.accounts.get_mut(&self.owner()).expect(OWNER_NOT_FOUND);
+        let owner_account = self.owner_info_mut();
 
         if transfer.nonce() != owner_account.increment_nonce() {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
@@ -410,7 +380,7 @@ impl TokenState {
 
         let obliged_sender_account = self
             .accounts
-            .get_mut(&obliged_sender.into())
+            .get_mut(&obliged_sender)
             .expect(ACCOUNT_NOT_FOUND);
 
         let value = transfer.value();
@@ -690,7 +660,7 @@ impl TokenState {
 
         let spender = *approve.spender();
 
-        let allowances = self.allowances.entry(owner).or_insert(BTreeMap::new());
+        let allowances = self.allowances.entry(owner).or_default();
 
         let value = approve.value();
         allowances.insert(spender, value);
@@ -779,7 +749,7 @@ unsafe fn renounce_ownership(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe fn owner(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |_: ()| STATE.owner())
+    abi::wrap_call(arg_len, |_: ()| STATE.owner)
 }
 
 /*
