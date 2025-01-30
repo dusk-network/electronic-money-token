@@ -21,7 +21,7 @@ pub mod arguments {
     #[archive_attr(derive(CheckBytes))]
     pub struct Mint {
         amount: u64,
-        recipient: Account,
+        receiver: Account,
         nonce: u64,
         signature: Signature,
     }
@@ -30,10 +30,10 @@ pub mod arguments {
         const SIGNATURE_MSG_SIZE: usize = 8 + 194 + 8;
 
         /// Create a new `Mint` transaction. This transaction is used to mint new tokens.
-        pub fn new(minter_sk: &SecretKey, amount: u64, recipient: Account, nonce: u64) -> Self {
+        pub fn new(minter_sk: &SecretKey, amount: u64, receiver: Account, nonce: u64) -> Self {
             let mut mint = Self {
                 amount,
-                recipient,
+                receiver,
                 nonce,
                 signature: Signature::default(),
             };
@@ -54,7 +54,7 @@ pub mod arguments {
             msg[offset..offset + bytes.len()].copy_from_slice(&bytes);
             offset += bytes.len();
 
-            let bytes = self.recipient.to_bytes();
+            let bytes = self.receiver.to_bytes();
             msg[offset..offset + bytes.len()].copy_from_slice(&bytes);
             offset += bytes.len();
 
@@ -69,9 +69,9 @@ pub mod arguments {
             self.amount
         }
 
-        /// Get the recipient of the minted tokens.
-        pub fn recipient(&self) -> &Account {
-            &self.recipient
+        /// Get the receiver of the minted tokens.
+        pub fn receiver(&self) -> &Account {
+            &self.receiver
         }
 
         /// Get the nonce of the mint transaction.
@@ -151,14 +151,14 @@ pub mod events {
     use super::*;
 
     /// Event emitted when new tokens are minted.
-    // note: mint events often re-use a transfer event from a 0 address to the recipient to avoid integrating more event types than necessary
+    // note: mint events often re-use a transfer event from a 0 address to the receiver to avoid integrating more event types than necessary
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
     #[archive_attr(derive(CheckBytes))]
     pub struct MintEvent {
         /// The amount of tokens minted.
         pub amount_minted: u64,
-        /// the recipient of the minted tokens.
-        pub recipient: Account,
+        /// the receiver of the minted tokens.
+        pub receiver: Account,
     }
 
     impl MintEvent {

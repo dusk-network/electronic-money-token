@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk_core::abi::{ContractId, StandardBufSerializer};
+use dusk_core::abi::{ContractId, StandardBufSerializer, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::{PublicKey, SecretKey};
 use dusk_vm::{CallReceipt, ContractData, Error as VMError, Session, VM};
 
@@ -19,7 +19,7 @@ use rand::SeedableRng;
 use ttoken_types::admin_management::arguments::PauseToggle;
 use ttoken_types::admin_management::PAUSED_MESSAGE;
 use ttoken_types::ownership::arguments::{RenounceOwnership, TransferOwnership};
-use ttoken_types::ownership::{OWNER_NOT_SET, UNAUTHORIZED_EXT_ACCOUNT};
+use ttoken_types::ownership::UNAUTHORIZED_EXT_ACCOUNT;
 use ttoken_types::sanctions::arguments::Sanction;
 use ttoken_types::sanctions::{BLOCKED, FROZEN};
 use ttoken_types::supply_management::arguments::{Burn, Mint};
@@ -291,8 +291,8 @@ fn transfer_from_contract() {
     );
 
     let transfer = TransferFromContract {
-        to: Account::External(session.deploy_pk()),
-        from: None,
+        receiver: Account::External(session.deploy_pk()),
+        sender: None,
         value: TRANSFERRED_AMOUNT,
     };
     session
@@ -415,10 +415,7 @@ fn transfer_ownership() {
         .expect("Transferring ownership should succeed");
 
     assert_eq!(
-        session
-            .owner()
-            .expect("Querying an existing owner should succeed")
-            .data,
+        session.owner().expect("Querying owner should succeed").data,
         new_owner
     );
 }
@@ -458,10 +455,7 @@ fn ownership_wrong_owner() {
     }
 
     assert_eq!(
-        session
-            .owner()
-            .expect("Querying an existing owner should succeed")
-            .data,
+        session.owner().expect("Querying owner should succeed").data,
         session.owner
     );
 }
@@ -475,12 +469,12 @@ fn renounce_ownership() {
         .call_token::<_, ()>("renounce_ownership", &renounce_ownership)
         .expect("Renouncing ownership should succeed");
 
-    match session.owner().err() {
-        Some(VMError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, OWNER_NOT_SET);
-        }
-        _ => panic!("Expected a panic error"),
-    }
+    let owner = session.owner().expect("Querying owner should succeed").data;
+
+    assert_eq!(
+        owner,
+        Account::Contract(ContractId::from_bytes([0; CONTRACT_ID_BYTES]))
+    );
 }
 
 #[test]

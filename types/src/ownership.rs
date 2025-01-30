@@ -4,9 +4,6 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use crate::Account;
 
-/// Error message for when the owner is not set.
-pub const OWNER_NOT_SET: &str = "Owner not set";
-
 /// Error message for when the admin account is not found in the contract.
 pub const OWNER_NOT_FOUND: &str = "The owner does not exist";
 

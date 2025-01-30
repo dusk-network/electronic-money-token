@@ -35,6 +35,11 @@ test-contract: setup-compiler
 		target/wasm64-unknown-unknown/release/% \
 		build/%
 
+
+clippy: ## Run clippy
+	# @cargo clippy --all-features --release -- -D warnings
+	@cargo +dusk clippy -Z build-std=core,alloc --manifest-path=contract/Cargo.toml --release --target wasm64-unknown-unknown -- -D warnings
+
 setup-compiler:
 	@./scripts/setup-compiler.sh $(COMPILER_VERSION)
 

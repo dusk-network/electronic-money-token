@@ -40,8 +40,8 @@ impl TokenState {
             panic!("Failed sending tokens: {err}");
         }
 
-        if transfer.from.is_none()
-            || matches!(transfer.from, Some(Account::Contract(x)) if x == self.this_contract)
+        if transfer.sender.is_none()
+            || matches!(transfer.sender, Some(Account::Contract(x)) if x == self.this_contract)
         {
             self.balance -= transfer.value;
         }
