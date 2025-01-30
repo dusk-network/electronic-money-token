@@ -9,7 +9,7 @@ barebones implementation of said standard.
 
 Dusk's chain supports cheaply verifying zero-knowledge proofs passed to a contract. Tokens
 leveraging this functionality will often obfuscate certain pieces of data - such as the amount being
-sent, or the recipient - while still keeping tranfers secure. Here we are *not* making use of this
+sent, or the receiver - while still keeping tranfers secure. Here we are *not* making use of this
 functionality, and are instead defining a classic token - here called a *transparent* token due to
 its properties.
 

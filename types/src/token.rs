@@ -28,7 +28,7 @@ pub struct Allowance {
 #[archive_attr(derive(CheckBytes))]
 pub struct Transfer {
     sender: Account,
-    recipient: Account,
+    receiver: Account,
     value: u64,
     nonce: u64,
     signature: Signature,
@@ -41,13 +41,13 @@ impl Transfer {
     pub fn new(
         sender_sk: &SecretKey,
         sender: impl Into<Account>,
-        recipient: impl Into<Account>,
+        receiver: impl Into<Account>,
         value: u64,
         nonce: u64,
     ) -> Self {
         let mut transfer = Self {
             sender: sender.into(),
-            recipient: recipient.into(),
+            receiver: receiver.into(),
             value,
             nonce,
             signature: Signature::default(),
@@ -66,8 +66,8 @@ impl Transfer {
     }
 
     /// The account to transfer to.
-    pub fn recipient(&self) -> &Account {
-        &self.recipient
+    pub fn receiver(&self) -> &Account {
+        &self.receiver
     }
 
     /// The value to transfer.
@@ -95,7 +95,7 @@ impl Transfer {
         msg[offset..][..bytes.len()].copy_from_slice(&bytes);
         offset += bytes.len();
 
-        let bytes = self.recipient.to_bytes();
+        let bytes = self.receiver.to_bytes();
         msg[offset..][..bytes.len()].copy_from_slice(&bytes);
         offset += bytes.len();
 
@@ -111,14 +111,14 @@ impl Transfer {
     }
 }
 
-/// Data used to transfer tokens from an owner (sender) to a recipient, by an allowed
+/// Data used to transfer tokens from an owner (sender) to a receiver, by an allowed
 /// party (spender).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct TransferFrom {
     spender: PublicKey,
     sender: Account,
-    recipient: Account,
+    receiver: Account,
     value: u64,
     nonce: u64,
     signature: Signature,
@@ -131,7 +131,7 @@ impl TransferFrom {
     pub fn new(
         spender_sk: &SecretKey,
         sender: impl Into<Account>,
-        recipient: impl Into<Account>,
+        receiver: impl Into<Account>,
         value: u64,
         nonce: u64,
     ) -> Self {
@@ -140,7 +140,7 @@ impl TransferFrom {
         let mut transfer_from = Self {
             spender,
             sender: sender.into(),
-            recipient: recipient.into(),
+            receiver: receiver.into(),
             value,
             nonce,
             signature: Signature::default(),
@@ -164,8 +164,8 @@ impl TransferFrom {
     }
 
     /// The account to transfer to.
-    pub fn recipient(&self) -> &Account {
-        &self.recipient
+    pub fn receiver(&self) -> &Account {
+        &self.receiver
     }
 
     /// The value to transfer.
@@ -197,7 +197,7 @@ impl TransferFrom {
         msg[offset..][..bytes.len()].copy_from_slice(&bytes);
         offset += bytes.len();
 
-        let bytes = self.recipient.to_bytes();
+        let bytes = self.receiver.to_bytes();
         msg[offset..][..bytes.len()].copy_from_slice(&bytes);
         offset += bytes.len();
 
@@ -221,7 +221,7 @@ impl TransferFrom {
 #[archive_attr(derive(CheckBytes))]
 pub struct TransferFromContract {
     /// The account to transfer to.
-    pub recipient: Account,
+    pub receiver: Account,
     /// The owner of the funds to transfer from. If `None` it will be assumed
     /// to be the contract itself.
     pub sender: Option<Account>,
@@ -322,7 +322,7 @@ pub struct TransferEvent {
     /// The account spending the tokens, set if `transfer_from` is used.
     pub spender: Option<Account>,
     /// The account receiving the tokens.
-    pub recipient: Account,
+    pub receiver: Account,
     /// The value transferred.
     pub value: u64,
 }

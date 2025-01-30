@@ -34,7 +34,6 @@ impl Account {
     const SIZE: usize = 194;
 
     /// Convert the account to bytes.
-    #[allow(clippy::wrong_self_convention)]
     pub fn to_bytes(&self) -> [u8; Self::SIZE] {
         match self {
             Account::External(pk) => {
@@ -121,8 +120,12 @@ pub struct AccountInfo {
 }
 
 impl AccountInfo {
-    const FROZEN: u64 = 1;
-    const BLOCKED: u64 = 2;
+    /// Account is cleared to do all types of operations.
+    pub const NO_STATUS: u64 = 0;
+    /// Account is not allowed to do transfers but can still receive funds.
+    pub const FROZEN: u64 = 1;
+    /// Account is not allowed to initiate transfers or receive funds.
+    pub const BLOCKED: u64 = 2;
 
     /// An empty account.
     pub const EMPTY: Self = Self {

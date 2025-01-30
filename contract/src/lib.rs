@@ -171,7 +171,10 @@ impl TokenState {
     }
 
     fn block(&mut self, block_account: Sanction) {
-        assert!(block_account.sanction_type() == AccountInfo::BLOCKED, "Invalid sanction type");
+        assert!(
+            block_account.sanction_type() == AccountInfo::BLOCKED,
+            "Invalid sanction type"
+        );
 
         let sig = *block_account.signature();
         let sig_msg = block_account.signature_message().to_vec();
@@ -196,7 +199,10 @@ impl TokenState {
     }
 
     fn freeze(&mut self, freeze_account: Sanction) {
-        assert!(freeze_account.sanction_type() == AccountInfo::FROZEN, "Invalid sanction type");
+        assert!(
+            freeze_account.sanction_type() == AccountInfo::FROZEN,
+            "Invalid sanction type"
+        );
 
         let sig = *freeze_account.signature();
         let sig_msg = freeze_account.signature_message().to_vec();
@@ -285,8 +291,8 @@ impl TokenState {
             panic!("{}", NONCE_NOT_SEQUENTIAL);
         }
 
-        let recipient = *mint.recipient();
-        let recipient_account = self.accounts.entry(recipient).or_insert(AccountInfo::EMPTY);
+        let receiver = *mint.receiver();
+        let receiver_account = self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
 
         let amount_minted = mint.amount();
 
@@ -296,13 +302,13 @@ impl TokenState {
             None => panic!("{}", SUPPLY_OVERFLOW),
         };
 
-        recipient_account.balance += amount_minted;
+        receiver_account.balance += amount_minted;
 
         abi::emit(
             MintEvent::TOPIC,
             MintEvent {
                 amount_minted,
-                recipient,
+                receiver,
             },
         );
     }
@@ -391,7 +397,7 @@ impl TokenState {
 
         obliged_sender_account.balance -= value;
 
-        let to = *transfer.recipient();
+        let to = *transfer.receiver();
         let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
 
         // this can never overflow as value + balance is never higher than total supply
@@ -402,7 +408,7 @@ impl TokenState {
             TransferEvent {
                 sender: obliged_sender,
                 spender: None,
-                recipient: to,
+                receiver: to,
                 value,
             },
         );
@@ -443,7 +449,7 @@ impl TokenState {
 
     /// Note:
     /// the sender must not be blocked or frozen.
-    /// the recipient must not be blocked but can be frozen.
+    /// the receiver must not be blocked but can be frozen.
     fn transfer(&mut self, transfer: Transfer) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
@@ -475,7 +481,7 @@ impl TokenState {
             panic!("Invalid signature");
         }
 
-        let to = *transfer.recipient();
+        let to = *transfer.receiver();
         let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
 
         assert!(!to_account.is_blocked(), "{}", BLOCKED);
@@ -488,7 +494,7 @@ impl TokenState {
             TransferEvent {
                 sender,
                 spender: None,
-                recipient: to,
+                receiver: to,
                 value,
             },
         );
@@ -508,7 +514,7 @@ impl TokenState {
     /// Note:
     /// the spender must not be blocked or frozen.
     /// the actual owner of the funds must not be blocked or frozen.
-    /// the recipient must not be blocked but can be frozen.
+    /// the receiver must not be blocked but can be frozen.
     fn transfer_from(&mut self, transfer: TransferFrom) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
@@ -554,7 +560,7 @@ impl TokenState {
         *allowance -= value;
         owner_account.balance -= value;
 
-        let to = *transfer.recipient();
+        let to = *transfer.receiver();
         let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
         assert!(!to_account.is_blocked(), "{}", BLOCKED);
 
@@ -566,7 +572,7 @@ impl TokenState {
             TransferEvent {
                 sender: owner,
                 spender: Some(spender),
-                recipient: to,
+                receiver: to,
                 value,
             },
         );
@@ -590,7 +596,7 @@ impl TokenState {
 
     /// Note:
     /// the sender must not be blocked or frozen.
-    /// the recipient must not be blocked but can be frozen.
+    /// the receiver must not be blocked but can be frozen.
     fn transfer_from_contract(&mut self, transfer: TransferFromContract) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
@@ -609,7 +615,7 @@ impl TokenState {
 
         let to_account = self
             .accounts
-            .entry(transfer.recipient)
+            .entry(transfer.receiver)
             .or_insert(AccountInfo::EMPTY);
         assert!(!to_account.is_blocked(), "{}", BLOCKED);
 
@@ -620,7 +626,7 @@ impl TokenState {
             TransferEvent {
                 sender: contract,
                 spender: None,
-                recipient: transfer.recipient,
+                receiver: transfer.receiver,
                 value: transfer.value,
             },
         );
@@ -628,7 +634,7 @@ impl TokenState {
         // if the transfer is to a contract, the acceptance function of said
         // contract is called. if it fails (panic or OoG) the transfer
         // also fails.
-        if let Account::Contract(to_contract) = transfer.recipient {
+        if let Account::Contract(to_contract) = transfer.receiver {
             if let Err(err) = abi::call::<_, ()>(
                 to_contract,
                 "token_received",
