@@ -23,3 +23,7 @@ trim_trailing_whitespace = false
 # Use tabs for indentation (Makefiles require tabs)
 [{Makefile,**.mk}]
 indent_style = tab
+
+[.github/workflows/*.{yml, yaml}]
+indent_style = space
+indent_size = 2
