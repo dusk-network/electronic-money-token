@@ -11,9 +11,6 @@ use dusk_core::abi::ContractId;
 use dusk_core::signatures::bls::PublicKey;
 use rkyv::{Archive, Deserialize, Serialize};
 
-/// Error message for when a nonce is not sequential.
-pub const NONCE_NOT_SEQUENTIAL: &str = "Nonces must be sequential";
-
 /// Error messages for when an account doesn't have enough tokens to perform the desired operation.
 pub const BALANCE_TOO_LOW: &str = "The account doesn't have enough tokens";
 
@@ -109,9 +106,6 @@ impl Ord for Account {
 pub struct AccountInfo {
     /// The balance of the account.
     pub balance: u64,
-    /// The current nonce of the account. Use the current value +1 to perform
-    /// an interaction with the account.
-    pub nonce: u64,
     /// Status of the account.
     ///
     /// # Variants
@@ -133,7 +127,6 @@ impl AccountInfo {
     /// An empty account.
     pub const EMPTY: Self = Self {
         balance: 0,
-        nonce: 0,
         status: 0,
     };
 
@@ -165,11 +158,5 @@ impl AccountInfo {
     /// Unblock the account.
     pub fn unblock(&mut self) {
         self.status = 0;
-    }
-
-    /// Increment the nonce of the account and return the new value.
-    pub fn increment_nonce(&mut self) -> u64 {
-        self.nonce += 1;
-        self.nonce
     }
 }
