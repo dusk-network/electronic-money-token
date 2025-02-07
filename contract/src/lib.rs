@@ -13,11 +13,9 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use dusk_core::abi::{self, ContractId, CONTRACT_ID_BYTES};
-use dusk_core::signatures::bls::Signature;
-use ttoken_types::admin_management::arguments::PauseToggle;
 use ttoken_types::admin_management::events::PauseToggled;
 use ttoken_types::admin_management::PAUSED_MESSAGE;
-use ttoken_types::ownership::arguments::{RenounceOwnership, TransferOwnership};
+use ttoken_types::ownership::arguments::TransferOwnership;
 use ttoken_types::ownership::events::{OwnerShipRenouncedEvent, OwnershipTransferredEvent};
 use ttoken_types::ownership::{
     EXPECT_CONTRACT, OWNER_NOT_FOUND, UNAUTHORIZED_CONTRACT, UNAUTHORIZED_EXT_ACCOUNT,
@@ -31,6 +29,8 @@ use ttoken_types::supply_management::SUPPLY_OVERFLOW;
 use ttoken_types::*;
 
 const DEFAULT_OWNER: Account = Account::Contract(ContractId::from_bytes([0; CONTRACT_ID_BYTES]));
+
+const SHIELDED_NOT_SUPPORTED: &str = "Shielded transactions are not supported";
 
 /// The state of the token contract.
 struct TokenState {
@@ -75,14 +75,12 @@ impl TokenState {
         self.accounts.get_mut(&self.owner).expect(OWNER_NOT_FOUND)
     }
 
-    fn authorize_owner(&self, sig_msg: Vec<u8>, sig: Signature) {
+    fn authorize_owner(&self) {
         match &self.owner {
-            Account::External(pk) => {
-                assert!(
-                    abi::verify_bls(sig_msg, *pk, sig),
-                    "{}",
-                    UNAUTHORIZED_EXT_ACCOUNT
-                )
+            Account::External(owner_pk) => {
+                let pk = abi::public_sender().expect(SHIELDED_NOT_SUPPORTED);
+
+                assert_eq!(&pk, owner_pk, "{}", UNAUTHORIZED_EXT_ACCOUNT);
             }
             Account::Contract(contract_id) => assert!(
                 &abi::caller().expect(EXPECT_CONTRACT) == contract_id,
@@ -93,32 +91,11 @@ impl TokenState {
     }
 
     fn transfer_ownership(&mut self, transfer_owner: TransferOwnership) {
-        let sig = *transfer_owner.signature();
-        let sig_msg = transfer_owner.signature_message().to_vec();
-
-        let prev_owner_account = self.owner_info_mut();
-
-        if transfer_owner.nonce() != prev_owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+        self.authorize_owner();
 
         let previous_owner = self.owner;
-        match previous_owner {
-            Account::External(pk) => {
-                assert!(
-                    abi::verify_bls(sig_msg, pk, sig),
-                    "{}",
-                    UNAUTHORIZED_EXT_ACCOUNT
-                )
-            }
-            Account::Contract(contract_id) => assert!(
-                abi::caller().expect(EXPECT_CONTRACT) == contract_id,
-                "{}",
-                UNAUTHORIZED_CONTRACT
-            ),
-        }
-
         let new_owner = *transfer_owner.new_owner();
+
         self.owner = new_owner;
         // Always insert owner
         self.accounts.entry(new_owner).or_insert(AccountInfo::EMPTY);
@@ -132,16 +109,8 @@ impl TokenState {
         );
     }
 
-    fn renounce_ownership(&mut self, renounce_owner: RenounceOwnership) {
-        let sig = *renounce_owner.signature();
-        let sig_msg = renounce_owner.signature_message().to_vec();
-
-        let owner_account = self.owner_info_mut();
-
-        if renounce_owner.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
-        self.authorize_owner(sig_msg, sig);
+    fn renounce_ownership(&mut self) {
+        self.authorize_owner();
 
         let previous_owner = self.owner;
         self.owner = DEFAULT_OWNER;
@@ -175,17 +144,7 @@ impl TokenState {
             block_account.sanction_type() == AccountInfo::BLOCKED,
             "Invalid sanction type"
         );
-
-        let sig = *block_account.signature();
-        let sig_msg = block_account.signature_message().to_vec();
-
-        self.authorize_owner(sig_msg, sig);
-
-        let owner_account = self.owner_info_mut();
-
-        if block_account.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+        self.authorize_owner();
 
         let account = *block_account.account();
         let account_info = self.accounts.get_mut(&account).expect(OWNER_NOT_FOUND);
@@ -203,17 +162,7 @@ impl TokenState {
             freeze_account.sanction_type() == AccountInfo::FROZEN,
             "Invalid sanction type"
         );
-
-        let sig = *freeze_account.signature();
-        let sig_msg = freeze_account.signature_message().to_vec();
-
-        self.authorize_owner(sig_msg, sig);
-
-        let owner_account = self.owner_info_mut();
-
-        if freeze_account.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+        self.authorize_owner();
 
         let account = *freeze_account.account();
         let account_info = self.accounts.get_mut(&account).expect(OWNER_NOT_FOUND);
@@ -227,16 +176,7 @@ impl TokenState {
     }
 
     fn unblock(&mut self, unblock_account: Sanction) {
-        let sig = *unblock_account.signature();
-        let sig_msg = unblock_account.signature_message().to_vec();
-
-        self.authorize_owner(sig_msg, sig);
-
-        let owner_account = self.owner_info_mut();
-
-        if unblock_account.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+        self.authorize_owner();
 
         let account = *unblock_account.account();
         let account_info = self.accounts.get_mut(&account).expect(OWNER_NOT_FOUND);
@@ -252,16 +192,7 @@ impl TokenState {
     }
 
     fn unfreeze(&mut self, unfreeze_account: Sanction) {
-        let sig = *unfreeze_account.signature();
-        let sig_msg = unfreeze_account.signature_message().to_vec();
-
-        self.authorize_owner(sig_msg, sig);
-
-        let owner_account = self.owner_info_mut();
-
-        if unfreeze_account.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+        self.authorize_owner();
 
         let account = *unfreeze_account.account();
         let account_info = self.accounts.get_mut(&account).expect(OWNER_NOT_FOUND);
@@ -280,16 +211,7 @@ impl TokenState {
 /// Supply management implementation.
 impl TokenState {
     fn mint(&mut self, mint: Mint) {
-        let sig = *mint.signature();
-        let sig_msg = mint.signature_message().to_vec();
-
-        self.authorize_owner(sig_msg, sig);
-
-        let owner_account = self.owner_info_mut();
-
-        if mint.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+        self.authorize_owner();
 
         let receiver = *mint.receiver();
         let receiver_account = self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
@@ -314,16 +236,9 @@ impl TokenState {
     }
 
     fn burn(&mut self, burn: Burn) {
-        let sig = *burn.signature();
-        let sig_msg = burn.signature_message().to_vec();
-
-        self.authorize_owner(sig_msg, sig);
+        self.authorize_owner();
 
         let burn_account = self.owner_info_mut();
-
-        if burn.nonce() != burn_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
 
         let value = burn.amount();
         if burn_account.balance < value {
@@ -351,16 +266,8 @@ impl TokenState {
         self.is_paused
     }
 
-    fn toggle_pause(&mut self, toggle: PauseToggle) {
-        let sig = *toggle.signature();
-        let sig_msg = toggle.signature_message().to_vec();
-
-        self.authorize_owner(sig_msg, sig);
-        let owner_account = self.owner_info_mut();
-
-        if toggle.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+    fn toggle_pause(&mut self) {
+        self.authorize_owner();
 
         self.is_paused = !self.is_paused;
 
@@ -374,7 +281,7 @@ impl TokenState {
 
     /// note: this function will fail if the balance of the obliged sender is too low. It will **not** default to the maximum available balance.
     fn force_transfer(&mut self, transfer: Transfer) {
-        self.authorize_owner(transfer.signature_message().to_vec(), *transfer.signature());
+        self.authorize_owner();
 
         let obliged_sender = *transfer.sender();
 
@@ -719,7 +626,7 @@ unsafe fn transfer_ownership(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe fn renounce_ownership(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.renounce_ownership(arg))
+    abi::wrap_call(arg_len, |_: ()| STATE.renounce_ownership())
 }
 
 #[no_mangle]
@@ -747,7 +654,7 @@ unsafe fn burn(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe fn toggle_pause(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.toggle_pause(arg))
+    abi::wrap_call(arg_len, |_: ()| STATE.toggle_pause())
 }
 
 #[no_mangle]

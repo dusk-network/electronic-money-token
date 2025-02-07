@@ -4,6 +4,8 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+mod genesis;
+
 use dusk_core::abi::{ContractId, StandardBufSerializer, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::{PublicKey, SecretKey};
 use dusk_vm::{CallReceipt, ContractData, Error as VMError, Session, VM};
@@ -16,9 +18,8 @@ use rkyv::{Archive, Deserialize, Infallible, Serialize};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use ttoken_types::admin_management::arguments::PauseToggle;
 use ttoken_types::admin_management::PAUSED_MESSAGE;
-use ttoken_types::ownership::arguments::{RenounceOwnership, TransferOwnership};
+use ttoken_types::ownership::arguments::TransferOwnership;
 use ttoken_types::ownership::UNAUTHORIZED_EXT_ACCOUNT;
 use ttoken_types::sanctions::arguments::Sanction;
 use ttoken_types::sanctions::{BLOCKED, FROZEN};
@@ -52,7 +53,9 @@ struct ContractSession {
 impl ContractSession {
     fn new() -> Self {
         let vm = VM::ephemeral().expect("Creating VM should succeed");
+
         let mut session = VM::genesis_session(&vm, 1);
+
 
         let mut rng = StdRng::seed_from_u64(0xF0CACC1A);
         let deploy_sk = SecretKey::random(&mut rng);
@@ -447,8 +450,7 @@ fn ownership_wrong_owner() {
         }
     }
 
-    let renounce_ownership = RenounceOwnership::new(&wrong_owner_sk, 1);
-    let receipt = session.call_token::<_, ()>("renounce_ownership", &renounce_ownership);
+    let receipt = session.call_token::<_, ()>("renounce_ownership", &());
 
     match receipt.err() {
         Some(VMError::Panic(panic_msg)) => {
@@ -469,9 +471,8 @@ fn ownership_wrong_owner() {
 fn renounce_ownership() {
     let mut session = ContractSession::new();
 
-    let renounce_ownership = RenounceOwnership::new(&session.owner_sk, 1);
     session
-        .call_token::<_, ()>("renounce_ownership", &renounce_ownership)
+        .call_token::<_, ()>("renounce_ownership", &())
         .expect("Renouncing ownership should succeed");
 
     let owner = session.owner().expect("Querying owner should succeed").data;
@@ -580,10 +581,8 @@ fn test_pause() {
 
     let mut session = ContractSession::new();
 
-    let pause_toggle = PauseToggle::new(&session.owner_sk, 1);
-
     session
-        .call_token::<_, ()>("toggle_pause", &pause_toggle)
+        .call_token::<_, ()>("toggle_pause", &())
         .expect("Pausing should succeed");
 
     assert_eq!(
@@ -623,10 +622,8 @@ fn test_pause() {
         }
     }
 
-    let pause_toggle = PauseToggle::new(&session.owner_sk, 2);
-
     session
-        .call_token::<_, ()>("toggle_pause", &pause_toggle)
+        .call_token::<_, ()>("toggle_pause", &())
         .expect("Unpausing should succeed");
 
     assert_eq!(
