@@ -66,7 +66,6 @@ fn account(&self, _: PublicKey) -> AccountData;
 fn allowance(&self, _: Allowance) -> u64;
 fn transfer(&mut self, _: Transfer);
 fn transfer_from(&mut self, _: TransferFrom);
-fn transfer_from_contract(&mut self, _: TransferFromContract);
 fn approve(&mut self, _: Approve);
 ```
 
