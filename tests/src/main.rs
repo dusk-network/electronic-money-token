@@ -4,6 +4,9 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+mod common;
+mod genesis;
+
 use dusk_core::abi::{ContractId, StandardBufSerializer, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::{PublicKey, SecretKey};
 use dusk_vm::{CallReceipt, ContractData, Error as VMError, Session, VM};
