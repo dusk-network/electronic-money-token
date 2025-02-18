@@ -23,12 +23,11 @@ use ttoken_types::ownership::{
 use ttoken_types::sanctions::arguments::Sanction;
 use ttoken_types::sanctions::events::AccountStatusEvent;
 use ttoken_types::sanctions::{BLOCKED, FROZEN};
-use ttoken_types::supply_management::arguments::{Burn, Mint};
-use ttoken_types::supply_management::events::{BurnEvent, MintEvent};
+use ttoken_types::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
 use ttoken_types::supply_management::SUPPLY_OVERFLOW;
 use ttoken_types::*;
 
-const DEFAULT_OWNER: Account = Account::Contract(ContractId::from_bytes([0; CONTRACT_ID_BYTES]));
+const ZERO_ADDRESS: Account = Account::Contract(ContractId::from_bytes([0; CONTRACT_ID_BYTES]));
 
 const SHIELDED_NOT_SUPPORTED: &str = "Shielded transactions are not supported";
 
@@ -65,7 +64,7 @@ static mut STATE: TokenState = TokenState {
     accounts: BTreeMap::new(),
     allowances: BTreeMap::new(),
     supply: 0,
-    owner: DEFAULT_OWNER,
+    owner: ZERO_ADDRESS,
     is_paused: false,
 };
 
@@ -113,7 +112,7 @@ impl TokenState {
         self.authorize_owner();
 
         let previous_owner = self.owner;
-        self.owner = DEFAULT_OWNER;
+        self.owner = ZERO_ADDRESS;
 
         abi::emit(
             OwnerShipRenouncedEvent::TOPIC,
@@ -210,51 +209,51 @@ impl TokenState {
 
 /// Supply management implementation.
 impl TokenState {
-    fn mint(&mut self, mint: Mint) {
+    fn mint(&mut self, receiver: Account, amount: u64) {
         self.authorize_owner();
 
-        let receiver = *mint.receiver();
         let receiver_account = self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
 
-        let amount_minted = mint.amount();
-
         // Prevent overflow
-        self.supply = match self.supply.checked_add(amount_minted) {
+        self.supply = match self.supply.checked_add(amount) {
             Some(supply) => supply,
             None => panic!("{}", SUPPLY_OVERFLOW),
         };
 
-        receiver_account.balance += amount_minted;
+        receiver_account.balance += amount;
 
         abi::emit(
-            MintEvent::TOPIC,
-            MintEvent {
-                amount_minted,
+            MINT_TOPIC,
+            TransferEvent {
+                sender: ZERO_ADDRESS,
+                spender: None,
                 receiver,
+                value: amount,
             },
         );
     }
 
-    fn burn(&mut self, burn: Burn) {
+    fn burn(&mut self, amount: u64) {
         self.authorize_owner();
 
         let burn_account = self.owner_info_mut();
 
-        let value = burn.amount();
-        if burn_account.balance < value {
+        if burn_account.balance < amount {
             panic!("{}", BALANCE_TOO_LOW);
         } else {
-            burn_account.balance -= value;
+            burn_account.balance -= amount;
         }
 
         // this can never fail, as the balance is checked above
-        self.supply -= value;
+        self.supply -= amount;
 
         abi::emit(
-            BurnEvent::TOPIC,
-            BurnEvent {
-                amount_burned: value,
-                burned_by: self.owner,
+            BURN_TOPIC,
+            TransferEvent {
+                sender: self.owner,
+                spender: None,
+                receiver: ZERO_ADDRESS,
+                value: amount,
             },
         );
     }
@@ -579,7 +578,7 @@ unsafe fn owner(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe fn mint(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.mint(arg))
+    abi::wrap_call(arg_len, |(receiver, amount)| STATE.mint(receiver, amount))
 }
 
 #[no_mangle]

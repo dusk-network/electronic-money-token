@@ -21,7 +21,6 @@ use ttoken_types::ownership::arguments::TransferOwnership;
 use ttoken_types::ownership::UNAUTHORIZED_EXT_ACCOUNT;
 use ttoken_types::sanctions::arguments::Sanction;
 use ttoken_types::sanctions::{BLOCKED, FROZEN};
-use ttoken_types::supply_management::arguments::{Burn, Mint};
 use ttoken_types::supply_management::SUPPLY_OVERFLOW;
 use ttoken_types::*;
 
@@ -467,22 +466,22 @@ fn renounce_ownership() {
 #[test]
 fn test_mint() {
     let mut session = ContractSession::new();
-    let mint_amount = 1000;
+    let amount = 1000;
 
-    let mint = Mint::new(mint_amount, session.owner);
+    let receiver = session.owner;
 
     session
-        .call_token::<_, ()>("mint", &mint)
+        .call_token::<_, ()>("mint", &(receiver, amount))
         .expect("Minting should succeed");
 
-    assert_eq!(session.total_supply(), INITIAL_SUPPLY + mint_amount);
+    assert_eq!(session.total_supply(), INITIAL_SUPPLY + amount);
 
     // mint overflow
-    let mint_amount = u64::MAX;
+    let amount = amount;
 
-    let mint = Mint::new(mint_amount, session.owner);
+    let receiver = session.owner;
 
-    let receipt = session.call_token::<_, ()>("mint", &mint);
+    let receipt = session.call_token::<_, ()>("mint", &(receiver, amount));
 
     match receipt.err() {
         Some(VMError::Panic(panic_msg)) => {
@@ -495,10 +494,9 @@ fn test_mint() {
 
     // unauthorized pk
     let mut rng = StdRng::seed_from_u64(0x1618);
-    let sk = SecretKey::random(&mut rng);
-
-    let mint = Mint::new(mint_amount, session.owner);
-    let receipt = session.call_token::<_, ()>("mint", &mint);
+    let unauthorized_sk = SecretKey::random(&mut rng);
+    // TODO: make sure the call will be from the unauthorized_sk
+    let receipt = session.call_token::<_, ()>("mint", &(amount, session.owner));
 
     match receipt.err() {
         Some(VMError::Panic(panic_msg)) => {
@@ -515,10 +513,8 @@ fn test_burn() {
     let mut session = ContractSession::new();
     let burn_amount = 1000;
 
-    let burn = Burn::new(burn_amount);
-
     session
-        .call_token::<_, ()>("burn", &burn)
+        .call_token::<_, ()>("burn", &burn_amount)
         .expect("Burning should succeed");
 
     assert_eq!(session.total_supply(), INITIAL_SUPPLY - burn_amount);
@@ -526,9 +522,7 @@ fn test_burn() {
     // burn more than the account has
     let burn_amount = u64::MAX;
 
-    let burn = Burn::new(burn_amount);
-
-    let receipt = session.call_token::<_, ()>("burn", &burn);
+    let receipt = session.call_token::<_, ()>("burn", &burn_amount);
 
     match receipt.err() {
         Some(VMError::Panic(panic_msg)) => {
@@ -541,10 +535,9 @@ fn test_burn() {
 
     // unauthorized pk
     let mut rng = StdRng::seed_from_u64(0x1618);
-    let sk = SecretKey::random(&mut rng);
-
-    let burn = Burn::new(burn_amount);
-    let receipt = session.call_token::<_, ()>("burn", &burn);
+    let unauthorized_sk = SecretKey::random(&mut rng);
+    // TODO: make sure the call will be from the unauthorized_sk
+    let receipt = session.call_token::<_, ()>("burn", &burn_amount);
 
     match receipt.err() {
         Some(VMError::Panic(panic_msg)) => {
