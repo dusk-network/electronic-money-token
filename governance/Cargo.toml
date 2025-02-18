@@ -1,0 +1,13 @@
+[package]
+name = "emt-governance"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ttoken-types = { workspace = true }
+
+dusk-bytes = { workspace = true }
+dusk-core = { workspace = true, features = ["abi-dlmalloc"] }
+
+[lib]
+crate-type = ["cdylib"]
