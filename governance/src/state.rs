@@ -12,7 +12,9 @@ use alloc::vec::Vec;
 
 use dusk_bytes::Serializable;
 use dusk_core::abi::{ContractId, CONTRACT_ID_BYTES};
-use dusk_core::signatures::bls::{PublicKey, Signature};
+use dusk_core::signatures::bls::{
+    MultisigPublicKey, MultisigSignature, PublicKey,
+};
 use ttoken_types::ownership::arguments::{
     RenounceOwnership, TransferOwnership,
 };
@@ -20,7 +22,7 @@ use ttoken_types::ownership::arguments::{
 use crate::error;
 
 /// The state of the token governance contract.
-struct GovernanceState {
+pub struct GovernanceState {
     // The owners, and only the owners, of a token-contract are authorized to
     // change the owners or operators of the  token-contract.
     owners: Vec<PublicKey>,
@@ -70,6 +72,9 @@ impl GovernanceState {
     /// - The given set of owner keys is empty.
     /// - The given set of owner keys is larger than u8::MAX.
     /// - The given set of operator keys is larger than u8::MAX.
+    /// - There are duplicate owner keys.
+    /// - There are duplicate operator keys.
+    // TODO: write check for duplicate keys.
     pub fn init(
         &mut self,
         owners: Vec<PublicKey>,
@@ -101,27 +106,27 @@ impl GovernanceState {
         self.operations = operations;
     }
 
-    fn name(&self) -> String {
+    pub fn name(&self) -> String {
         String::from("Token Governance Sample")
     }
 
-    fn symbol(&self) -> String {
+    pub fn symbol(&self) -> String {
         String::from("TGS")
     }
 
-    fn owners(&self) -> Vec<PublicKey> {
+    pub fn owners(&self) -> Vec<PublicKey> {
         self.owners.clone()
     }
 
-    fn owner_nonce(&self) -> u64 {
+    pub fn owner_nonce(&self) -> u64 {
         self.owner_nonce
     }
 
-    fn operators(&self) -> Vec<PublicKey> {
+    pub fn operators(&self) -> Vec<PublicKey> {
         self.operators.clone()
     }
 
-    fn operator_nonce(&self) -> u64 {
+    pub fn operator_nonce(&self) -> u64 {
         self.operator_nonce
     }
 
@@ -154,9 +159,11 @@ impl GovernanceState {
     /// - The signature is incorrect or not signed by a super-majority of owners
     /// - The given set of owner keys is empty.
     /// - The given set of owner keys is larger than u8::MAX.
-    fn set_owners(
+    /// - There are duplicates in the given owner keys.
+    // TODO: write check for duplicate keys.
+    pub fn set_owners(
         &mut self,
-        sig: Signature,
+        sig: MultisigSignature,
         signers: Vec<u8>,
         new_owners: Vec<PublicKey>,
     ) {
@@ -203,9 +210,11 @@ impl GovernanceState {
     /// This function will panic if:
     /// - The signature is incorrect or not signed by a super-majority of owners
     /// - The given set of operator keys is larger than u8::MAX.
-    fn set_operators(
+    /// - There are duplicates in the given operator keys.
+    // TODO: write check for duplicate keys.
+    pub fn set_operators(
         &mut self,
-        sig: Signature,
+        sig: MultisigSignature,
         signers: Vec<u8>,
         new_operators: Vec<PublicKey>,
     ) {
@@ -244,10 +253,10 @@ impl GovernanceState {
     ///
     /// Note: A super-majority of owner signatures is required to perform this
     /// action.
-    fn transfer_governance(
+    pub fn transfer_governance(
         &mut self,
         transfer_ownership: TransferOwnership,
-        sig: Signature,
+        sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
         todo!();
@@ -260,10 +269,10 @@ impl GovernanceState {
     ///
     /// Note: A super-majority of owner signatures is required to perform this
     /// action.
-    fn renounce_governance(
+    pub fn renounce_governance(
         &mut self,
         renounce_ownership: RenounceOwnership,
-        sig: Signature,
+        sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
         todo!();
@@ -279,19 +288,20 @@ impl GovernanceState {
     /// - The signature is incorrect or not signed by the required threshold of
     ///   operators
     /// - The operation is not registered in the contract-state.
-    fn execute_operation(
+    pub fn execute_operation(
         &self,
         operation: String,
         fn_arg: Vec<u8>,
-        sig: Signature,
+        sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
         todo!();
     }
 
-    /// Add a new operation and its threshold to the stored set of operations.
-    /// If a threshold of 0 is given, a super-majority of signatures is needed
-    /// to execute the operation.
+    /// Add a new operation to the stored set of operations or (if the operation
+    /// already exists) update the operation threshold. A threshold of 0 means
+    /// that the operation needs a super-majority of operator-signatures to
+    /// be executed.
     ///
     /// The signature message for adding an operation is the current
     /// operator-nonce in big endian, appended by the operation as bytes and the
@@ -304,12 +314,11 @@ impl GovernanceState {
     /// This function will panic if:
     /// - The signature is incorrect or not signed by a super-majority of
     ///   operators
-    /// - The operation is already registered in the contract-state.
-    fn add_operation(
+    pub fn set_operation(
         &mut self,
         operation: String,
         threshold: u8,
-        sig: Signature,
+        sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
         // the threshold needs to be a super-majority
@@ -327,57 +336,8 @@ impl GovernanceState {
         // is not met
         self.authorize_operators(sig_msg, sig, signers, threshold);
 
-        // add the operation
+        // add the operation or update its threshold if it already exists
         self.operations.insert(operation, threshold);
-
-        // increment the operator nonce
-        self.operator_nonce += 1;
-    }
-
-    /// Adjust the threshold of a operation on the token-contract.
-    /// This operation is only possible with a super-majority of operators
-    /// signatures.
-    ///
-    /// The signature message for adjusting the threshold for an operation is
-    /// the current operator-nonce in big endian, appended by the operation
-    /// as bytes and the new threshold.
-    ///
-    /// Note: A super-majority of operator signatures is required to perform
-    /// this action.
-    ///
-    /// # Panics
-    /// This function will panic if:
-    /// - The signature is incorrect or not signed by a super-majority of
-    ///   operators
-    /// - The operation is not registered in the contract-state.
-    fn set_threshold(
-        &mut self,
-        operation: String,
-        new_threshold: u8,
-        sig: Signature,
-        signers: Vec<u8>,
-    ) {
-        // the threshold needs to be a super-majority
-        let threshold = self.operators.len() as u8 / 2 + 1;
-
-        // construct the signature message
-        let operation_bytes = operation.as_bytes();
-        let mut sig_msg =
-            Vec::with_capacity(u64::SIZE + operation_bytes.len() + u8::SIZE);
-        sig_msg.extend(&self.operator_nonce.to_be_bytes());
-        sig_msg.extend(operation_bytes);
-        sig_msg.extend(&[threshold]);
-
-        // this call will panic if the signature is not correct or the threshold
-        // is not met
-        self.authorize_operators(sig_msg, sig, signers, threshold);
-
-        // set the new threshold for the operation
-        if let Some(threshold) = self.operations.get_mut(&operation) {
-            *threshold = new_threshold;
-        } else {
-            panic!("{}", error::OPERATION_NOT_FOUND);
-        }
 
         // increment the operator nonce
         self.operator_nonce += 1;
@@ -386,51 +346,115 @@ impl GovernanceState {
 
 /// Access control implementation.
 impl GovernanceState {
-    /// Check if the given aggregated signature is correct given the public-keys
-    /// and that the signer threshold is met.
-    ///
-    /// # Panics
-    /// This function panics if the signature is incorrect given the public-keys
-    /// and signature message, or if the threshold if minimum required
-    /// signatures is not met.
-    fn authorize(
-        sig_msg: Vec<u8>,
-        sig: Signature,
-        pks: &[PublicKey],
-        threshold: u8,
-    ) {
-        todo!();
-    }
-
     /// Check if the aggregated signature of the given owners is valid.
     ///
     /// # Panics
-    /// This function panics if the signature is incorrect given the public-keys
-    /// and signature message, or if the threshold if minimum required
-    /// signatures is not met.
+    /// This function will panic if:
+    /// - The signature is incorrect given the signature-message and public-keys
+    /// - There are less signers than the specified threshold
+    /// - One of the signers exceeds the owner-index
+    /// - There are duplicate signers
     fn authorize_owners(
         &self,
         sig_msg: Vec<u8>,
-        sig: Signature,
+        sig: MultisigSignature,
         signers: Vec<u8>,
         threshold: u8,
     ) {
-        todo!();
+        // panic if the signers contain duplicates
+        if contains_duplicates(&signers) {
+            panic!("{}", error::DUPLICATE_OWNER_KEY);
+        }
+
+        // panic if one of the signer indices is out of bounds of the
+        // owner-keys
+        if signers.iter().max().copied().unwrap_or_default()
+            >= self.owners.len() as u8
+        {
+            panic!("{}", error::OWNER_NOT_FOUND);
+        }
+
+        self.authorize(sig_msg, sig, signers, threshold, true);
     }
 
     /// Check if the aggregated signature of the given operators is valid.
     ///
     /// # Panics
-    /// This function panics if the signature is incorrect given the public-keys
-    /// and signature message, or if the threshold if minimum required
-    /// signatures is not met.
+    /// This function will panic if:
+    /// - The signature is incorrect given the signature-message and public-keys
+    /// - There are less signers than the specified threshold
+    /// - One of the signers exceeds the operator-index
+    /// - There are duplicate signers
     fn authorize_operators(
         &self,
         sig_msg: Vec<u8>,
-        sig: Signature,
+        sig: MultisigSignature,
         signers: Vec<u8>,
         threshold: u8,
     ) {
-        todo!();
+        // panic if the signers contain duplicates
+        if contains_duplicates(&signers) {
+            panic!("{}", error::DUPLICATE_OPERATOR_KEY);
+        }
+
+        // panic if one of the signer indices is out of bounds of the
+        // operator-keys
+        if signers.iter().max().copied().unwrap_or_default()
+            >= self.operators.len() as u8
+        {
+            panic!("{}", error::OPERATOR_NOT_FOUND);
+        }
+
+        self.authorize(sig_msg, sig, signers, threshold, false);
     }
+
+    /// Check if the given aggregated signature is correct given the public-keys
+    /// and that the signer threshold is met.
+    ///
+    /// # Panics
+    /// This function will panic if:
+    /// - The signature is incorrect given the signature-message and public-keys
+    /// - The public-keys are less than the specified threshold
+    fn authorize(
+        &self,
+        sig_msg: Vec<u8>,
+        sig: MultisigSignature,
+        signers: Vec<u8>,
+        threshold: u8,
+        is_owner: bool,
+    ) {
+        // panic if the threshold of signers is not met
+        if (signers.len() as u8) < threshold {
+            panic!("{}", error::THRESHOLD_NOT_MET);
+        }
+
+        // get the signers public keys
+        let public_keys = if is_owner {
+            self.owners()
+        } else {
+            self.operators()
+        };
+        let signers: Vec<PublicKey> = signers
+            .iter()
+            .map(|index| public_keys[*index as usize])
+            .collect();
+
+        // aggregate the signers keys
+        let mut multisig_pk = MultisigPublicKey::aggregate(&signers[..])
+            .unwrap_or_else(|_| panic!("{}", error::INVALID_PUBLIC_KEY));
+
+        // verify the signature
+        if multisig_pk.verify(&sig, &sig_msg).is_err() {
+            panic!("{}", error::INVALID_SIGNATURE);
+        }
+    }
+}
+
+/// Checks whether a given iterator contains duplicate elements.
+fn contains_duplicates<T>(iter: T) -> bool
+where
+    T: IntoIterator,
+    T::Item: PartialEq,
+{
+    todo!();
 }

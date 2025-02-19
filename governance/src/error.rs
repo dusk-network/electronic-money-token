@@ -26,6 +26,32 @@ pub const ALLREADY_INITIALIZED: &str =
 /// operations map.
 pub const OPERATION_NOT_FOUND: &str = "The given operation is not registered";
 
+/// Error message given when there are duplicate owner-keys.
+pub const DUPLICATE_OWNER_KEY: &str = "Duplicate owner-key found";
+
+/// Error message given when there are duplicate owner-keys.
+pub const DUPLICATE_OPERATOR_KEY: &str = "Duplicate operator-key found";
+
+/// Error message given when one of the signer indices is out of bounds for the
+/// owner-keys.
+pub const OWNER_NOT_FOUND: &str = "The given owner index doesn't exist";
+
+/// Error message given when one of the signer indices is out of bounds for the
+/// operator-keys.
+pub const OPERATOR_NOT_FOUND: &str = "The given operator index doesn't exist";
+
+/// Error message given in case of an invalid signature.
+pub const INVALID_SIGNATURE: &str = "The signature is invalid";
+
+/// Error message given not enough signatures have been collected for the given
+/// operation.
+pub const THRESHOLD_NOT_MET: &str =
+    "The required threshold of signatures has not been met";
+
+/// Error message given when one of the keys used in a signature is not a valid
+/// point.
+pub const INVALID_PUBLIC_KEY: &str = "One of the keys used for";
+
 /*
 /// Error message given when the state is about to be updated to an empty set of
 /// operator.

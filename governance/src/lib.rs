@@ -37,7 +37,7 @@ extern crate alloc;
 
 pub mod error;
 pub(crate) mod state;
-pub use state::STATE;
+pub use state::{GovernanceState, STATE};
 
 /*
 #[no_mangle]
