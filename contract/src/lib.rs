@@ -78,9 +78,12 @@ impl TokenState {
     fn authorize_owner(&self) {
         match &self.owner {
             Account::External(owner_pk) => {
+                // TODO: prevent ICC from calling this function
+                // abi::callstack().len() == 1;
+
                 let pk = abi::public_sender().expect(SHIELDED_NOT_SUPPORTED);
 
-                assert_eq!(&pk, owner_pk, "{}", UNAUTHORIZED_EXT_ACCOUNT);
+                assert!(&pk == owner_pk, "{}", UNAUTHORIZED_EXT_ACCOUNT);
             }
             Account::Contract(contract_id) => assert!(
                 &abi::caller().expect(EXPECT_CONTRACT) == contract_id,
@@ -346,11 +349,16 @@ impl TokenState {
         }
     }
 
+    // TODO
     fn get_sender(&self) -> Account {
-        match abi::public_sender() {
-            Some(pk) => Account::External(pk),
-            // if contract is also None, it can only be a shielded transaction
-            None => Account::Contract(abi::caller().expect(SHIELDED_NOT_SUPPORTED)),
+        let tx_origin = abi::public_sender().expect(SHIELDED_NOT_SUPPORTED);
+
+        let caller = abi::caller().expect("ICC expects a caller");
+
+        if abi::callstack().len() == 2 {
+            Account::External(tx_origin)
+        } else {
+            Account::Contract(caller)
         }
     }
 
