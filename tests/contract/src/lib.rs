@@ -33,17 +33,13 @@ static mut STATE: TokenState = TokenState {
 };
 
 impl TokenState {
-    fn token_send(&mut self, transfer: TransferFromContract) {
-        if let Err(err) =
-            abi::call::<_, ()>(self.token_contract, "transfer_from_contract", &transfer)
-        {
+    fn token_send(&mut self, transfer: Transfer) {
+        if let Err(err) = abi::call::<_, ()>(self.token_contract, "transfer", &transfer) {
             panic!("Failed sending tokens: {err}");
         }
 
-        if transfer.sender.is_none()
-            || matches!(transfer.sender, Some(Account::Contract(x)) if x == self.this_contract)
-        {
-            self.balance -= transfer.value;
+        if matches!(transfer.sender(), Account::Contract(x) if *x == self.this_contract) {
+            self.balance -= transfer.value();
         }
     }
 

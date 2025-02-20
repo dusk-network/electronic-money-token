@@ -210,7 +210,7 @@ fn transfer() {
         "The account to transfer to should have no balance"
     );
 
-    let transfer = Transfer::new(
+    let transfer = Transfer::new_external(
         &session.deploy_sk,
         session.deploy_pk,
         pk,
@@ -250,7 +250,7 @@ fn transfer_to_contract() {
         "The contract to transfer to should have its initial balance"
     );
 
-    let transfer = Transfer::new(
+    let transfer = Transfer::new_external(
         &session.deploy_sk,
         session.deploy_pk,
         HOLDER_ID,
@@ -290,11 +290,15 @@ fn transfer_from_contract() {
         "The contract to transfer to should have its initial balance"
     );
 
-    let transfer = TransferFromContract {
-        receiver: Account::External(session.deploy_pk()),
-        sender: None,
-        value: TRANSFERRED_AMOUNT,
-    };
+    let sender = Account::Contract(HOLDER_ID);
+
+    let transfer = Transfer::new_contract(
+        sender,
+        Account::External(session.deploy_pk()),
+        TRANSFERRED_AMOUNT,
+        0,
+    );
+
     session
         .call_holder::<_, ()>("token_send", &transfer)
         .expect("Transferring should succeed");
@@ -327,7 +331,7 @@ fn approve() {
         "The account should not be allowed to spend tokens from the deployed account"
     );
 
-    let approve = Approve::new(&session.deploy_sk, pk, APPROVED_AMOUNT, 1);
+    let approve = Approve::new_external(&session.deploy_sk, pk, APPROVED_AMOUNT, 1);
     session
         .call_token::<_, ()>("approve", &approve)
         .expect("Approving should succeed");
@@ -366,7 +370,7 @@ fn transfer_from() {
         "The account should not be allowed to spend tokens from the deployed account"
     );
 
-    let approve = Approve::new(&session.deploy_sk, pk, APPROVED_AMOUNT, 1);
+    let approve = Approve::new_external(&session.deploy_sk, pk, APPROVED_AMOUNT, 1);
     session
         .call_token::<_, ()>("approve", &approve)
         .expect("Approving should succeed");
@@ -377,7 +381,8 @@ fn transfer_from() {
         "The account should be allowed to spend tokens from the deployed account"
     );
 
-    let transfer_from = TransferFrom::new(&sk, session.deploy_pk(), pk, TRANSFERRED_AMOUNT, 1);
+    let transfer_from =
+        TransferFrom::new_external(&sk, session.deploy_pk(), pk, TRANSFERRED_AMOUNT, 1);
     session
         .call_token::<_, ()>("transfer_from", &transfer_from)
         .expect("Transferring from should succeed");
@@ -606,7 +611,7 @@ fn test_pause() {
         "The account to transfer to should have no balance"
     );
 
-    let transfer = Transfer::new(&session.deploy_sk, session.deploy_pk, pk, VALUE, 1);
+    let transfer = Transfer::new_external(&session.deploy_sk, session.deploy_pk, pk, VALUE, 1);
     let receipt = session.call_token::<_, ()>("transfer", &transfer);
 
     match receipt.err() {
@@ -646,7 +651,7 @@ fn test_force_transfer() {
     let sk = SecretKey::random(&mut rng);
     let pk = PublicKey::from(&sk);
 
-    let transfer = Transfer::new(&session.deploy_sk, session.deploy_pk, pk, VALUE, 1);
+    let transfer = Transfer::new_external(&session.deploy_sk, session.deploy_pk, pk, VALUE, 1);
     session
         .call_token::<_, ()>("transfer", &transfer)
         .expect("Transferring should succeed");
@@ -662,13 +667,13 @@ fn test_force_transfer() {
         "The account transferred to should have the transferred amount"
     );
 
-    let force_transfer = Transfer::new(&session.owner_sk, pk, session.owner, VALUE, 1);
+    let force_transfer = Transfer::new_external(&session.owner_sk, pk, session.owner, VALUE, 1);
 
     session
         .call_token::<_, ()>("force_transfer", &force_transfer)
         .expect("Force transferring should succeed");
 
-    let force_transfer = Transfer::new(&session.owner_sk, pk, session.owner, VALUE, 2);
+    let force_transfer = Transfer::new_external(&session.owner_sk, pk, session.owner, VALUE, 2);
 
     match session
         .call_token::<_, ()>("force_transfer", &force_transfer)
@@ -696,7 +701,7 @@ fn test_sanctions() {
     let test_pk = PublicKey::from(&test_sk); // not blocked, not frozen
 
     // Transfer VALUE to test account
-    let transfer = Transfer::new(&session.deploy_sk, session.deploy_pk, test_pk, VALUE, 1);
+    let transfer = Transfer::new_external(&session.deploy_sk, session.deploy_pk, test_pk, VALUE, 1);
     session
         .call_token::<_, ()>("transfer", &transfer)
         .expect("Transferring should succeed");
@@ -727,7 +732,7 @@ fn test_sanctions() {
     }
 
     // Transfer VALUE to test account
-    let transfer = Transfer::new(&session.deploy_sk, session.deploy_pk, test_pk, VALUE, 2);
+    let transfer = Transfer::new_external(&session.deploy_sk, session.deploy_pk, test_pk, VALUE, 2);
     match session.call_token::<_, ()>("transfer", &transfer).err() {
         Some(VMError::Panic(panic_msg)) => {
             assert_eq!(panic_msg, BLOCKED);
@@ -738,7 +743,7 @@ fn test_sanctions() {
     }
 
     // Transfer VALUE from test account
-    let transfer = Transfer::new(&test_sk, test_pk, session.deploy_pk(), VALUE, 1);
+    let transfer = Transfer::new_external(&test_sk, test_pk, session.deploy_pk(), VALUE, 1);
     match session.call_token::<_, ()>("transfer", &transfer).err() {
         Some(VMError::Panic(panic_msg)) => {
             assert_eq!(panic_msg, BLOCKED);
@@ -763,13 +768,13 @@ fn test_sanctions() {
     );
 
     // Transfer VALUE to test account
-    let transfer = Transfer::new(&session.deploy_sk, session.deploy_pk, test_pk, VALUE, 2);
+    let transfer = Transfer::new_external(&session.deploy_sk, session.deploy_pk, test_pk, VALUE, 2);
     session
         .call_token::<_, ()>("transfer", &transfer)
         .expect("Transfer to frozen account should succeed");
 
     // Transfer VALUE from test account
-    let transfer = Transfer::new(&test_sk, test_pk, session.deploy_pk(), VALUE, 1);
+    let transfer = Transfer::new_external(&test_sk, test_pk, session.deploy_pk(), VALUE, 1);
     match session.call_token::<_, ()>("transfer", &transfer).err() {
         Some(VMError::Panic(panic_msg)) => {
             assert_eq!(panic_msg, FROZEN);
@@ -797,7 +802,7 @@ fn test_sanctions() {
         .expect("Unfreezing should succeed");
 
     // Transfer VALUE from test account
-    let transfer = Transfer::new(&test_sk, test_pk, session.deploy_pk(), VALUE, 1);
+    let transfer = Transfer::new_external(&test_sk, test_pk, session.deploy_pk(), VALUE, 1);
     session
         .call_token::<_, ()>("transfer", &transfer)
         .expect("Transfer should succeed again");

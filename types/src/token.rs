@@ -31,14 +31,15 @@ pub struct Transfer {
     receiver: Account,
     value: u64,
     nonce: u64,
+    /// The signature is optional as a contract account doesn't need to sign the transfer.
     signature: Signature,
 }
 
 impl Transfer {
     const SIGNATURE_MSG_SIZE: usize = 194 + 194 + 8 + 8;
 
-    /// Create a new transfer.
-    pub fn new(
+    /// Create a new transfer with an external account.
+    pub fn new_external(
         sender_sk: &SecretKey,
         sender: impl Into<Account>,
         receiver: impl Into<Account>,
@@ -56,8 +57,23 @@ impl Transfer {
         let sig_msg = transfer.signature_message();
         let sig = sender_sk.sign(&sig_msg);
         transfer.signature = sig;
-
         transfer
+    }
+
+    /// Create a new transfer with a contract account.
+    pub fn new_contract(
+        sender: impl Into<Account>,
+        receiver: impl Into<Account>,
+        value: u64,
+        nonce: u64,
+    ) -> Self {
+        Self {
+            sender: sender.into(),
+            receiver: receiver.into(),
+            value,
+            nonce,
+            signature: Signature::default(),
+        }
     }
 
     /// The account to transfer from.
@@ -116,7 +132,7 @@ impl Transfer {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct TransferFrom {
-    spender: PublicKey,
+    spender: Account,
     sender: Account,
     receiver: Account,
     value: u64,
@@ -125,10 +141,10 @@ pub struct TransferFrom {
 }
 
 impl TransferFrom {
-    const SIGNATURE_MSG_SIZE: usize = 193 + 194 + 194 + 8 + 8;
+    const SIGNATURE_MSG_SIZE: usize = 194 + 194 + 194 + 8 + 8;
 
-    /// Create a new transfer, spending tokens from the `sender`.
-    pub fn new(
+    /// Create a new transfer for external accounts, spending tokens from the `sender`.
+    pub fn new_external(
         spender_sk: &SecretKey,
         sender: impl Into<Account>,
         receiver: impl Into<Account>,
@@ -138,7 +154,7 @@ impl TransferFrom {
         let spender = PublicKey::from(spender_sk);
 
         let mut transfer_from = Self {
-            spender,
+            spender: Account::External(spender),
             sender: sender.into(),
             receiver: receiver.into(),
             value,
@@ -153,8 +169,26 @@ impl TransferFrom {
         transfer_from
     }
 
+    /// Create a new transfer for contracts, spending tokens from the `sender`.
+    pub fn new_contract(
+        spender: impl Into<Account>,
+        sender: impl Into<Account>,
+        receiver: impl Into<Account>,
+        value: u64,
+        nonce: u64,
+    ) -> Self {
+        Self {
+            spender: spender.into(),
+            sender: sender.into(),
+            receiver: receiver.into(),
+            value,
+            nonce,
+            signature: Signature::default(),
+        }
+    }
+
     /// The account spending the tokens.
-    pub fn spender(&self) -> &PublicKey {
+    pub fn spender(&self) -> &Account {
         &self.spender
     }
 
@@ -189,7 +223,7 @@ impl TransferFrom {
 
         let mut offset = 0;
 
-        let bytes = self.spender.to_raw_bytes();
+        let bytes = self.spender.to_bytes();
         msg[offset..][..bytes.len()].copy_from_slice(&bytes);
         offset += bytes.len();
 
@@ -213,27 +247,11 @@ impl TransferFrom {
     }
 }
 
-/// Data used to approve spending tokens from a contract's account.
-///
-/// Note that there is no need for a signature, since contracts are essentially
-/// asserting via their code that they wish the transaction to be made.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
-#[archive_attr(derive(CheckBytes))]
-pub struct TransferFromContract {
-    /// The account to transfer to.
-    pub receiver: Account,
-    /// The owner of the funds to transfer from. If `None` it will be assumed
-    /// to be the contract itself.
-    pub sender: Option<Account>,
-    /// The value to transfer.
-    pub value: u64,
-}
-
 /// Data used to approve spending tokens from a user's account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct Approve {
-    sender: PublicKey,
+    sender: Account,
     spender: Account,
     value: u64,
     nonce: u64,
@@ -241,14 +259,19 @@ pub struct Approve {
 }
 
 impl Approve {
-    const SIGNATURE_MSG_SIZE: usize = 193 + 194 + 8 + 8;
+    const SIGNATURE_MSG_SIZE: usize = 194 + 194 + 8 + 8;
 
-    /// Create a new approval.
-    pub fn new(sender_sk: &SecretKey, spender: impl Into<Account>, value: u64, nonce: u64) -> Self {
+    /// Create a new approval for an external account.
+    pub fn new_external(
+        sender_sk: &SecretKey,
+        spender: impl Into<Account>,
+        value: u64,
+        nonce: u64,
+    ) -> Self {
         let owner = PublicKey::from(sender_sk);
 
         let mut approve = Self {
-            sender: owner,
+            sender: Account::External(owner),
             spender: spender.into(),
             value,
             nonce,
@@ -262,8 +285,24 @@ impl Approve {
         approve
     }
 
+    /// Create a new approval for a contract account.
+    pub fn new_contract(
+        sender: impl Into<Account>,
+        spender: impl Into<Account>,
+        value: u64,
+        nonce: u64,
+    ) -> Self {
+        Self {
+            sender: sender.into(),
+            spender: spender.into(),
+            value,
+            nonce,
+            signature: Signature::default(),
+        }
+    }
+
     /// The account to allow the transfer of tokens.
-    pub fn sender(&self) -> &PublicKey {
+    pub fn sender(&self) -> &Account {
         &self.sender
     }
 
@@ -293,7 +332,7 @@ impl Approve {
 
         let mut offset = 0;
 
-        let bytes = self.sender.to_raw_bytes();
+        let bytes = self.sender.to_bytes();
         msg[offset..][..bytes.len()].copy_from_slice(&bytes);
         offset += bytes.len();
 
