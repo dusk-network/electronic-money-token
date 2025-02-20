@@ -52,8 +52,5 @@ pub const THRESHOLD_NOT_MET: &str =
 /// point.
 pub const INVALID_PUBLIC_KEY: &str = "One of the keys used for";
 
-/*
-/// Error message given when the state is about to be updated to an empty set of
-/// operator.
-pub const EMTPY_OPERATOR: &str = "The operator-set must not be empty";
-*/
+/// Error message given when the nonce used for a signature is incorrect.
+pub const INVALID_NONCE: &str = "The given nonce is not correct";

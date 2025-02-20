@@ -11,7 +11,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use dusk_bytes::Serializable;
-use dusk_core::abi::{ContractId, CONTRACT_ID_BYTES};
+use dusk_core::abi::{self, ContractId, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::{
     MultisigPublicKey, MultisigSignature, PublicKey,
 };
@@ -47,8 +47,8 @@ pub static mut STATE: GovernanceState = GovernanceState::new();
 impl GovernanceState {
     /// The contract-id of the token-contract.
     ///
-    /// **Important:** This field must be filled with the correct token-contract
-    /// id **before** the governance contract is deployed.
+    /// **Important:** The token-contract must be set to the correct id
+    /// **before** the governance contract is deployed.
     pub const TOKEN_CONTRACT: ContractId =
         ContractId::from_bytes([0u8; CONTRACT_ID_BYTES]);
 
@@ -134,13 +134,14 @@ impl GovernanceState {
     /// operation on the token-contract.
     /// If the threshold for an operation is stored as 0, a super-majority of
     /// signers is required for the operation.
-    pub fn operation_threshold(&self, operation: String) -> Option<u8> {
-        self.operations.get(&operation).copied().map(
-            |threshold| match threshold {
+    pub fn operation_threshold(&self, operation: &String) -> Option<u8> {
+        self.operations
+            .get(operation)
+            .copied()
+            .map(|threshold| match threshold {
                 0 => self.operators.len() as u8 / 2 + 1,
                 _ => threshold,
-            },
-        )
+            })
     }
 }
 
@@ -253,13 +254,43 @@ impl GovernanceState {
     ///
     /// Note: A super-majority of owner signatures is required to perform this
     /// action.
+    ///
+    /// # Panics
+    /// This function will panic if:
+    /// - The signature is incorrect or not signed by a super-majority of owners
+    /// - The nonce in `transfer_ownership` is not the `owner_nonce`
     pub fn transfer_governance(
         &mut self,
         transfer_ownership: TransferOwnership,
         sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
-        todo!();
+        // check the nonce
+        if transfer_ownership.nonce() != self.owner_nonce() {
+            panic!("{}", error::INVALID_NONCE);
+        }
+
+        // the threshold needs to be a super-majority
+        let threshold = self.owners.len() as u8 / 2 + 1;
+
+        // check the signature
+        self.authorize_owners(
+            transfer_ownership.signature_message().to_vec(),
+            sig,
+            signers,
+            threshold,
+        );
+
+        // transfer the ownership of the token-contract
+        let _: () = abi::call(
+            Self::TOKEN_CONTRACT,
+            "transfer_ownership",
+            &transfer_ownership,
+        )
+        .expect("transferring the governance should succeed");
+
+        // increment the owners nonce
+        self.owner_nonce += 1;
     }
 
     /// Renounce the governance of the token-contract.
@@ -269,13 +300,43 @@ impl GovernanceState {
     ///
     /// Note: A super-majority of owner signatures is required to perform this
     /// action.
+    ///
+    /// # Panics
+    /// This function will panic if:
+    /// - The signature is incorrect or not signed by a super-majority of owners
+    /// - The nonce in `renounce_ownership` is not the `owner_nonce`
     pub fn renounce_governance(
         &mut self,
         renounce_ownership: RenounceOwnership,
         sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
-        todo!();
+        // check the nonce
+        if renounce_ownership.nonce() != self.owner_nonce() {
+            panic!("{}", error::INVALID_NONCE);
+        }
+
+        // the threshold needs to be a super-majority
+        let threshold = self.owners.len() as u8 / 2 + 1;
+
+        // check the signature
+        self.authorize_owners(
+            renounce_ownership.signature_message().to_vec(),
+            sig,
+            signers,
+            threshold,
+        );
+
+        // transfer the ownership of the token-contract
+        let _: () = abi::call(
+            Self::TOKEN_CONTRACT,
+            "renounce_ownership",
+            &renounce_ownership,
+        )
+        .expect("renouncing the governance should succeed");
+
+        // increment the owners nonce
+        self.owner_nonce += 1;
     }
 }
 
@@ -283,19 +344,43 @@ impl GovernanceState {
 impl GovernanceState {
     /// Execute a given operation on the token-contract.
     ///
+    /// The signature message for executing an operation is the current
+    /// operator-nonce in big endian, appended by the operation-arguments.
+    ///
     /// # Panics
     /// This function will panic if:
     /// - The signature is incorrect or not signed by the required threshold of
     ///   operators
     /// - The operation is not registered in the contract-state.
     pub fn execute_operation(
-        &self,
+        &mut self,
         operation: String,
-        fn_arg: Vec<u8>,
+        operation_arguments: Vec<u8>,
         sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
-        todo!();
+        // construct the signature message
+        let mut sig_msg =
+            Vec::with_capacity(u64::SIZE + operation_arguments.len());
+        sig_msg.extend(&self.operator_nonce.to_be_bytes());
+        sig_msg.extend(&operation_arguments);
+
+        // verify the signature
+        let threshold = self
+            .operation_threshold(&operation)
+            .unwrap_or_else(|| panic!("{}", error::OPERATION_NOT_FOUND));
+        self.authorize_operators(sig_msg, sig, signers, threshold);
+
+        // call the specified operation of the token-contract
+        let _ = abi::call_raw(
+            Self::TOKEN_CONTRACT,
+            &operation,
+            &operation_arguments,
+        )
+        .expect("calling the specified operation should succeed");
+
+        // increment the operator nonce
+        self.operator_nonce += 1;
     }
 
     /// Add a new operation to the stored set of operations or (if the operation
@@ -317,27 +402,25 @@ impl GovernanceState {
     pub fn set_operation(
         &mut self,
         operation: String,
-        threshold: u8,
+        operation_threshold: u8,
         sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
-        // the threshold needs to be a super-majority
-        let threshold = self.operators.len() as u8 / 2 + 1;
-
         // construct the signature message
         let operation_bytes = operation.as_bytes();
         let mut sig_msg =
             Vec::with_capacity(u64::SIZE + operation_bytes.len() + u8::SIZE);
         sig_msg.extend(&self.operator_nonce.to_be_bytes());
         sig_msg.extend(operation_bytes);
-        sig_msg.extend(&[threshold]);
+        sig_msg.extend(&[operation_threshold]);
 
-        // this call will panic if the signature is not correct or the threshold
-        // is not met
+        // this call will panic if the signature is not correct or not signed by
+        // a super-majority of operators
+        let threshold = self.operators.len() as u8 / 2 + 1;
         self.authorize_operators(sig_msg, sig, signers, threshold);
 
         // add the operation or update its threshold if it already exists
-        self.operations.insert(operation, threshold);
+        self.operations.insert(operation, operation_threshold);
 
         // increment the operator nonce
         self.operator_nonce += 1;
@@ -440,7 +523,7 @@ impl GovernanceState {
             .collect();
 
         // aggregate the signers keys
-        let mut multisig_pk = MultisigPublicKey::aggregate(&signers[..])
+        let multisig_pk = MultisigPublicKey::aggregate(&signers[..])
             .unwrap_or_else(|_| panic!("{}", error::INVALID_PUBLIC_KEY));
 
         // verify the signature
@@ -450,11 +533,19 @@ impl GovernanceState {
     }
 }
 
-/// Checks whether a given iterator contains duplicate elements.
-fn contains_duplicates<T>(iter: T) -> bool
+/// Checks whether a given set contains duplicate elements.
+fn contains_duplicates<T>(elements: impl AsRef<[T]>) -> bool
 where
-    T: IntoIterator,
-    T::Item: PartialEq,
+    T: PartialEq,
 {
-    todo!();
+    let elements = elements.as_ref();
+    let len = elements.len();
+    for i in 0..len {
+        for j in i..len {
+            if elements[i] == elements[j] {
+                return true;
+            }
+        }
+    }
+    false
 }
