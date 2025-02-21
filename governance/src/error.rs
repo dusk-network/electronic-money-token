@@ -4,16 +4,18 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+//! The error messages given by the governance contract.
+
 /// Error message given when the state is about to be updated to an empty set of
 /// owner.
 pub const EMTPY_OWNER: &str = "The owner-set must not be empty";
 
 /// Error message given when the state is about to be updated to a set of owners
-/// that is larger than u8::MAX.
+/// that is larger than `u8::MAX`.
 pub const TOO_MANY_OWNERS: &str = "The owner-set cannot be larger than u8::MAX";
 
 /// Error message given when the state is about to be updated to a set of
-/// operators that is larger than u8::MAX.
+/// operators that is larger than `u8::MAX`.
 pub const TOO_MANY_OPERATORS: &str =
     "The operator-set cannot be larger than u8::MAX";
 
@@ -27,10 +29,10 @@ pub const ALLREADY_INITIALIZED: &str =
 pub const OPERATION_NOT_FOUND: &str = "The given operation is not registered";
 
 /// Error message given when there are duplicate owner-keys.
-pub const DUPLICATE_OWNER_KEY: &str = "Duplicate owner-key found";
+pub const DUPLICATE_OWNER: &str = "Duplicate owner-key found";
 
 /// Error message given when there are duplicate owner-keys.
-pub const DUPLICATE_OPERATOR_KEY: &str = "Duplicate operator-key found";
+pub const DUPLICATE_OPERATOR: &str = "Duplicate operator-key found";
 
 /// Error message given when one of the signer indices is out of bounds for the
 /// owner-keys.

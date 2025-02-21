@@ -4,40 +4,24 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+//! The governance contract for electronic money tokens.
+
 #![no_std]
+// #![cfg_attr(target_family = "wasm", no_std)]
+// #![cfg(target_family = "wasm")]
+#![deny(unused_crate_dependencies)]
+#![deny(unused_extern_crates)]
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(clippy::pedantic)]
 
 extern crate alloc;
 
-// use alloc::collections::BTreeMap;
-// use alloc::string::String;
-// use alloc::vec::Vec;
-
-// use dusk_core::abi::{self, ContractId, CONTRACT_ID_BYTES};
-// use dusk_core::signatures::bls::{PublicKey, Signature};
-// use ttoken_types::admin_management::arguments::PauseToggle;
-// use ttoken_types::admin_management::events::PauseToggled;
-// use ttoken_types::admin_management::PAUSED_MESSAGE;
-// use ttoken_types::ownership::arguments::{
-//     RenounceOwnership, TransferOwnership,
-// };
-// use ttoken_types::ownership::events::{
-//     OwnerShipRenouncedEvent, OwnershipTransferredEvent,
-// };
-// use ttoken_types::ownership::{
-//     EXPECT_CONTRACT, OWNER_NOT_FOUND, UNAUTHORIZED_CONTRACT,
-//     UNAUTHORIZED_EXT_ACCOUNT,
-// };
-// use ttoken_types::sanctions::arguments::Sanction;
-// use ttoken_types::sanctions::events::AccountStatusEvent;
-// use ttoken_types::sanctions::{BLOCKED, FROZEN};
-// use ttoken_types::supply_management::arguments::{Burn, Mint};
-// use ttoken_types::supply_management::events::{BurnEvent, MintEvent};
-// use ttoken_types::supply_management::SUPPLY_OVERFLOW;
-// use ttoken_types::*;
+// use dusk_core::abi;
 
 pub mod error;
 pub(crate) mod state;
-pub use state::{GovernanceState, STATE};
+pub use state::{Governance as GovernanceState, STATE};
 
 /*
 #[no_mangle]
@@ -57,6 +41,32 @@ unsafe fn symbol(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |_: ()| STATE.symbol())
 }
 
+/*
+ * Access control functions
+ */
+
+#[no_mangle]
+unsafe fn transfer_governance(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |arg| STATE.transfer_governance(arg))
+}
+
+#[no_mangle]
+unsafe fn renounce_governance(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |arg| STATE.renounce_governance(arg))
+}
+
+#[no_mangle]
+unsafe fn owner(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |_: ()| STATE.owner())
+}
+
+#[no_mangle]
+unsafe fn operator(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |_: ()| STATE.operator())
+}
+*/
+
+/*
 #[no_mangle]
 unsafe fn decimals(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |_: ()| STATE.decimals())
@@ -95,25 +105,6 @@ unsafe fn transfer_from_contract(arg_len: u32) -> u32 {
 #[no_mangle]
 unsafe fn approve(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.approve(arg))
-}
-
-/*
- * Access control functions
- */
-
-#[no_mangle]
-unsafe fn transfer_ownership(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.transfer_ownership(arg))
-}
-
-#[no_mangle]
-unsafe fn renounce_ownership(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.renounce_ownership(arg))
-}
-
-#[no_mangle]
-unsafe fn owner(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |_: ()| STATE.owner)
 }
 
 /*
