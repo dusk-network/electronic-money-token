@@ -44,11 +44,21 @@ pub struct Governance {
 /// The state of the governance contract at deployment.
 pub static mut STATE: Governance = Governance::new();
 
+/// Calculate the super-majority for the given set of keys.
+#[must_use]
+fn supermajority(pks: &Vec<PublicKey>) -> u8 {
+    let len = u8::try_from(pks.len()).expect(
+        "Neither owner nor operator key sets are larger than `u8::MAX`",
+    );
+    len / 2 + 1
+}
+
 /// Basic contract implementation.
 impl Governance {
     /// The contract-id of the token-contract.
     ///
-    /// **Important:** The token-contract must be set to the correct id
+    /// [!IMPORTANT]
+    /// The token-contract is constant and must be set to the correct id
     /// **before** the governance contract is deployed.
     pub const TOKEN_CONTRACT: ContractId =
         ContractId::from_bytes([0u8; CONTRACT_ID_BYTES]);
@@ -76,6 +86,9 @@ impl Governance {
     /// - The given set of operator keys is larger than `u8::MAX`.
     /// - There are duplicate owner keys.
     /// - There are duplicate operator keys.
+    /// - One of the new operation is `transfer_ownership` or
+    ///   `renounce_ownership` both of which are actions that need explicit
+    ///   approval of the owners.
     pub fn init(
         &mut self,
         owners: Vec<PublicKey>,
@@ -109,6 +122,13 @@ impl Governance {
 
         let mut operations = BTreeMap::new();
         for (operation, threshold) in operation_vec {
+            // panic if operations that need owner approval are added
+            assert!(
+                &operation != "transfer_ownership"
+                    && &operation != "renounce_ownership",
+                "{}",
+                error::UNAUTHORIZED_OPERATION,
+            );
             operations.insert(operation, threshold);
         }
 
@@ -171,16 +191,7 @@ impl Governance {
     }
 }
 
-/// Calculate the super-majority given a length.
-#[must_use]
-fn supermajority(pks: &Vec<PublicKey>) -> u8 {
-    let len = u8::try_from(pks.len()).expect(
-        "neither owner nor operator should have more than u8::MAX elements",
-    );
-    len / 2 + 1
-}
-
-// Methods that need the owner's approval
+// Methods that need the owners' approval
 impl Governance {
     /// Update the owner public-keys in the governance-contract.
     ///
@@ -200,9 +211,9 @@ impl Governance {
     // add or remove a single owner make more sense from a user perspective. I
     // however opted for a general `set_owners` method which can be used for
     // both removing and adding owner, in order to reduce the byte-code of the
-    // contract, knowing that with this, the functionality to remove and add a
-    // single owner can be implemented by the multisig wallet application.
-    // The same goes for `set_operators`.
+    // contract. The functionality to remove and add a single owner can be
+    // implemented by the wallet application.
+    // The same applies for `set_operators`.
     pub fn set_owners(
         &mut self,
         sig: MultisigSignature,
@@ -401,7 +412,7 @@ impl Governance {
     }
 }
 
-// Operators operations
+// Methods that need the operators' approval
 impl Governance {
     /// Execute a given operation on the token-contract.
     ///
@@ -457,6 +468,8 @@ impl Governance {
     /// This function will panic if:
     /// - The signature is incorrect or not signed by a super-majority of
     ///   operators
+    /// - The new operation is `transfer_ownership` or `renounce_ownership` both
+    ///   of which are actions that need explicit approval of the owners.
     pub fn set_operation(
         &mut self,
         operation: String,
@@ -464,6 +477,13 @@ impl Governance {
         sig: MultisigSignature,
         signers: &[u8],
     ) {
+        // panic if operations that need owner approval are added
+        assert!(
+            &operation != "transfer_ownership"
+                && &operation != "renounce_ownership",
+            "{}",
+            error::UNAUTHORIZED_OPERATION,
+        );
         // construct the signature message
         let operation_bytes = operation.as_bytes();
         let mut sig_msg =
