@@ -7,10 +7,10 @@ help: ## Display this help screen
 		-E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-test: contract test-contract ## Run the tests
+test: contract holder-contract ## Run the tests
 	@cargo test --release --manifest-path=tests/Cargo.toml
 
-contract: setup-compiler ## Compile the contract
+contract: setup-compiler ## Compile the token contract
 	@RUSTFLAGS="-C link-args=-zstack-size=65536" \
 	cargo +dusk build \
 	  --release \
@@ -25,11 +25,11 @@ contract: setup-compiler ## Compile the contract
 		target/wasm64-unknown-unknown/release/% \
 		build/%
 
-test-contract: setup-compiler ## Compile the test-contract
+holder-contract: setup-compiler ## Compile the holder-contract used for testing
 	@RUSTFLAGS="-C link-args=-zstack-size=65536" \
 	cargo +dusk build \
 	  --release \
-	  --manifest-path=tests/contract/Cargo.toml \
+	  --manifest-path=tests/holder/Cargo.toml \
 	  --color=always \
 	  -Z build-std=core,alloc \
 	  --target wasm64-unknown-unknown
@@ -52,4 +52,4 @@ clean: ## Clean the build artifacts
 	@cargo clean
 	@rm -rf build
 
-.PHONY: all test contract test-contract clean setup-compiler
+.PHONY: all test contract holder-contract clean setup-compiler

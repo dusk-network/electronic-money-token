@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
-members = ["types", "contract", "tests", "tests/contract"]
+members = [
+	"types",
+	"contract",
+	"tests",
+	"tests/holder"
+]
 
 [workspace.package]
 authors = ["Eduardo Leegwater Simões <eduardo@dusk.network>"]
