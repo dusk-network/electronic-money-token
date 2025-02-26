@@ -8,7 +8,8 @@ help: ## Display this help screen
 		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 test: contract holder-contract ## Run the tests
-	@cargo test --release --manifest-path=tests/Cargo.toml
+	@cargo test --release --manifest-path=tests/Cargo.toml -- --test-threads=1
+# We currently need to use --test-threads=1, otherwise Piecrust will throw a PersistenceError when running the tests in parallel
 
 contract: setup-compiler ## Compile the token contract
 	@RUSTFLAGS="-C link-args=-zstack-size=65536" \
