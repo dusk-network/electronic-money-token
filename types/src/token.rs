@@ -14,7 +14,9 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 /// Arguments to query for how much of an allowance a spender has of the `owner`
 /// account.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+)]
 #[archive_attr(derive(CheckBytes))]
 pub struct Allowance {
     /// The account that owns the tokens.
@@ -24,14 +26,17 @@ pub struct Allowance {
 }
 
 /// Data used to transfer tokens from one account to another.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+)]
 #[archive_attr(derive(CheckBytes))]
 pub struct Transfer {
     sender: Account,
     receiver: Account,
     value: u64,
     nonce: u64,
-    /// The signature is optional as a contract account doesn't need to sign the transfer.
+    /// The signature is optional as a contract account doesn't need to sign
+    /// the transfer.
     signature: Signature,
 }
 
@@ -127,9 +132,11 @@ impl Transfer {
     }
 }
 
-/// Data used to transfer tokens from an owner (sender) to a receiver, by an allowed
-/// party (spender).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+/// Data used to transfer tokens from an owner (sender) to a receiver, by an
+/// allowed party (spender).
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+)]
 #[archive_attr(derive(CheckBytes))]
 pub struct TransferFrom {
     spender: Account,
@@ -143,7 +150,8 @@ pub struct TransferFrom {
 impl TransferFrom {
     const SIGNATURE_MSG_SIZE: usize = 194 + 194 + 194 + 8 + 8;
 
-    /// Create a new transfer for external accounts, spending tokens from the `sender`.
+    /// Create a new transfer for external accounts, spending tokens from the
+    /// `sender`.
     pub fn new_external(
         spender_sk: &SecretKey,
         sender: impl Into<Account>,
@@ -248,7 +256,9 @@ impl TransferFrom {
 }
 
 /// Data used to approve spending tokens from a user's account.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+)]
 #[archive_attr(derive(CheckBytes))]
 pub struct Approve {
     sender: Account,
@@ -353,7 +363,9 @@ impl Approve {
 }
 
 /// Event emitted when tokens are transferred from one account to another.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+)]
 #[archive_attr(derive(CheckBytes))]
 pub struct TransferEvent {
     /// The account tokens are transferred from.
@@ -374,7 +386,9 @@ impl TransferEvent {
 }
 
 /// Event emitted when a spender is approved on an account.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+)]
 #[archive_attr(derive(CheckBytes))]
 pub struct ApproveEvent {
     /// The account allowing the transfer.
@@ -386,7 +400,9 @@ pub struct ApproveEvent {
 }
 
 /// Used to inform a contract of the source of funds they're receiving.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+)]
 #[archive_attr(derive(CheckBytes))]
 pub struct TransferInfo {
     /// The originating account of the funds transferred to the contract.

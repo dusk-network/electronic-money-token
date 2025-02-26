@@ -17,7 +17,9 @@ pub mod arguments {
     use super::*;
 
     /// Data used to toggle the pause state of the contract.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+    )]
     #[archive_attr(derive(CheckBytes))]
     pub struct PauseToggle {
         nonce: u64,
@@ -64,7 +66,9 @@ pub mod events {
     use super::*;
 
     /// Event emitted when a contract is paused or unpaused.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+    )]
     #[archive_attr(derive(CheckBytes))]
     pub struct PauseToggled {
         /// State of the pause in the contract after the function call.
