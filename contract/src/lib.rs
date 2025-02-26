@@ -12,9 +12,9 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use dusk_core::abi::{self, ContractId, CONTRACT_ID_BYTES};
+use dusk_core::abi;
 use ttoken_types::admin_management::events::PauseToggled;
-use ttoken_types::admin_management::PAUSED_MESSAGE;
+use ttoken_types::admin_management::{DEFAULT_OWNER, PAUSED_MESSAGE};
 use ttoken_types::ownership::arguments::TransferOwnership;
 use ttoken_types::ownership::events::{
     OwnerShipRenouncedEvent, OwnershipTransferredEvent,
@@ -27,11 +27,6 @@ use ttoken_types::supply_management::arguments::{Burn, Mint};
 use ttoken_types::supply_management::events::{BurnEvent, MintEvent};
 use ttoken_types::supply_management::SUPPLY_OVERFLOW;
 use ttoken_types::*;
-
-const DEFAULT_OWNER: Account =
-    Account::Contract(ContractId::from_bytes([0; CONTRACT_ID_BYTES]));
-
-const SHIELDED_NOT_SUPPORTED: &str = "Shielded transactions are not supported";
 
 /// The state of the token contract.
 struct TokenState {
