@@ -1,14 +1,20 @@
 [workspace]
 resolver = "2"
-members = ["types", "contract", "tests", "tests/contract"]
+members = [
+	"types",
+	"contract",
+	"tests",
+	"tests/holder"
+]
 
 [workspace.package]
-authors = ["Eduardo Leegwater Simões <eduardo@dusk.network>"]
 version = "0.1.0"
 edition = "2021"
 
 [workspace.dependencies]
 ttoken-types = { path = "./types", version = "=0.1.0" }
+
+dusk-bytes = "0.1"
 
 dusk-core = { version = "0.1.0", default-features = false }
 dusk-vm = { version = "0.1.0", default-features = false }

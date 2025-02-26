@@ -21,7 +21,9 @@ pub mod arguments {
     use super::*;
 
     /// Data used to sanction an account.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+    )]
     #[archive_attr(derive(CheckBytes))]
     pub struct Sanction {
         account: Account,
@@ -140,7 +142,9 @@ pub mod events {
     use super::*;
 
     /// Event emitted when an account status changes.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+    )]
     #[archive_attr(derive(CheckBytes))]
     pub struct AccountStatusEvent {
         /// The affected account.

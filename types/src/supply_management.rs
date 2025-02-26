@@ -22,8 +22,11 @@ pub mod arguments {
     ///
     /// This transaction is used to mint new tokens. It is signed by the minter.
     ///
-    /// The `Mint` struct assumes the minter is known to the contract e.g., through the owner.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+    /// The `Mint` struct assumes the minter is known to the contract e.g.,
+    /// through the owner.
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+    )]
     #[archive_attr(derive(CheckBytes))]
     pub struct Mint {
         amount: u64,
@@ -35,8 +38,14 @@ pub mod arguments {
     impl Mint {
         const SIGNATURE_MSG_SIZE: usize = 8 + 194 + 8;
 
-        /// Create a new `Mint` transaction. This transaction is used to mint new tokens.
-        pub fn new(minter_sk: &SecretKey, amount: u64, receiver: Account, nonce: u64) -> Self {
+        /// Create a new `Mint` transaction. This transaction is used to mint
+        /// new tokens.
+        pub fn new(
+            minter_sk: &SecretKey,
+            amount: u64,
+            receiver: Account,
+            nonce: u64,
+        ) -> Self {
             let mut mint = Self {
                 amount,
                 receiver,
@@ -93,8 +102,11 @@ pub mod arguments {
 
     /// A burn transaction. This transaction is used to burn tokens.
     ///
-    /// The `Burn` struct assumes the burner is known to the contract e.g., through the owner
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+    /// The `Burn` struct assumes the burner is known to the contract e.g.,
+    /// through the owner
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+    )]
     #[archive_attr(derive(CheckBytes))]
     pub struct Burn {
         amount: u64,
@@ -105,7 +117,8 @@ pub mod arguments {
     impl Burn {
         const SIGNATURE_MSG_SIZE: usize = 8 + 8;
 
-        /// Create a new `Burn` transaction. This transaction is used to burn tokens.
+        /// Create a new `Burn` transaction. This transaction is used to burn
+        /// tokens.
         pub fn new(burner_sk: &SecretKey, amount: u64, nonce: u64) -> Self {
             let mut burn = Self {
                 amount,
@@ -157,8 +170,11 @@ pub mod events {
     use super::*;
 
     /// Event emitted when new tokens are minted.
-    // note: mint events often re-use a transfer event from a 0 address to the receiver to avoid integrating more event types than necessary
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+    // note: mint events often re-use a transfer event from a 0 address to the
+    // receiver to avoid integrating more event types than necessary
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+    )]
     #[archive_attr(derive(CheckBytes))]
     pub struct MintEvent {
         /// The amount of tokens minted.
@@ -173,8 +189,11 @@ pub mod events {
     }
 
     /// Event emitted when tokens are burned.
-    // note: burns usually often re-use a transfer event to the 0 address to avoid integrating more event types than necessary
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+    // note: burns usually often re-use a transfer event to the 0 address to
+    // avoid integrating more event types than necessary
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+    )]
     #[archive_attr(derive(CheckBytes))]
     pub struct BurnEvent {
         /// The amount of burned tokens.

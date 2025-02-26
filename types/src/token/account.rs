@@ -14,7 +14,8 @@ use rkyv::{Archive, Deserialize, Serialize};
 /// Error message for when a nonce is not sequential.
 pub const NONCE_NOT_SEQUENTIAL: &str = "Nonces must be sequential";
 
-/// Error messages for when an account doesn't have enough tokens to perform the desired operation.
+/// Error messages for when an account doesn't have enough tokens to perform the
+/// desired operation.
 pub const BALANCE_TOO_LOW: &str = "The account doesn't have enough tokens";
 
 /// Error message for when the account is not found in the contract.
@@ -24,7 +25,9 @@ pub const ACCOUNT_NOT_FOUND: &str = "The account does not exist";
 pub const INVALID_CALLER: &str = "Invalid caller";
 
 /// The label for an account.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+)]
 #[archive_attr(derive(CheckBytes))]
 pub enum Account {
     /// An externally owned account.
@@ -53,7 +56,8 @@ impl Account {
                 let contract_bytes = contract.to_bytes();
 
                 bytes[0] = 1;
-                bytes[1..1 + contract_bytes.len()].copy_from_slice(&contract_bytes);
+                bytes[1..1 + contract_bytes.len()]
+                    .copy_from_slice(&contract_bytes);
 
                 bytes
             }
@@ -104,7 +108,9 @@ impl Ord for Account {
 }
 
 /// The data an account has in the contract.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+)]
 #[archive_attr(derive(CheckBytes))]
 pub struct AccountInfo {
     /// The balance of the account.
@@ -118,7 +124,8 @@ pub struct AccountInfo {
     /// 0: No Status
     /// 1: Frozen
     /// 2: Blocked
-    // TODO: We want to have this as a `Role` enum soon, but for serialization we use u64 temporarily.
+    // TODO: We want to have this as a `Role` enum soon, but for serialization
+    // we use u64 temporarily.
     pub status: u64,
 }
 

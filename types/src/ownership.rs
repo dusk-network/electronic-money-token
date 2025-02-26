@@ -13,13 +13,16 @@ use crate::Account;
 /// Error message for when the admin account is not found in the contract.
 pub const OWNER_NOT_FOUND: &str = "The owner does not exist";
 
-/// Error message for when the owner is not authorized i.e., signature verification failed.
+/// Error message for when the owner is not authorized i.e., signature
+/// verification failed.
 pub const UNAUTHORIZED_EXT_ACCOUNT: &str = "Unauthorized external account";
 
-/// Error message for when the contract is not authorized i.e., wrong contract id.
+/// Error message for when the contract is not authorized i.e., wrong contract
+/// id.
 pub const UNAUTHORIZED_CONTRACT: &str = "Unauthorized contract";
 
-/// Error message for when an external account calls a contract function that expects a contract id as the caller & owner.
+/// Error message for when an external account calls a contract function that
+/// expects a contract id as the caller & owner.
 pub const EXPECT_CONTRACT: &str = "Must be called by a contract";
 
 /// Arguments for ownership transactions.
@@ -32,7 +35,9 @@ pub mod arguments {
     ///
     /// The arguments do not need to specify the current owner, as the signature
     /// will be verified by the contract that has access to the current owner
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+    )]
     #[archive_attr(derive(CheckBytes))]
     pub struct TransferOwnership {
         new_owner: Account,
@@ -43,15 +48,19 @@ pub mod arguments {
     impl TransferOwnership {
         const SIGNATURE_MSG_SIZE: usize = 194 + 8;
 
-        /// Create a new `TransferOwnership` transaction. This transaction is used
-        /// to change the owner of an account.
+        /// Create a new `TransferOwnership` transaction. This transaction is
+        /// used to change the owner of an account.
         ///
         /// # Arguments
         ///
         /// * `owner_sk` - The secret key of the current owner.
         /// * `new_owner` - The new owner of the account.
         /// * `nonce` - The nonce of the owner_pk account.
-        pub fn new(owner_sk: &SecretKey, new_owner: impl Into<Account>, nonce: u64) -> Self {
+        pub fn new(
+            owner_sk: &SecretKey,
+            new_owner: impl Into<Account>,
+            nonce: u64,
+        ) -> Self {
             let mut change_owner = Self {
                 new_owner: new_owner.into(),
                 nonce,
@@ -76,7 +85,8 @@ pub mod arguments {
             offset += bytes.len();
 
             let bytes = self.nonce.to_le_bytes();
-            msg[offset..offset + bytes.len()].copy_from_slice(&self.nonce.to_le_bytes());
+            msg[offset..offset + bytes.len()]
+                .copy_from_slice(&self.nonce.to_le_bytes());
 
             msg
         }
@@ -98,7 +108,9 @@ pub mod arguments {
     }
 
     /// Data used to renounce ownership of an account.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+    )]
     #[archive_attr(derive(CheckBytes))]
     pub struct RenounceOwnership {
         current_owner: Account,
@@ -109,8 +121,8 @@ pub mod arguments {
     impl RenounceOwnership {
         const SIGNATURE_MSG_SIZE: usize = 194 + 8;
 
-        /// Create a new `RenounceOwnership` transaction. This transaction is used
-        /// to renounce ownership of an account.
+        /// Create a new `RenounceOwnership` transaction. This transaction is
+        /// used to renounce ownership of an account.
         ///
         /// # Arguments
         ///
@@ -169,7 +181,9 @@ pub mod events {
     use super::*;
 
     /// Event emitted when the ownership of a contract is transferred.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+    )]
     #[archive_attr(derive(CheckBytes))]
     pub struct OwnershipTransferredEvent {
         /// The previous owner of the contract.
@@ -183,8 +197,11 @@ pub mod events {
         pub const TOPIC: &'static str = "ownership_transferred";
     }
 
-    /// Event emitted when the ownership of a contract is accepted in a two step transfer process.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+    /// Event emitted when the ownership of a contract is accepted in a two step
+    /// transfer process.
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+    )]
     #[archive_attr(derive(CheckBytes))]
     pub struct OwnershipAcceptedEvent {
         /// The previous owner of the contract.
@@ -198,8 +215,11 @@ pub mod events {
         pub const TOPIC: &'static str = "ownership_accepted";
     }
 
-    /// Event emitted when the ownership of a contract is renounced i.e., no owner exists anymore.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+    /// Event emitted when the ownership of a contract is renounced i.e., no
+    /// owner exists anymore.
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+    )]
     #[archive_attr(derive(CheckBytes))]
     pub struct OwnerShipRenouncedEvent {
         /// The previous owner of the contract.

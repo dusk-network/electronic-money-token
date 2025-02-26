@@ -1,6 +1,5 @@
 [package]
-name = "ttoken-test-contract"
-authors.workspace = true
+name = "ttoken-holder-contract"
 version.workspace = true
 edition.workspace = true
 
