@@ -5,17 +5,10 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use bytecheck::CheckBytes;
-use dusk_core::abi::{ContractId, CONTRACT_ID_BYTES};
 use rkyv::{Archive, Deserialize, Serialize};
-
-use crate::Account;
 
 /// Error message for when the contract is paused.
 pub const PAUSED_MESSAGE: &str = "Contract is paused";
-
-/// Default owner i.e., no owner. This is the Zero address.
-pub const DEFAULT_OWNER: Account =
-    Account::Contract(ContractId::from_bytes([0; CONTRACT_ID_BYTES]));
 
 /// Events emitted by admin management transactions.
 pub mod events {
