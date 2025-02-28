@@ -40,8 +40,9 @@ impl TokenState {
             panic!("Failed sending tokens: {err}");
         }
 
-        if matches!(transfer.sender(), Account::Contract(x) if *x == self.this_contract)
-        {
+        let transfer_sender = abi::caller().expect("Failed to get caller");
+
+        if transfer_sender == self.this_contract {
             self.balance -= transfer.value();
         }
     }

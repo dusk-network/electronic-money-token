@@ -1,9 +1,6 @@
-# Dusk - Transparent Token
+# Dusk - Electronic Money Token
 
 > Unstable : No guarantees can be made regarding the function signatures stability, the project is in development.
-
-This repository proposes a standard for building transparent tokens on the Dusk chain, as well as a
-barebones implementation of said standard.
 
 ## Introduction
 
@@ -93,10 +90,3 @@ Transaction sizes are a consideration for any chain, and given that deployment c
 deployed it is in the best interests of contract developers to minimize the payload. As such we
 include a script that downloads a tool that strips the compiled binary of any superfluous
 information such as debug symbols.
-
-#### Nonces
-
-To prevent replay, external accounts have to use a nonce in their calls to the token contract. These
-nonces must be sequential, with the next successive number being +1 the previous. These nonces are
-kept in the contract's state, and function as an effective count of the number of calls an account
-has performed.
