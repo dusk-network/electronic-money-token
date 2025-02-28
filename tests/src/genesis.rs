@@ -104,7 +104,7 @@ impl MainnetSession {
         )
         .expect("Creating moonlight transaction should succeed");
 
-        // TODO: this function could return the generic R type of the .call
+        // TODO: this function could return the generic R type of the call
         // function used in it.
         execute(&mut self.session, &transaction, &self.config).unwrap_or_else(
             |e| panic!("Executing the transaction should succeed: {:?}", e),
