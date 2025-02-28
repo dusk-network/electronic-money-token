@@ -17,6 +17,7 @@ use dusk_vm::{CallReceipt, ContractData, Error as VMError};
 
 use bytecheck::CheckBytes;
 
+use rkyv::de::deserializers::SharedDeserializeMap;
 use rkyv::ser::serializers::{
     BufferScratch, BufferSerializer, CompositeSerializer,
 };
@@ -32,7 +33,6 @@ use ttoken_types::ownership::arguments::TransferOwnership;
 use ttoken_types::ownership::UNAUTHORIZED_ACCOUNT;
 use ttoken_types::sanctions::arguments::Sanction;
 use ttoken_types::sanctions::{BLOCKED, FROZEN};
-use ttoken_types::supply_management::arguments::{Burn, Mint};
 use ttoken_types::supply_management::SUPPLY_OVERFLOW;
 use ttoken_types::*;
 
@@ -203,16 +203,28 @@ impl ContractSession {
         fn_arg: &A,
     ) -> CallReceipt<Result<Vec<u8>, ContractError>>
     where
-        A: for<'b> Serialize<StandardBufSerializer<'b>>,
+        A: for<'b> Serialize<StandardBufSerializer<'b>>
+            + PartialEq
+            + std::fmt::Debug,
         A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
+        <A as Archive>::Archived: Deserialize<A, SharedDeserializeMap>,
         //R: Archive,
         //R::Archived: Deserialize<R, Infallible> + for<'b>
         // CheckBytes<DefaultValidator<'b>>,
     {
-        let fn_arg = Self::serialize(fn_arg);
+        let vec_fn_arg;
+        {
+            vec_fn_arg = Self::serialize(fn_arg);
+
+            // deserialize the vec_fn_arg for sanity check
+            let back = rkyv::from_bytes::<A>(&vec_fn_arg)
+                .expect("failed to deserialize previously serialized fn_arg");
+
+            assert_eq!(&back, fn_arg);
+        }
 
         self.session
-            .icc_transaction(tx_sk, TOKEN_ID, fn_name, fn_arg)
+            .icc_transaction(tx_sk, TOKEN_ID, fn_name, vec_fn_arg)
     }
 
     /// Helper function to call a "view" function on the token contract that
@@ -677,18 +689,64 @@ fn test_mint() {
     let mut session = ContractSession::new();
     let mint_amount = 1000;
 
-    let mint = Mint::new(mint_amount, session.owner_account());
+    // Note: Direct usage of PublicKey here fails during rkyv deserialization.
+    // TODO: Consider changing call_token to support types implementing
+    // Into<Account> by somehow detecting the types the fn expects.
+    let mint_receiver = session.owner_account();
+
+    assert_eq!(session.total_supply(), INITIAL_SUPPLY);
 
     // mint with owner sk
-    session.call_token(session.owner_sk(), "mint", &mint);
+    let receipt = session.call_token(
+        session.owner_sk(),
+        "mint",
+        &(mint_receiver, mint_amount),
+    );
+
+    match receipt.data {
+        Ok(_) => {
+            assert!(true);
+        }
+        Err(e) => {
+            panic!("Mint should succeed, err: {e}");
+        }
+    }
+
+    assert_eq!(receipt.events.len(), 2);
+
+    receipt.events.iter().any(|event| {
+        if event.topic == "mint" {
+            let transfer_event =
+                rkyv::from_bytes::<TransferEvent>(&event.data).unwrap();
+
+            assert!(
+                transfer_event.sender == ZERO_ADDRESS,
+                "The sender should be the ZERO_ADDRESS"
+            );
+            assert!(
+                transfer_event.receiver == mint_receiver,
+                "The receiver should be the mint_receiver"
+            );
+            assert_eq!(
+                transfer_event.value, mint_amount,
+                "The transferred amount should be the mint_amount"
+            );
+            true
+        } else {
+            false
+        }
+    });
+
     assert_eq!(session.total_supply(), INITIAL_SUPPLY + mint_amount);
 
     // mint overflow
-    let mint_amount = u64::MAX;
+    let too_much = u64::MAX;
 
-    let mint = Mint::new(mint_amount, session.owner_account());
-
-    let receipt = session.call_token(session.owner_sk(), "mint", &mint);
+    let receipt = session.call_token(
+        session.owner_sk(),
+        "mint",
+        &(mint_receiver, too_much),
+    );
 
     match receipt.data.err() {
         Some(ContractError::Panic(panic_msg)) => {
@@ -699,9 +757,11 @@ fn test_mint() {
         }
     }
 
-    // unauthorized
-    let mint = Mint::new(mint_amount, session.owner_account());
-    let receipt = session.call_token(session.test_sk(), "mint", &mint);
+    let receipt = session.call_token(
+        session.test_sk(),
+        "mint",
+        &(mint_receiver, mint_amount),
+    );
 
     match receipt.data.err() {
         Some(ContractError::Panic(panic_msg)) => {
@@ -721,9 +781,7 @@ fn test_burn() {
     let mut session = ContractSession::new();
     let burn_amount = 1000;
 
-    let burn = Burn::new(burn_amount);
-
-    let receipt = session.call_token(session.owner_sk(), "burn", &burn);
+    let receipt = session.call_token(session.owner_sk(), "burn", &burn_amount);
 
     match receipt.data {
         Ok(_) => {
@@ -739,9 +797,7 @@ fn test_burn() {
     // burn more than the owner account has
     let burn_amount = u64::MAX;
 
-    let burn = Burn::new(burn_amount);
-
-    let receipt = session.call_token(session.owner_sk(), "burn", &burn);
+    let receipt = session.call_token(session.owner_sk(), "burn", &burn_amount);
 
     match receipt.data.err() {
         Some(ContractError::Panic(panic_msg)) => {
@@ -753,8 +809,7 @@ fn test_burn() {
     }
 
     // unauthorized account
-    let burn = Burn::new(burn_amount);
-    let receipt = session.call_token(session.test_sk(), "burn", &burn);
+    let receipt = session.call_token(session.test_sk(), "burn", &burn_amount);
 
     match receipt.data.err() {
         Some(ContractError::Panic(panic_msg)) => {
