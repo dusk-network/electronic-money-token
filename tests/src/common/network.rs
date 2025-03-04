@@ -14,7 +14,7 @@ use dusk_core::stake::STAKE_CONTRACT;
 use dusk_core::transfer::data::ContractCall;
 use dusk_core::transfer::moonlight::AccountData;
 use dusk_core::transfer::{Transaction, TRANSFER_CONTRACT};
-use dusk_core::{dusk, LUX};
+use dusk_core::LUX;
 use dusk_vm::{execute, ExecutionConfig};
 use dusk_vm::{CallReceipt, ContractData, Error as VMError, Session, VM};
 use rkyv::validation::validators::DefaultValidator;
@@ -25,8 +25,6 @@ use crate::common::utils::{account, chain_id};
 const ZERO_ADDRESS: ContractId = ContractId::from_bytes([0; CONTRACT_ID_BYTES]);
 const GAS_LIMIT: u64 = 0x10000000;
 const CHAIN_ID: u8 = 0x1;
-const MOONLIGHT_GENESIS_VALUE: u64 = dusk(1_000.0);
-const MOONLIGHT_GENESIS_NONCE: u64 = 0;
 const NO_CONFIG: ExecutionConfig = ExecutionConfig::DEFAULT;
 
 type Result<T, Error = VMError> = core::result::Result<T, Error>;

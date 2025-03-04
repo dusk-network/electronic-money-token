@@ -315,6 +315,55 @@ fn empty_account() {
     );
 }
 
+/// Test that the token contract can not be initialized when it already carries
+/// data.
+#[test]
+fn double_init() {
+    const INSERT_VALUE: u64 = INITIAL_BALANCE + 42;
+
+    let mut session = ContractSession::new();
+
+    // generate new keys
+    let mut rng = StdRng::seed_from_u64(0xBEEF);
+    let sk = AccountSecretKey::random(&mut rng);
+    let pk = AccountPublicKey::from(&sk);
+
+    let receipt = session.call_token(
+        session.deploy_sk(),
+        "init",
+        &(
+            vec![(Account::External(pk), INSERT_VALUE)],
+            Account::External(pk),
+        ),
+    );
+
+    // attempt to insert new keys that holds token into the state by calling
+    // `init` function after contract initialization
+    match receipt.data.err() {
+        Some(ContractError::Panic(panic_msg)) => {
+            assert_eq!(
+                panic_msg,
+                "This function should never be called via an icc"
+            );
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
+
+    assert_eq!(
+        session.account(pk).balance,
+        0,
+        "The new account should have 0 balance"
+    );
+
+    assert_ne!(
+        session.owner(),
+        Account::External(pk),
+        "The token-contract owner shouldn't have changed"
+    );
+}
+
 /// Test a token transfer from the deploy account to the test account.
 #[test]
 fn transfer() {
