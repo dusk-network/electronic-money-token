@@ -211,6 +211,46 @@ fn empty_account() {
     );
 }
 
+// test that the token contract can not be initialized when it already carries
+// data.
+#[test]
+fn double_init() {
+    const INSERT_VALUE: u64 = INITIAL_BALANCE + 42;
+
+    let mut session = ContractSession::new();
+
+    // generate new keys
+    let mut rng = StdRng::seed_from_u64(0xBEEF);
+    let sk = SecretKey::random(&mut rng);
+    let pk = PublicKey::from(&sk);
+
+    let receipt =
+        session.call_token::<_, ()>("init", &(vec![(pk, INSERT_VALUE)], pk));
+
+    // attempt to insert new keys that holds token into the state by calling
+    // `init` function after contract initialization
+    match receipt.err() {
+        Some(VMError::InitalizationError(panic_msg)) => {
+            assert_eq!(panic_msg, "init call not allowed");
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
+
+    assert_eq!(
+        session.account(pk).balance,
+        0,
+        "The new account should have 0 balance"
+    );
+
+    assert_ne!(
+        session.owner().expect("Querying owner should succeed").data,
+        Account::External(pk),
+        "The token-contract owner shouldn't have changed"
+    );
+}
+
 #[test]
 fn transfer() {
     const TRANSFERRED_AMOUNT: u64 = INITIAL_BALANCE - 1;
