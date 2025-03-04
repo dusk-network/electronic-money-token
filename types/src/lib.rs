@@ -18,5 +18,12 @@ pub mod sanctions;
 /// Types used for supply management.
 pub mod supply_management;
 /// Implementation of the base token.
-pub mod token;
-pub use token::*;
+pub(crate) mod token;
+pub use token::account::{
+    Account, AccountInfo, ACCOUNT_NOT_FOUND, BALANCE_TOO_LOW, INVALID_CALLER,
+    NONCE_NOT_SEQUENTIAL,
+};
+pub use token::{
+    Allowance, Approve, ApproveEvent, Transfer, TransferEvent, TransferFrom,
+    TransferInfo,
+};
