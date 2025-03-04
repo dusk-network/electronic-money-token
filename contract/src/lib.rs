@@ -413,19 +413,20 @@ impl TokenState {
 
         obliged_sender_account.balance -= value;
 
-        let to = *transfer.receiver();
-        let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
+        let receiver = *transfer.receiver();
+        let receiver_account =
+            self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
 
         // this can never overflow as value + balance is never higher than total
         // supply
-        to_account.balance += value;
+        receiver_account.balance += value;
 
         abi::emit(
             TransferEvent::FORCE_TRANSFER_TOPIC,
             TransferEvent {
                 sender: obliged_sender,
                 spender: None,
-                receiver: to,
+                receiver,
                 value,
             },
         );
@@ -516,21 +517,22 @@ impl TokenState {
             )
         };
 
-        let to = *transfer.receiver();
-        let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
+        let receiver = *transfer.receiver();
+        let receiver_account =
+            self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
 
-        assert!(!to_account.is_blocked(), "{}", BLOCKED);
+        assert!(!receiver_account.is_blocked(), "{}", BLOCKED);
 
         // this can never overflow as value + balance is never higher than total
         // supply
-        to_account.balance += value;
+        receiver_account.balance += value;
 
         abi::emit(
             TransferEvent::TRANSFER_TOPIC,
             TransferEvent {
                 sender,
                 spender: None,
-                receiver: to,
+                receiver,
                 value,
             },
         );
@@ -538,7 +540,7 @@ impl TokenState {
         // if the transfer is to a contract, the acceptance function of said
         // contract is called. if it fails (panic or OoG) the transfer
         // also fails.
-        if let Account::Contract(contract) = to {
+        if let Account::Contract(contract) = receiver {
             if let Err(err) = abi::call::<_, ()>(
                 contract,
                 "token_received",
@@ -613,20 +615,21 @@ impl TokenState {
         *allowance -= value;
         owner_account.balance -= value;
 
-        let to = *transfer.receiver();
-        let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
-        assert!(!to_account.is_blocked(), "{}", BLOCKED);
+        let receiver = *transfer.receiver();
+        let receiver_account =
+            self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
+        assert!(!receiver_account.is_blocked(), "{}", BLOCKED);
 
         // this can never overflow as value + balance is never higher than total
         // supply
-        to_account.balance += value;
+        receiver_account.balance += value;
 
         abi::emit(
             TransferEvent::TRANSFER_TOPIC,
             TransferEvent {
                 sender: owner,
                 spender: Some(spender),
-                receiver: to,
+                receiver,
                 value,
             },
         );
@@ -634,7 +637,7 @@ impl TokenState {
         // if the transfer is to a contract, the acceptance function of said
         // contract is called. if it fails (panic or OoG) the transfer
         // also fails.
-        if let Account::Contract(contract) = to {
+        if let Account::Contract(contract) = receiver {
             if let Err(err) = abi::call::<_, ()>(
                 contract,
                 "token_received",
