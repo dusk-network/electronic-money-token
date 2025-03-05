@@ -12,21 +12,14 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use dusk_core::abi::{self, ContractId, CONTRACT_ID_BYTES};
-use dusk_core::signatures::bls::Signature;
-use ttoken_types::admin_management::arguments::PauseToggle;
+use dusk_core::abi;
 use ttoken_types::admin_management::events::PauseToggled;
-use ttoken_types::admin_management::PAUSED_MESSAGE;
-use ttoken_types::ownership::arguments::{
-    RenounceOwnership, TransferOwnership,
-};
+use ttoken_types::admin_management::{DEFAULT_OWNER, PAUSED_MESSAGE};
+use ttoken_types::ownership::arguments::TransferOwnership;
 use ttoken_types::ownership::events::{
     OwnerShipRenouncedEvent, OwnershipTransferredEvent,
 };
-use ttoken_types::ownership::{
-    EXPECT_CONTRACT, OWNER_NOT_FOUND, UNAUTHORIZED_CONTRACT,
-    UNAUTHORIZED_EXT_ACCOUNT,
-};
+use ttoken_types::ownership::{OWNER_NOT_FOUND, UNAUTHORIZED_ACCOUNT};
 use ttoken_types::sanctions::arguments::Sanction;
 use ttoken_types::sanctions::events::AccountStatusEvent;
 use ttoken_types::sanctions::{BLOCKED, FROZEN};
@@ -34,9 +27,6 @@ use ttoken_types::supply_management::arguments::{Burn, Mint};
 use ttoken_types::supply_management::events::{BurnEvent, MintEvent};
 use ttoken_types::supply_management::SUPPLY_OVERFLOW;
 use ttoken_types::*;
-
-const DEFAULT_OWNER: Account =
-    Account::Contract(ContractId::from_bytes([0; CONTRACT_ID_BYTES]));
 
 /// The state of the token contract.
 struct TokenState {
@@ -82,50 +72,16 @@ impl TokenState {
         self.accounts.get_mut(&self.owner).expect(OWNER_NOT_FOUND)
     }
 
-    fn authorize_owner(&self, sig_msg: Vec<u8>, sig: Signature) {
-        match &self.owner {
-            Account::External(pk) => {
-                assert!(
-                    abi::verify_bls(sig_msg, *pk, sig),
-                    "{}",
-                    UNAUTHORIZED_EXT_ACCOUNT
-                )
-            }
-            Account::Contract(contract_id) => assert!(
-                &abi::caller().expect(EXPECT_CONTRACT) == contract_id,
-                "{}",
-                UNAUTHORIZED_CONTRACT
-            ),
-        }
+    fn authorize_owner(&self) {
+        assert!(get_sender() == self.owner, "{}", UNAUTHORIZED_ACCOUNT);
     }
 
     fn transfer_ownership(&mut self, transfer_owner: TransferOwnership) {
-        let sig = *transfer_owner.signature();
-        let sig_msg = transfer_owner.signature_message().to_vec();
-
-        let prev_owner_account = self.owner_info_mut();
-
-        if transfer_owner.nonce() != prev_owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+        self.authorize_owner();
 
         let previous_owner = self.owner;
-        match previous_owner {
-            Account::External(pk) => {
-                assert!(
-                    abi::verify_bls(sig_msg, pk, sig),
-                    "{}",
-                    UNAUTHORIZED_EXT_ACCOUNT
-                )
-            }
-            Account::Contract(contract_id) => assert!(
-                abi::caller().expect(EXPECT_CONTRACT) == contract_id,
-                "{}",
-                UNAUTHORIZED_CONTRACT
-            ),
-        }
-
         let new_owner = *transfer_owner.new_owner();
+
         self.owner = new_owner;
         // Always insert owner
         self.accounts.entry(new_owner).or_insert(AccountInfo::EMPTY);
@@ -139,16 +95,8 @@ impl TokenState {
         );
     }
 
-    fn renounce_ownership(&mut self, renounce_owner: RenounceOwnership) {
-        let sig = *renounce_owner.signature();
-        let sig_msg = renounce_owner.signature_message().to_vec();
-
-        let owner_account = self.owner_info_mut();
-
-        if renounce_owner.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
-        self.authorize_owner(sig_msg, sig);
+    fn renounce_ownership(&mut self) {
+        self.authorize_owner();
 
         let previous_owner = self.owner;
         self.owner = DEFAULT_OWNER;
@@ -182,17 +130,7 @@ impl TokenState {
             block_account.sanction_type() == AccountInfo::BLOCKED,
             "Invalid sanction type"
         );
-
-        let sig = *block_account.signature();
-        let sig_msg = block_account.signature_message().to_vec();
-
-        self.authorize_owner(sig_msg, sig);
-
-        let owner_account = self.owner_info_mut();
-
-        if block_account.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+        self.authorize_owner();
 
         let account = *block_account.account();
         let account_info =
@@ -211,17 +149,7 @@ impl TokenState {
             freeze_account.sanction_type() == AccountInfo::FROZEN,
             "Invalid sanction type"
         );
-
-        let sig = *freeze_account.signature();
-        let sig_msg = freeze_account.signature_message().to_vec();
-
-        self.authorize_owner(sig_msg, sig);
-
-        let owner_account = self.owner_info_mut();
-
-        if freeze_account.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+        self.authorize_owner();
 
         let account = *freeze_account.account();
         let account_info =
@@ -236,16 +164,7 @@ impl TokenState {
     }
 
     fn unblock(&mut self, unblock_account: Sanction) {
-        let sig = *unblock_account.signature();
-        let sig_msg = unblock_account.signature_message().to_vec();
-
-        self.authorize_owner(sig_msg, sig);
-
-        let owner_account = self.owner_info_mut();
-
-        if unblock_account.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+        self.authorize_owner();
 
         let account = *unblock_account.account();
         let account_info =
@@ -262,16 +181,7 @@ impl TokenState {
     }
 
     fn unfreeze(&mut self, unfreeze_account: Sanction) {
-        let sig = *unfreeze_account.signature();
-        let sig_msg = unfreeze_account.signature_message().to_vec();
-
-        self.authorize_owner(sig_msg, sig);
-
-        let owner_account = self.owner_info_mut();
-
-        if unfreeze_account.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+        self.authorize_owner();
 
         let account = *unfreeze_account.account();
         let account_info =
@@ -291,16 +201,7 @@ impl TokenState {
 /// Supply management implementation.
 impl TokenState {
     fn mint(&mut self, mint: Mint) {
-        let sig = *mint.signature();
-        let sig_msg = mint.signature_message().to_vec();
-
-        self.authorize_owner(sig_msg, sig);
-
-        let owner_account = self.owner_info_mut();
-
-        if mint.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+        self.authorize_owner();
 
         let receiver = *mint.receiver();
         let receiver_account =
@@ -326,16 +227,9 @@ impl TokenState {
     }
 
     fn burn(&mut self, burn: Burn) {
-        let sig = *burn.signature();
-        let sig_msg = burn.signature_message().to_vec();
-
-        self.authorize_owner(sig_msg, sig);
+        self.authorize_owner();
 
         let burn_account = self.owner_info_mut();
-
-        if burn.nonce() != burn_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
 
         let value = burn.amount();
         if burn_account.balance < value {
@@ -363,16 +257,8 @@ impl TokenState {
         self.is_paused
     }
 
-    fn toggle_pause(&mut self, toggle: PauseToggle) {
-        let sig = *toggle.signature();
-        let sig_msg = toggle.signature_message().to_vec();
-
-        self.authorize_owner(sig_msg, sig);
-        let owner_account = self.owner_info_mut();
-
-        if toggle.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+    fn toggle_pause(&mut self) {
+        self.authorize_owner();
 
         self.is_paused = !self.is_paused;
 
@@ -386,19 +272,8 @@ impl TokenState {
 
     /// note: this function will fail if the balance of the obliged sender is
     /// too low. It will **not** default to the maximum available balance.
-    fn force_transfer(&mut self, transfer: Transfer) {
-        self.authorize_owner(
-            transfer.signature_message().to_vec(),
-            *transfer.signature(),
-        );
-
-        let obliged_sender = *transfer.sender();
-
-        let owner_account = self.owner_info_mut();
-
-        if transfer.nonce() != owner_account.increment_nonce() {
-            panic!("{}", NONCE_NOT_SEQUENTIAL);
-        }
+    fn force_transfer(&mut self, transfer: Transfer, obliged_sender: Account) {
+        self.authorize_owner();
 
         let obliged_sender_account = self
             .accounts
@@ -477,7 +352,7 @@ impl TokenState {
     fn transfer(&mut self, transfer: Transfer) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
-        let sender = *transfer.sender();
+        let sender = get_sender();
 
         let sender_account =
             self.accounts.get_mut(&sender).expect(ACCOUNT_NOT_FOUND);
@@ -492,45 +367,22 @@ impl TokenState {
 
         sender_account.balance -= value;
 
-        // If the sender is an external account, the signature must be verified
-        // with the specified sender pk in the Account. If the sender is
-        // a contract, the caller must be verified against the specified sender
-        // contract id in the Account.
-        if let Account::External(sender_key) = *transfer.sender() {
-            if transfer.nonce() != sender_account.increment_nonce() {
-                panic!("{}", NONCE_NOT_SEQUENTIAL);
-            }
+        let receiver = *transfer.receiver();
+        let receiver_account =
+            self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
 
-            let sig = *transfer.signature();
-            let sig_msg = transfer.signature_message().to_vec();
-
-            if !abi::verify_bls(sig_msg, sender_key, sig) {
-                panic!("Invalid signature");
-            }
-        } else {
-            assert_eq!(
-                *transfer.sender(),
-                Account::Contract(abi::caller().expect(EXPECT_CONTRACT)),
-                "{}",
-                INVALID_CALLER
-            )
-        };
-
-        let to = *transfer.receiver();
-        let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
-
-        assert!(!to_account.is_blocked(), "{}", BLOCKED);
+        assert!(!receiver_account.is_blocked(), "{}", BLOCKED);
 
         // this can never overflow as value + balance is never higher than total
         // supply
-        to_account.balance += value;
+        receiver_account.balance += value;
 
         abi::emit(
             TransferEvent::TRANSFER_TOPIC,
             TransferEvent {
                 sender,
                 spender: None,
-                receiver: to,
+                receiver,
                 value,
             },
         );
@@ -538,7 +390,7 @@ impl TokenState {
         // if the transfer is to a contract, the acceptance function of said
         // contract is called. if it fails (panic or OoG) the transfer
         // also fails.
-        if let Account::Contract(contract) = to {
+        if let Account::Contract(contract) = receiver {
             if let Err(err) = abi::call::<_, ()>(
                 contract,
                 "token_received",
@@ -556,36 +408,12 @@ impl TokenState {
     fn transfer_from(&mut self, transfer: TransferFrom) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
-        let spender = *transfer.spender();
+        let spender = get_sender();
 
         let spender_account =
             self.accounts.entry(spender).or_insert(AccountInfo::EMPTY);
         assert!(!spender_account.is_blocked(), "{}", BLOCKED);
         assert!(!spender_account.is_frozen(), "{}", FROZEN);
-
-        // If the spender is an external account, the signature must be verified
-        // with the specified sender pk in the Account. If the spender
-        // is a contract, the caller must be verified against the specified
-        // sender contract id in the Account.
-        if let Account::External(sender_key) = *transfer.spender() {
-            if transfer.nonce() != spender_account.increment_nonce() {
-                panic!("{}", NONCE_NOT_SEQUENTIAL);
-            }
-
-            let sig = *transfer.signature();
-            let sig_msg = transfer.signature_message().to_vec();
-
-            if !abi::verify_bls(sig_msg, sender_key, sig) {
-                panic!("Invalid signature");
-            }
-        } else {
-            assert_eq!(
-                *transfer.sender(),
-                Account::Contract(abi::caller().expect(EXPECT_CONTRACT)),
-                "{}",
-                INVALID_CALLER
-            )
-        };
 
         let owner = *transfer.sender();
 
@@ -649,38 +477,12 @@ impl TokenState {
     }
 
     fn approve(&mut self, approve: Approve) {
-        let owner = approve.sender();
-
-        let owner_account =
-            self.accounts.entry(*owner).or_insert(AccountInfo::EMPTY);
-
-        // If the sender is an external account, the signature must be verified
-        // with the specified sender pk in the Account. If the sender is
-        // a contract, the caller must be verified against the specified sender
-        // contract id in the Account.
-        if let Account::External(sender_key) = *approve.sender() {
-            if approve.nonce() != owner_account.increment_nonce() {
-                panic!("{}", NONCE_NOT_SEQUENTIAL);
-            }
-
-            let sig = *approve.signature();
-            let sig_msg = approve.signature_message().to_vec();
-
-            if !abi::verify_bls(sig_msg, sender_key, sig) {
-                panic!("Invalid signature");
-            }
-        } else {
-            assert_eq!(
-                *approve.sender(),
-                Account::Contract(abi::caller().expect(EXPECT_CONTRACT)),
-                "{}",
-                INVALID_CALLER
-            )
-        };
+        // owner of the funds
+        let owner = get_sender();
 
         let spender = *approve.spender();
 
-        let allowances = self.allowances.entry(*owner).or_default();
+        let allowances = self.allowances.entry(owner).or_default();
 
         let value = approve.value();
         allowances.insert(spender, value);
@@ -688,7 +490,7 @@ impl TokenState {
         abi::emit(
             "approve",
             ApproveEvent {
-                sender: *owner,
+                sender: owner,
                 spender,
                 value,
             },
@@ -759,7 +561,7 @@ unsafe fn transfer_ownership(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe fn renounce_ownership(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.renounce_ownership(arg))
+    abi::wrap_call(arg_len, |_: ()| STATE.renounce_ownership())
 }
 
 #[no_mangle]
@@ -787,7 +589,7 @@ unsafe fn burn(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe fn toggle_pause(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.toggle_pause(arg))
+    abi::wrap_call(arg_len, |_: ()| STATE.toggle_pause())
 }
 
 #[no_mangle]
@@ -797,7 +599,9 @@ unsafe fn is_paused(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe fn force_transfer(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.force_transfer(arg))
+    abi::wrap_call(arg_len, |(transfer, obliged_sender)| {
+        STATE.force_transfer(transfer, obliged_sender)
+    })
 }
 
 /*
@@ -832,4 +636,41 @@ unsafe fn blocked(arg_len: u32) -> u32 {
 #[no_mangle]
 unsafe fn frozen(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.frozen(arg))
+}
+
+/*
+ * Helper functions
+ */
+
+/// Determines and returns the sender of the current transfer.
+///
+/// If the sender is an external account, return the transaction origin.
+/// If the sender is a contract, return the calling contract.
+///
+/// # Returns
+///
+/// An `Account` representing the token sender.
+///
+/// # Panics
+///
+/// - If no public sender is available (shielded transactions are not supported)
+/// - If no caller can be determined (impossible case)
+fn get_sender() -> Account {
+    let tx_origin = abi::public_sender().expect(SHIELDED_NOT_SUPPORTED);
+
+    let caller = abi::caller().expect("ICC expects a caller");
+
+    // Identifies the sender by checking the call stack and transaction origin:
+    // - For direct external account transactions (call stack length = 1),
+    //   returns the transaction origin
+    // - For non-protocol contracts that call the token (call stack length > 1),
+    //   returns the immediate calling contract
+    if abi::callstack().len() == 1 {
+        // This also implies, that the call directly originates via the protocol
+        // transfer contract i.e., the caller is the transfer
+        // contract
+        Account::External(tx_origin)
+    } else {
+        Account::Contract(caller)
+    }
 }

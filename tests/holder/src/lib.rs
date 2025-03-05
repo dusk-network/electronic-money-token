@@ -4,6 +4,13 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+//! Test contract that can hold tokens and keeps track of them inside its own
+//! state.
+//!
+//! Anyone can send tokens to this contract, and anyone can call the
+//! `token_send` function to send tokens from this contract to any other
+//! receiver.
+
 #![no_std]
 
 extern crate alloc;
@@ -12,9 +19,13 @@ use dusk_core::abi::{self, ContractId};
 
 use ttoken_types::*;
 
+// The contract ID of the token contract
+const TOKEN_ID: ContractId = ContractId::from_bytes([1; 32]);
+
 struct TokenState {
     this_contract: ContractId,
     token_contract: ContractId,
+    /// Tracks the holder contracts balance of TOKEN_ID tokens
     balance: u64,
 }
 
@@ -33,6 +44,8 @@ static mut STATE: TokenState = TokenState {
 };
 
 impl TokenState {
+    /// Can be called by anyone to make this contract send tokens to another
+    /// account
     fn token_send(&mut self, transfer: Transfer) {
         if let Err(err) =
             abi::call::<_, ()>(self.token_contract, "transfer", &transfer)
@@ -40,14 +53,20 @@ impl TokenState {
             panic!("Failed sending tokens: {err}");
         }
 
-        if matches!(transfer.sender(), Account::Contract(x) if *x == self.this_contract)
-        {
-            self.balance -= transfer.value();
-        }
+        self.balance -= transfer.value();
     }
 
+    /// Handles incoming token transfers from the token contract.
+    ///
+    /// This function is called automatically by the token contract's transfer
+    /// function when this contract is the receiver of a transfer.
     fn token_received(&mut self, transfer: TransferInfo) {
-        self.balance += transfer.value;
+        // Only accept transfers from the specific token contract we're tracking
+        if abi::caller().expect("Expected a contract as caller") == TOKEN_ID {
+            self.balance += transfer.value;
+        } else {
+            panic!("Only the {TOKEN_ID} contract can call this function");
+        }
     }
 }
 
