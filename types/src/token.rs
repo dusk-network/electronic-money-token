@@ -9,7 +9,14 @@ pub(crate) mod account;
 use account::Account;
 
 use bytecheck::CheckBytes;
+use dusk_core::abi::{ContractId, CONTRACT_ID_BYTES};
 use rkyv::{Archive, Deserialize, Serialize};
+
+/// Zero address.
+/// TODO: Consider having this in core & make it a reserved address so that no
+/// one can ever use it.
+pub const ZERO_ADDRESS: Account =
+    Account::Contract(ContractId::from_bytes([0; CONTRACT_ID_BYTES]));
 
 /// Arguments to query for how much of an allowance a spender has of the `owner`
 /// account.
