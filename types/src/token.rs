@@ -5,8 +5,8 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 /// Module for the account implementation.
-pub mod account;
-pub use account::*;
+pub(crate) mod account;
+use account::Account;
 
 use bytecheck::CheckBytes;
 use rkyv::{Archive, Deserialize, Serialize};
