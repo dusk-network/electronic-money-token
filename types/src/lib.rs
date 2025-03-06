@@ -21,9 +21,9 @@ pub mod supply_management;
 pub(crate) mod token;
 pub use token::account::{
     Account, AccountInfo, ACCOUNT_NOT_FOUND, BALANCE_TOO_LOW, INVALID_CALLER,
-    NONCE_NOT_SEQUENTIAL,
+    SHIELDED_NOT_SUPPORTED,
 };
 pub use token::{
     Allowance, Approve, ApproveEvent, Transfer, TransferEvent, TransferFrom,
-    TransferInfo,
+    TransferInfo, ZERO_ADDRESS,
 };

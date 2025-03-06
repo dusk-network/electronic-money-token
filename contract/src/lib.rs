@@ -14,7 +14,7 @@ use alloc::vec::Vec;
 
 use dusk_core::abi;
 use ttoken_types::admin_management::events::PauseToggled;
-use ttoken_types::admin_management::{DEFAULT_OWNER, PAUSED_MESSAGE};
+use ttoken_types::admin_management::PAUSED_MESSAGE;
 use ttoken_types::ownership::arguments::TransferOwnership;
 use ttoken_types::ownership::events::{
     OwnerShipRenouncedEvent, OwnershipTransferredEvent,
@@ -23,8 +23,7 @@ use ttoken_types::ownership::{OWNER_NOT_FOUND, UNAUTHORIZED_ACCOUNT};
 use ttoken_types::sanctions::arguments::Sanction;
 use ttoken_types::sanctions::events::AccountStatusEvent;
 use ttoken_types::sanctions::{BLOCKED, FROZEN};
-use ttoken_types::supply_management::arguments::{Burn, Mint};
-use ttoken_types::supply_management::events::{BurnEvent, MintEvent};
+use ttoken_types::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
 use ttoken_types::supply_management::SUPPLY_OVERFLOW;
 use ttoken_types::*;
 
@@ -62,7 +61,7 @@ static mut STATE: TokenState = TokenState {
     accounts: BTreeMap::new(),
     allowances: BTreeMap::new(),
     supply: 0,
-    owner: DEFAULT_OWNER,
+    owner: ZERO_ADDRESS,
     is_paused: false,
 };
 
@@ -73,7 +72,7 @@ impl TokenState {
     }
 
     fn authorize_owner(&self) {
-        assert!(get_sender() == self.owner, "{}", UNAUTHORIZED_ACCOUNT);
+        assert!(sender_account() == self.owner, "{}", UNAUTHORIZED_ACCOUNT);
     }
 
     fn transfer_ownership(&mut self, transfer_owner: TransferOwnership) {
@@ -99,7 +98,7 @@ impl TokenState {
         self.authorize_owner();
 
         let previous_owner = self.owner;
-        self.owner = DEFAULT_OWNER;
+        self.owner = ZERO_ADDRESS;
 
         abi::emit(
             OwnerShipRenouncedEvent::TOPIC,
@@ -200,52 +199,52 @@ impl TokenState {
 
 /// Supply management implementation.
 impl TokenState {
-    fn mint(&mut self, mint: Mint) {
+    fn mint(&mut self, receiver: Account, amount: u64) {
         self.authorize_owner();
 
-        let receiver = *mint.receiver();
         let receiver_account =
             self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
 
-        let amount_minted = mint.amount();
-
         // Prevent overflow
-        self.supply = match self.supply.checked_add(amount_minted) {
+        self.supply = match self.supply.checked_add(amount) {
             Some(supply) => supply,
             None => panic!("{}", SUPPLY_OVERFLOW),
         };
 
-        receiver_account.balance += amount_minted;
+        receiver_account.balance += amount;
 
         abi::emit(
-            MintEvent::TOPIC,
-            MintEvent {
-                amount_minted,
+            MINT_TOPIC,
+            TransferEvent {
+                sender: ZERO_ADDRESS,
+                spender: None,
                 receiver,
+                value: amount,
             },
         );
     }
 
-    fn burn(&mut self, burn: Burn) {
+    fn burn(&mut self, amount: u64) {
         self.authorize_owner();
 
         let burn_account = self.owner_info_mut();
 
-        let value = burn.amount();
-        if burn_account.balance < value {
+        if burn_account.balance < amount {
             panic!("{}", BALANCE_TOO_LOW);
         } else {
-            burn_account.balance -= value;
+            burn_account.balance -= amount;
         }
 
         // this can never fail, as the balance is checked above
-        self.supply -= value;
+        self.supply -= amount;
 
         abi::emit(
-            BurnEvent::TOPIC,
-            BurnEvent {
-                amount_burned: value,
-                burned_by: self.owner,
+            BURN_TOPIC,
+            TransferEvent {
+                sender: self.owner,
+                spender: None,
+                receiver: ZERO_ADDRESS,
+                value: amount,
             },
         );
     }
@@ -352,7 +351,7 @@ impl TokenState {
     fn transfer(&mut self, transfer: Transfer) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
-        let sender = get_sender();
+        let sender = sender_account();
 
         let sender_account =
             self.accounts.get_mut(&sender).expect(ACCOUNT_NOT_FOUND);
@@ -408,7 +407,7 @@ impl TokenState {
     fn transfer_from(&mut self, transfer: TransferFrom) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
-        let spender = get_sender();
+        let spender = sender_account();
 
         let spender_account =
             self.accounts.entry(spender).or_insert(AccountInfo::EMPTY);
@@ -478,7 +477,7 @@ impl TokenState {
 
     fn approve(&mut self, approve: Approve) {
         // owner of the funds
-        let owner = get_sender();
+        let owner = sender_account();
 
         let spender = *approve.spender();
 
@@ -575,7 +574,7 @@ unsafe fn owner(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe fn mint(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.mint(arg))
+    abi::wrap_call(arg_len, |(receiver, amount)| STATE.mint(receiver, amount))
 }
 
 #[no_mangle]
@@ -655,7 +654,7 @@ unsafe fn frozen(arg_len: u32) -> u32 {
 ///
 /// - If no public sender is available (shielded transactions are not supported)
 /// - If no caller can be determined (impossible case)
-fn get_sender() -> Account {
+fn sender_account() -> Account {
     let tx_origin = abi::public_sender().expect(SHIELDED_NOT_SUPPORTED);
 
     let caller = abi::caller().expect("ICC expects a caller");
