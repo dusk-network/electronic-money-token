@@ -15,9 +15,8 @@ use dusk_core::abi::{self, ContractId, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::{
     MultisigPublicKey, MultisigSignature, PublicKey,
 };
-use ttoken_types::ownership::arguments::{
-    RenounceOwnership, TransferOwnership,
-};
+use ttoken_types::ownership::arguments::TransferOwnership;
+use ttoken_types::Account;
 
 use crate::error;
 
@@ -331,6 +330,11 @@ impl Governance {
     /// inter-contract calls on the token-contract and the new account needs to
     /// be used for authorization instead.
     ///
+    ///
+    /// The signature message for transferring the governance of the
+    /// token-contract is the current owner-nonce in big endian appended by the
+    /// new governance.
+    ///
     /// Note: A super-majority of owner signatures is required to perform this
     /// action.
     ///
@@ -341,33 +345,24 @@ impl Governance {
     ///   `owner_nonce` in the state of the governance contract.
     pub fn transfer_governance(
         &mut self,
-        transfer_ownership: TransferOwnership,
+        new_governance: Account,
         sig: MultisigSignature,
         signers: &[u8],
     ) {
-        // check the nonce
-        assert!(
-            transfer_ownership.nonce() == self.owner_nonce(),
-            "{}",
-            error::INVALID_NONCE
-        );
-
         // the threshold needs to be a super-majority
         let threshold = supermajority(&self.owners);
 
         // check the signature
-        self.authorize_owners(
-            &transfer_ownership.signature_message(),
-            sig,
-            signers,
-            threshold,
-        );
+        let mut sig_msg = Vec::with_capacity(u64::SIZE + Account::SIZE);
+        sig_msg.extend(&self.owner_nonce.to_be_bytes());
+        sig_msg.extend(&new_governance.to_bytes());
+        self.authorize_owners(&sig_msg, sig, signers, threshold);
 
         // transfer the ownership of the token-contract
         let _: () = abi::call(
             Self::TOKEN_CONTRACT,
             "transfer_ownership",
-            &transfer_ownership,
+            &TransferOwnership::new(new_governance),
         )
         .expect("transferring the governance should succeed");
 
@@ -380,44 +375,30 @@ impl Governance {
     /// any other account will be authorized to do any inter-contract calls on
     /// the token-contract.
     ///
+    /// The signature message for renouncing the governance of the
+    /// token-contract is the current owner-nonce in big endian.
+    ///
     /// Note: A super-majority of owner signatures is required to perform this
     /// action.
     ///
     /// # Panics
     /// This function will panic if:
     /// - The signature is incorrect or not signed by a super-majority of owners
-    /// - The nonce in `renounce_ownership` is not the `owner_nonce`
     pub fn renounce_governance(
         &mut self,
-        renounce_ownership: RenounceOwnership,
         sig: MultisigSignature,
         signers: &[u8],
     ) {
-        // check the nonce
-        assert!(
-            renounce_ownership.nonce() == self.owner_nonce(),
-            "{}",
-            error::INVALID_NONCE
-        );
-
         // the threshold needs to be a super-majority
         let threshold = supermajority(&self.owners);
 
         // check the signature
-        self.authorize_owners(
-            &renounce_ownership.signature_message(),
-            sig,
-            signers,
-            threshold,
-        );
+        let sig_msg = self.owner_nonce().to_be_bytes();
+        self.authorize_owners(&sig_msg, sig, signers, threshold);
 
         // transfer the ownership of the token-contract
-        let _: () = abi::call(
-            Self::TOKEN_CONTRACT,
-            "renounce_ownership",
-            &renounce_ownership,
-        )
-        .expect("renouncing the governance should succeed");
+        let _: () = abi::call(Self::TOKEN_CONTRACT, "renounce_ownership", &())
+            .expect("renouncing the governance should succeed");
 
         // increment the owners nonce
         self.owner_nonce += 1;
