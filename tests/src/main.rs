@@ -328,6 +328,8 @@ fn double_init() {
     let sk = AccountSecretKey::random(&mut rng);
     let pk = AccountPublicKey::from(&sk);
 
+    // calling `init` to attempt to insert a new account with balance and change
+    // governance of the token-contract
     let receipt = session.call_token(
         session.deploy_sk(),
         "init",
@@ -339,24 +341,21 @@ fn double_init() {
 
     // attempt to insert new keys that holds token into the state by calling
     // `init` function after contract initialization
-    match receipt.data.err() {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(
-                panic_msg,
-                "This function should never be called via an icc"
-            );
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    if let Some(ContractError::Panic(panic_msg)) = receipt.data.err() {
+        assert_eq!(
+            panic_msg,
+            "This function should never be called via an icc"
+        );
     }
 
+    // make sure that the new account didn't get balance
     assert_eq!(
         session.account(pk).balance,
         0,
         "The new account should have 0 balance"
     );
 
+    // make sure that the governance didn't change
     assert_ne!(
         session.owner(),
         Account::External(pk),
