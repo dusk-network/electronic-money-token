@@ -38,7 +38,8 @@ pub enum Account {
 }
 
 impl Account {
-    const SIZE: usize = 194;
+    /// The size of the serialized account: 1 + PublicKey::RAW_SIZE
+    pub const SIZE: usize = 194;
 
     /// Convert the account to bytes.
     pub fn to_bytes(&self) -> [u8; Self::SIZE] {
