@@ -40,9 +40,9 @@ pub const HOLDER_ID: ContractId = ContractId::from_bytes([2; 32]);
 pub const MOONLIGHT_BALANCE: u64 = dusk(1_000.0);
 pub const INITIAL_BALANCE: u64 = 1000;
 pub const INITIAL_HOLDER_BALANCE: u64 = 1000;
-pub const INITIAL_OWNER_BALANCE: u64 = 1000;
+pub const INITIAL_GOVERNANCE_BALANCE: u64 = 1000;
 pub const INITIAL_SUPPLY: u64 =
-    INITIAL_BALANCE + INITIAL_HOLDER_BALANCE + INITIAL_OWNER_BALANCE;
+    INITIAL_BALANCE + INITIAL_HOLDER_BALANCE + INITIAL_GOVERNANCE_BALANCE;
 
 const DEPLOYER: [u8; 64] = [0u8; 64];
 
@@ -51,8 +51,8 @@ type Result<T, Error = VMError> = core::result::Result<T, Error>;
 pub struct ContractSession {
     deploy_sk: AccountSecretKey,
     deploy_pk: AccountPublicKey,
-    owner_sk: AccountSecretKey,
-    owner: AccountPublicKey,
+    governance_sk: AccountSecretKey,
+    governance: AccountPublicKey,
     test_sk: AccountSecretKey,
     test_pk: AccountPublicKey,
     session: NetworkSession,
@@ -63,8 +63,8 @@ impl ContractSession {
         self.deploy_sk.clone()
     }
 
-    pub fn owner_sk(&self) -> AccountSecretKey {
-        self.owner_sk.clone()
+    pub fn governance_sk(&self) -> AccountSecretKey {
+        self.governance_sk.clone()
     }
 
     pub fn test_sk(&self) -> AccountSecretKey {
@@ -76,9 +76,9 @@ impl ContractSession {
         Account::External(self.deploy_pk)
     }
 
-    /// Owner of the contract for admin functionality
-    pub fn owner_account(&self) -> Account {
-        Account::External(self.owner)
+    /// Governance of the contract for admin functionality
+    pub fn governance_account(&self) -> Account {
+        Account::External(self.governance)
     }
 
     /// Random test account
@@ -101,8 +101,8 @@ impl ContractSession {
         let deploy_sk = AccountSecretKey::random(&mut rng);
         let deploy_pk = AccountPublicKey::from(&deploy_sk);
 
-        let owner_sk = AccountSecretKey::random(&mut rng);
-        let owner_pk = AccountPublicKey::from(&owner_sk);
+        let governance_sk = AccountSecretKey::random(&mut rng);
+        let governance_pk = AccountPublicKey::from(&governance_sk);
 
         let mut rng = StdRng::seed_from_u64(0xBEEF);
         let test_sk = AccountSecretKey::random(&mut rng);
@@ -112,12 +112,12 @@ impl ContractSession {
         // pass a list of accounts to fund
         let mut network_session = NetworkSession::instantiate(vec![
             (&deploy_pk, MOONLIGHT_BALANCE),
-            (&owner_pk, MOONLIGHT_BALANCE),
+            (&governance_pk, MOONLIGHT_BALANCE),
             (&test_pk, MOONLIGHT_BALANCE),
         ]);
 
-        // never set owner to deploy
-        assert_ne!(owner_sk, deploy_sk);
+        // never set governance to deploy
+        assert_ne!(governance_sk, deploy_sk);
 
         // deploy the Token contract
         network_session
@@ -133,11 +133,11 @@ impl ContractSession {
                                 INITIAL_HOLDER_BALANCE,
                             ),
                             (
-                                Account::External(owner_pk),
-                                INITIAL_OWNER_BALANCE,
+                                Account::External(governance_pk),
+                                INITIAL_GOVERNANCE_BALANCE,
                             ),
                         ],
-                        Account::External(owner_pk),
+                        Account::External(governance_pk),
                     ))
                     .contract_id(TOKEN_ID),
             )
@@ -157,15 +157,18 @@ impl ContractSession {
         let mut session = Self {
             deploy_sk,
             deploy_pk,
-            owner_sk,
-            owner: owner_pk,
+            governance_sk,
+            governance: governance_pk,
             test_sk,
             test_pk,
             session: network_session,
         };
 
         assert_eq!(session.account(deploy_pk).balance, INITIAL_BALANCE);
-        assert_eq!(session.account(owner_pk).balance, INITIAL_OWNER_BALANCE);
+        assert_eq!(
+            session.account(governance_pk).balance,
+            INITIAL_GOVERNANCE_BALANCE
+        );
         assert_eq!(session.account(test_pk).balance, 0);
         assert_eq!(session.account(HOLDER_ID).balance, INITIAL_HOLDER_BALANCE);
 
@@ -258,9 +261,9 @@ impl ContractSession {
             .data
     }
 
-    pub fn owner(&mut self) -> Account {
-        self.call_getter("owner")
-            .expect("Querying owner should succeed")
+    pub fn governance(&mut self) -> Account {
+        self.call_getter("governance")
+            .expect("Querying governance should succeed")
             .data
     }
 
