@@ -15,8 +15,8 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use ttoken_types::admin_management::PAUSED_MESSAGE;
-use ttoken_types::ownership::arguments::TransferOwnership;
-use ttoken_types::ownership::UNAUTHORIZED_ACCOUNT;
+use ttoken_types::governance::arguments::TransferGovernance;
+use ttoken_types::governance::UNAUTHORIZED_ACCOUNT;
 use ttoken_types::sanctions::arguments::Sanction;
 use ttoken_types::sanctions::{BLOCKED, FROZEN};
 use ttoken_types::supply_management::SUPPLY_OVERFLOW;
@@ -296,43 +296,43 @@ fn transfer_from() {
     );
 }
 
-/// Test transfer of ownership from owner account to test account.
+/// Test transfer of governance to test account.
 #[test]
-fn transfer_ownership() {
+fn transfer_governance() {
     let mut session = ContractSession::new();
-    let new_owner = session.test_account();
+    let new_governance = session.test_account();
 
-    let transfer_ownership = TransferOwnership::new(new_owner);
+    let transfer_governance = TransferGovernance::new(new_governance);
     let receipt = session.call_token(
-        session.owner_sk(),
-        "transfer_ownership",
-        &transfer_ownership,
+        session.governance_sk(),
+        "transfer_governance",
+        &transfer_governance,
     );
 
     if let Err(e) = receipt.data {
-        panic!("Transfer ownership should succeed, err: {e}");
+        panic!("Transfer governance should succeed, err: {e}");
     }
 
-    assert_eq!(session.owner(), new_owner);
+    assert_eq!(session.governance(), new_governance);
 }
 
-/// Test TransferOwnership, RenounceOwnership with wrong owner
+/// Test TransferGovernance, RenounceGovernance with wrong governance
 /// and check for correct error message.
 ///
-/// TODO: Squash wrong sk case with transfer ownership & renounce ownership
+/// TODO: Squash wrong sk case with transfer governance & renounce governance
 /// tests functions as the other tests (mint, burn etc) do it.
 #[test]
-fn ownership_wrong_owner() {
+fn governance_fails() {
     let mut session = ContractSession::new();
 
-    let wrong_owner_sk = session.test_sk();
-    let new_owner = session.test_account();
+    let wrong_governance_sk = session.test_sk();
+    let new_governance = session.test_account();
 
-    let transfer_ownership = TransferOwnership::new(new_owner);
+    let transfer_governance = TransferGovernance::new(new_governance);
     let receipt = session.call_token(
-        wrong_owner_sk.clone(),
-        "transfer_ownership",
-        &transfer_ownership,
+        wrong_governance_sk.clone(),
+        "transfer_governance",
+        &transfer_governance,
     );
 
     match receipt.data.err() {
@@ -344,7 +344,8 @@ fn ownership_wrong_owner() {
         }
     }
 
-    let receipt = session.call_token(wrong_owner_sk, "renounce_ownership", &());
+    let receipt =
+        session.call_token(wrong_governance_sk, "renounce_governance", &());
 
     match receipt.data.err() {
         Some(ContractError::Panic(panic_msg)) => {
@@ -355,31 +356,31 @@ fn ownership_wrong_owner() {
         }
     }
 
-    assert_eq!(session.owner(), session.owner_account());
+    assert_eq!(session.governance(), session.governance_account());
 }
 
-/// Test renounce ownership.
+/// Test renounce governance.
 #[test]
-fn renounce_ownership() {
+fn renounce_governance() {
     let mut session = ContractSession::new();
 
     let receipt =
-        session.call_token(session.owner_sk(), "renounce_ownership", &());
+        session.call_token(session.governance_sk(), "renounce_governance", &());
 
     if let Err(e) = receipt.data {
-        panic!("Renounce ownership should succeed, err: {e}");
+        panic!("Renounce governance should succeed, err: {e}");
     }
 
-    let owner = session.owner();
+    let governance = session.governance();
 
     assert_eq!(
-        owner,
+        governance,
         // TODO: consider defining this as ZERO_ADDRESS in core?
         Account::Contract(ContractId::from_bytes([0; CONTRACT_ID_BYTES]))
     );
 }
 
-/// Test mint with owner sk
+/// Test mint with governance sk
 /// Test mint with wrong sk
 /// Test mint with overflow
 #[test]
@@ -390,13 +391,13 @@ fn test_mint() {
     // Note: Direct usage of PublicKey here fails during rkyv deserialization.
     // TODO: Consider changing call_token to support types implementing
     // Into<Account> by somehow detecting the types the fn expects.
-    let mint_receiver = session.owner_account();
+    let mint_receiver = session.governance_account();
 
     assert_eq!(session.total_supply(), INITIAL_SUPPLY);
 
-    // mint with owner sk
+    // mint with governance sk
     let receipt = session.call_token(
-        session.owner_sk(),
+        session.governance_sk(),
         "mint",
         &(mint_receiver, mint_amount),
     );
@@ -436,7 +437,7 @@ fn test_mint() {
     let too_much = u64::MAX;
 
     let receipt = session.call_token(
-        session.owner_sk(),
+        session.governance_sk(),
         "mint",
         &(mint_receiver, too_much),
     );
@@ -466,7 +467,7 @@ fn test_mint() {
     }
 }
 
-/// Test burn with owner sk
+/// Test burn with governance sk
 /// Test burn with wrong sk
 /// Test burn with balance too low / underflow
 #[test]
@@ -474,7 +475,8 @@ fn test_burn() {
     let mut session = ContractSession::new();
     let burn_amount = 1000;
 
-    let receipt = session.call_token(session.owner_sk(), "burn", &burn_amount);
+    let receipt =
+        session.call_token(session.governance_sk(), "burn", &burn_amount);
 
     if let Err(e) = receipt.data {
         panic!("Burn should succeed, err: {e}");
@@ -482,10 +484,11 @@ fn test_burn() {
 
     assert_eq!(session.total_supply(), INITIAL_SUPPLY - burn_amount);
 
-    // burn more than the owner account has
+    // burn more than the governance account has
     let burn_amount = u64::MAX;
 
-    let receipt = session.call_token(session.owner_sk(), "burn", &burn_amount);
+    let receipt =
+        session.call_token(session.governance_sk(), "burn", &burn_amount);
 
     match receipt.data.err() {
         Some(ContractError::Panic(panic_msg)) => {
@@ -520,7 +523,8 @@ fn test_pause() {
 
     let mut session = ContractSession::new();
 
-    let receipt = session.call_token(session.owner_sk(), "toggle_pause", &());
+    let receipt =
+        session.call_token(session.governance_sk(), "toggle_pause", &());
 
     if let Err(e) = receipt.data {
         panic!("Pause should succeed, err: {e}");
@@ -559,7 +563,8 @@ fn test_pause() {
         "The account to transfer to should have no balance"
     );
 
-    let receipt = session.call_token(session.owner_sk(), "toggle_pause", &());
+    let receipt =
+        session.call_token(session.governance_sk(), "toggle_pause", &());
 
     if let Err(e) = receipt.data {
         panic!("Unpause should succeed, err: {e}");
@@ -622,11 +627,11 @@ fn test_force_transfer() {
         "The test account should have the transferred amount"
     );
 
-    // Force transfer from test account to owner account
-    let force_transfer = Transfer::new(session.owner(), VALUE);
+    // Force transfer from test account to governance account
+    let force_transfer = Transfer::new(session.governance(), VALUE);
     let obliged_sender = session.test_account();
     let receipt = session.call_token(
-        session.owner_sk(),
+        session.governance_sk(),
         "force_transfer",
         &(force_transfer, obliged_sender),
     );
@@ -642,18 +647,18 @@ fn test_force_transfer() {
     );
 
     assert_eq!(
-        session.account(session.owner_account()).balance,
+        session.account(session.governance_account()).balance,
         INITIAL_BALANCE + VALUE,
-        "The owner account should have the transferred amount added"
+        "The governance account should have the transferred amount added"
     );
 
-    // Force transfer from test account to owner account again (balance will be
-    // too low)
-    let force_transfer = Transfer::new(session.owner(), VALUE);
+    // Force transfer from test account to governance account again (balance
+    // will be too low)
+    let force_transfer = Transfer::new(session.governance(), VALUE);
 
     match session
         .call_token(
-            session.owner_sk(),
+            session.governance_sk(),
             "force_transfer",
             &(force_transfer, obliged_sender),
         )
@@ -670,7 +675,7 @@ fn test_force_transfer() {
 
     // unauthorized account
     let force_transfer = Transfer::new(session.test_account(), VALUE);
-    let obliged_sender = session.owner_account();
+    let obliged_sender = session.governance_account();
     let receipt = session.call_token(
         session.test_sk(),
         "force_transfer",
@@ -716,7 +721,8 @@ fn test_sanctions() {
 
     // Block test account
     let sanction = Sanction::block_account(blocked_account);
-    let receipt = session.call_token(session.owner_sk(), "block", &sanction);
+    let receipt =
+        session.call_token(session.governance_sk(), "block", &sanction);
 
     if let Err(e) = receipt.data {
         panic!("Block should succeed, err: {e}");
@@ -736,7 +742,7 @@ fn test_sanctions() {
     // Unfreeze test account
     let unsanction = Sanction::unsanction_account(blocked_account);
     match session
-        .call_token(session.owner_sk(), "unfreeze", &unsanction)
+        .call_token(session.governance_sk(), "unfreeze", &unsanction)
         .data
         .err()
     {
@@ -781,7 +787,8 @@ fn test_sanctions() {
     // Freeze test account
     let frozen_account = blocked_account;
     let sanction = Sanction::freeze_account(frozen_account);
-    let receipt = session.call_token(session.owner_sk(), "freeze", &sanction);
+    let receipt =
+        session.call_token(session.governance_sk(), "freeze", &sanction);
 
     if let Err(e) = receipt.data {
         panic!("Freeze should succeed, err: {e}");
@@ -823,7 +830,7 @@ fn test_sanctions() {
     // Unblock test account
     let unsanction = Sanction::unsanction_account(frozen_account);
     match session
-        .call_token(session.owner_sk(), "unblock", &unsanction)
+        .call_token(session.governance_sk(), "unblock", &unsanction)
         .data
         .err()
     {
@@ -865,7 +872,7 @@ fn test_sanctions() {
     // Unfreeze test account
     let unsanction = Sanction::unsanction_account(frozen_account);
     session
-        .call_token(session.owner_sk(), "unfreeze", &unsanction)
+        .call_token(session.governance_sk(), "unfreeze", &unsanction)
         .data
         .expect("Unfreezing should succeed");
 
