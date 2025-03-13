@@ -15,11 +15,11 @@ use alloc::vec::Vec;
 use dusk_core::abi;
 use ttoken_types::admin_management::events::PauseToggled;
 use ttoken_types::admin_management::PAUSED_MESSAGE;
-use ttoken_types::ownership::arguments::TransferOwnership;
-use ttoken_types::ownership::events::{
-    OwnerShipRenouncedEvent, OwnershipTransferredEvent,
+use ttoken_types::governance::arguments::TransferGovernance;
+use ttoken_types::governance::events::{
+    GovernanceRenouncedEvent, GovernanceTransferredEvent,
 };
-use ttoken_types::ownership::{OWNER_NOT_FOUND, UNAUTHORIZED_ACCOUNT};
+use ttoken_types::governance::{GOVERNANCE_NOT_FOUND, UNAUTHORIZED_ACCOUNT};
 use ttoken_types::sanctions::arguments::Sanction;
 use ttoken_types::sanctions::events::AccountStatusEvent;
 use ttoken_types::sanctions::{BLOCKED, FROZEN};
@@ -33,13 +33,13 @@ struct TokenState {
     allowances: BTreeMap<Account, BTreeMap<Account, u64>>,
     supply: u64,
 
-    owner: Account,
+    governance: Account,
 
     is_paused: bool,
 }
 
 impl TokenState {
-    fn init(&mut self, accounts: Vec<(Account, u64)>, owner: Account) {
+    fn init(&mut self, accounts: Vec<(Account, u64)>, governance: Account) {
         for (account, balance) in accounts {
             let account =
                 self.accounts.entry(account).or_insert(AccountInfo::EMPTY);
@@ -47,12 +47,12 @@ impl TokenState {
             self.supply += balance;
         }
 
-        // Set the owner
-        self.owner = owner;
+        // Set the governance
+        self.governance = governance;
 
-        // Always insert owner
+        // Always insert governance
         self.accounts
-            .entry(self.owner)
+            .entry(self.governance)
             .or_insert(AccountInfo::EMPTY);
     }
 }
@@ -61,64 +61,74 @@ static mut STATE: TokenState = TokenState {
     accounts: BTreeMap::new(),
     allowances: BTreeMap::new(),
     supply: 0,
-    owner: ZERO_ADDRESS,
+    governance: ZERO_ADDRESS,
     is_paused: false,
 };
 
 /// Access control implementation.
 impl TokenState {
-    fn owner_info_mut(&mut self) -> &mut AccountInfo {
-        self.accounts.get_mut(&self.owner).expect(OWNER_NOT_FOUND)
+    fn governance_info_mut(&mut self) -> &mut AccountInfo {
+        self.accounts
+            .get_mut(&self.governance)
+            .expect(GOVERNANCE_NOT_FOUND)
     }
 
-    fn authorize_owner(&self) {
-        assert!(sender_account() == self.owner, "{}", UNAUTHORIZED_ACCOUNT);
+    fn authorize_governance(&self) {
+        assert!(
+            sender_account() == self.governance,
+            "{}",
+            UNAUTHORIZED_ACCOUNT
+        );
     }
 
-    fn transfer_ownership(&mut self, transfer_owner: TransferOwnership) {
-        self.authorize_owner();
+    fn transfer_governance(&mut self, transfer_governance: TransferGovernance) {
+        self.authorize_governance();
 
-        let previous_owner = self.owner;
-        let new_owner = *transfer_owner.new_owner();
+        let previous_governance = self.governance;
+        let new_governance = *transfer_governance.new_governance();
 
-        self.owner = new_owner;
-        // Always insert owner
-        self.accounts.entry(new_owner).or_insert(AccountInfo::EMPTY);
+        self.governance = new_governance;
+        // Always insert governance
+        self.accounts
+            .entry(new_governance)
+            .or_insert(AccountInfo::EMPTY);
 
         abi::emit(
-            OwnershipTransferredEvent::TOPIC,
-            OwnershipTransferredEvent {
-                previous_owner,
-                new_owner,
+            GovernanceTransferredEvent::TOPIC,
+            GovernanceTransferredEvent {
+                previous_governance,
+                new_governance,
             },
         );
     }
 
-    fn renounce_ownership(&mut self) {
-        self.authorize_owner();
+    fn renounce_governance(&mut self) {
+        self.authorize_governance();
 
-        let previous_owner = self.owner;
-        self.owner = ZERO_ADDRESS;
+        let previous_governance = self.governance;
+        self.governance = ZERO_ADDRESS;
 
         abi::emit(
-            OwnerShipRenouncedEvent::TOPIC,
-            OwnerShipRenouncedEvent { previous_owner },
+            GovernanceRenouncedEvent::TOPIC,
+            GovernanceRenouncedEvent {
+                previous_governance,
+            },
         );
     }
 
     fn blocked(&self, account: Account) -> bool {
-        let owner_account = self.accounts.get(&account);
+        let governance_account = self.accounts.get(&account);
 
-        match owner_account {
+        match governance_account {
             Some(account) => account.is_blocked(),
             None => false,
         }
     }
 
     fn frozen(&self, account: Account) -> bool {
-        let owner_account = self.accounts.get(&account);
+        let governance_account = self.accounts.get(&account);
 
-        match owner_account {
+        match governance_account {
             Some(account) => account.is_frozen(),
             None => false,
         }
@@ -129,11 +139,11 @@ impl TokenState {
             block_account.sanction_type() == AccountInfo::BLOCKED,
             "Invalid sanction type"
         );
-        self.authorize_owner();
+        self.authorize_governance();
 
         let account = *block_account.account();
         let account_info =
-            self.accounts.get_mut(&account).expect(OWNER_NOT_FOUND);
+            self.accounts.get_mut(&account).expect(GOVERNANCE_NOT_FOUND);
 
         account_info.block();
 
@@ -148,11 +158,11 @@ impl TokenState {
             freeze_account.sanction_type() == AccountInfo::FROZEN,
             "Invalid sanction type"
         );
-        self.authorize_owner();
+        self.authorize_governance();
 
         let account = *freeze_account.account();
         let account_info =
-            self.accounts.get_mut(&account).expect(OWNER_NOT_FOUND);
+            self.accounts.get_mut(&account).expect(GOVERNANCE_NOT_FOUND);
 
         account_info.freeze();
 
@@ -163,11 +173,11 @@ impl TokenState {
     }
 
     fn unblock(&mut self, unblock_account: Sanction) {
-        self.authorize_owner();
+        self.authorize_governance();
 
         let account = *unblock_account.account();
         let account_info =
-            self.accounts.get_mut(&account).expect(OWNER_NOT_FOUND);
+            self.accounts.get_mut(&account).expect(GOVERNANCE_NOT_FOUND);
 
         assert!(account_info.is_blocked(), "The account is not blocked");
 
@@ -180,11 +190,11 @@ impl TokenState {
     }
 
     fn unfreeze(&mut self, unfreeze_account: Sanction) {
-        self.authorize_owner();
+        self.authorize_governance();
 
         let account = *unfreeze_account.account();
         let account_info =
-            self.accounts.get_mut(&account).expect(OWNER_NOT_FOUND);
+            self.accounts.get_mut(&account).expect(GOVERNANCE_NOT_FOUND);
 
         assert!(account_info.is_frozen(), "The account is not frozen");
 
@@ -200,7 +210,7 @@ impl TokenState {
 /// Supply management implementation.
 impl TokenState {
     fn mint(&mut self, receiver: Account, amount: u64) {
-        self.authorize_owner();
+        self.authorize_governance();
 
         let receiver_account =
             self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
@@ -225,9 +235,9 @@ impl TokenState {
     }
 
     fn burn(&mut self, amount: u64) {
-        self.authorize_owner();
+        self.authorize_governance();
 
-        let burn_account = self.owner_info_mut();
+        let burn_account = self.governance_info_mut();
 
         if burn_account.balance < amount {
             panic!("{}", BALANCE_TOO_LOW);
@@ -241,7 +251,7 @@ impl TokenState {
         abi::emit(
             BURN_TOPIC,
             TransferEvent {
-                sender: self.owner,
+                sender: self.governance,
                 spender: None,
                 receiver: ZERO_ADDRESS,
                 value: amount,
@@ -257,7 +267,7 @@ impl TokenState {
     }
 
     fn toggle_pause(&mut self) {
-        self.authorize_owner();
+        self.authorize_governance();
 
         self.is_paused = !self.is_paused;
 
@@ -272,7 +282,7 @@ impl TokenState {
     /// note: this function will fail if the balance of the obliged sender is
     /// too low. It will **not** default to the maximum available balance.
     fn force_transfer(&mut self, transfer: Transfer, obliged_sender: Account) {
-        self.authorize_owner();
+        self.authorize_governance();
 
         let obliged_sender_account = self
             .accounts
@@ -287,19 +297,20 @@ impl TokenState {
 
         obliged_sender_account.balance -= value;
 
-        let to = *transfer.receiver();
-        let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
+        let receiver = *transfer.receiver();
+        let receiver_account =
+            self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
 
         // this can never overflow as value + balance is never higher than total
         // supply
-        to_account.balance += value;
+        receiver_account.balance += value;
 
         abi::emit(
             TransferEvent::FORCE_TRANSFER_TOPIC,
             TransferEvent {
                 sender: obliged_sender,
                 spender: None,
-                receiver: to,
+                receiver,
                 value,
             },
         );
@@ -440,20 +451,21 @@ impl TokenState {
         *allowance -= value;
         owner_account.balance -= value;
 
-        let to = *transfer.receiver();
-        let to_account = self.accounts.entry(to).or_insert(AccountInfo::EMPTY);
-        assert!(!to_account.is_blocked(), "{}", BLOCKED);
+        let receiver = *transfer.receiver();
+        let receiver_account =
+            self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
+        assert!(!receiver_account.is_blocked(), "{}", BLOCKED);
 
         // this can never overflow as value + balance is never higher than total
         // supply
-        to_account.balance += value;
+        receiver_account.balance += value;
 
         abi::emit(
             TransferEvent::TRANSFER_TOPIC,
             TransferEvent {
                 sender: owner,
                 spender: Some(spender),
-                receiver: to,
+                receiver,
                 value,
             },
         );
@@ -461,7 +473,7 @@ impl TokenState {
         // if the transfer is to a contract, the acceptance function of said
         // contract is called. if it fails (panic or OoG) the transfer
         // also fails.
-        if let Account::Contract(contract) = to {
+        if let Account::Contract(contract) = receiver {
             if let Err(err) = abi::call::<_, ()>(
                 contract,
                 "token_received",
@@ -499,8 +511,8 @@ impl TokenState {
 
 #[no_mangle]
 unsafe fn init(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |(initial_accounts, owner)| {
-        STATE.init(initial_accounts, owner)
+    abi::wrap_call(arg_len, |(initial_accounts, governance)| {
+        STATE.init(initial_accounts, governance)
     })
 }
 
@@ -554,18 +566,18 @@ unsafe fn approve(arg_len: u32) -> u32 {
  */
 
 #[no_mangle]
-unsafe fn transfer_ownership(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.transfer_ownership(arg))
+unsafe fn transfer_governance(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |arg| STATE.transfer_governance(arg))
 }
 
 #[no_mangle]
-unsafe fn renounce_ownership(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |_: ()| STATE.renounce_ownership())
+unsafe fn renounce_governance(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |_: ()| STATE.renounce_governance())
 }
 
 #[no_mangle]
-unsafe fn owner(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |_: ()| STATE.owner)
+unsafe fn governance(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |_: ()| STATE.governance)
 }
 
 /*

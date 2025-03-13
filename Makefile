@@ -7,15 +7,30 @@ help: ## Display this help screen
 		-E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-test: contract holder-contract ## Run the tests
-	@cargo test --release --manifest-path=tests/Cargo.toml -- --test-threads=1
 # We currently need to use --test-threads=1, otherwise Piecrust will throw a PersistenceError when running the tests in parallel
+test: contract governance holder-contract ## Run the tests
+	@cargo test --release --manifest-path=tests/Cargo.toml -- --test-threads=1
 
 contract: setup-compiler ## Compile the token contract
 	@RUSTFLAGS="-C link-args=-zstack-size=65536" \
 	cargo +dusk build \
 	  --release \
 	  --manifest-path=contract/Cargo.toml \
+	  --color=always \
+	  -Z build-std=core,alloc \
+	  --target wasm64-unknown-unknown
+	@mkdir -p build
+	@find target/wasm64-unknown-unknown/release -maxdepth 1 -name "*.wasm" \
+	    | xargs -I % basename % \
+	    | xargs -I % ./scripts/strip.sh \
+		target/wasm64-unknown-unknown/release/% \
+		build/%
+
+governance: setup-compiler ## Compile the contract
+	@RUSTFLAGS="-C link-args=-zstack-size=65536" \
+	cargo +dusk build \
+	  --release \
+	  --manifest-path=governance/Cargo.toml \
 	  --color=always \
 	  -Z build-std=core,alloc \
 	  --target wasm64-unknown-unknown
@@ -53,4 +68,4 @@ clean: ## Clean the build artifacts
 	@cargo clean
 	@rm -rf build
 
-.PHONY: all test contract holder-contract clean setup-compiler
+.PHONY: all test contract governance holder-contract clean setup-compiler
