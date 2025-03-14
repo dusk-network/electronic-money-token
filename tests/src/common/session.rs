@@ -4,6 +4,8 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use std::sync::LazyLock;
+
 use dusk_core::abi::ContractError;
 use dusk_core::abi::{ContractId, StandardBufSerializer};
 use dusk_core::dusk;
@@ -49,75 +51,47 @@ const DEPLOYER: [u8; 64] = [0u8; 64];
 type Result<T, Error = VMError> = core::result::Result<T, Error>;
 
 pub struct ContractSession {
-    deploy_sk: AccountSecretKey,
-    deploy_pk: AccountPublicKey,
-    governance_sk: AccountSecretKey,
-    governance: AccountPublicKey,
-    test_sk: AccountSecretKey,
-    test_pk: AccountPublicKey,
     session: NetworkSession,
 }
 
 impl ContractSession {
-    pub fn deploy_sk(&self) -> AccountSecretKey {
-        self.deploy_sk.clone()
-    }
+    pub const DEPLOY_SK: LazyLock<AccountSecretKey> = LazyLock::new(|| {
+        let mut rng = StdRng::seed_from_u64(0xF0CACC1A);
+        AccountSecretKey::random(&mut rng)
+    });
 
-    pub fn governance_sk(&self) -> AccountSecretKey {
-        self.governance_sk.clone()
-    }
+    pub const DEPLOY_PK: LazyLock<AccountPublicKey> =
+        LazyLock::new(|| AccountPublicKey::from(&*Self::DEPLOY_SK));
 
-    pub fn test_sk(&self) -> AccountSecretKey {
-        self.test_sk.clone()
-    }
+    pub const GOVERNANCE_SK: LazyLock<AccountSecretKey> = LazyLock::new(|| {
+        let mut rng = StdRng::seed_from_u64(0x5EAF00D);
+        AccountSecretKey::random(&mut rng)
+    });
 
-    /// Deployer of the contract
-    pub fn deploy_account(&self) -> Account {
-        Account::External(self.deploy_pk)
-    }
+    pub const GOVERNANCE_PK: LazyLock<AccountPublicKey> =
+        LazyLock::new(|| AccountPublicKey::from(&*Self::GOVERNANCE_SK));
 
-    /// Governance of the contract for admin functionality
-    pub fn governance_account(&self) -> Account {
-        Account::External(self.governance)
-    }
+    pub const TEST_SK: LazyLock<AccountSecretKey> = LazyLock::new(|| {
+        let mut rng = StdRng::seed_from_u64(0x5A1AD);
+        AccountSecretKey::random(&mut rng)
+    });
 
-    /// Random test account
-    pub fn test_account(&self) -> Account {
-        Account::External(self.test_pk)
-    }
-
-    pub fn deploy_pk(&self) -> AccountPublicKey {
-        self.deploy_pk
-    }
-
-    pub fn test_pk(&self) -> AccountPublicKey {
-        self.test_pk
-    }
+    pub const TEST_PK: LazyLock<AccountPublicKey> =
+        LazyLock::new(|| AccountPublicKey::from(&*Self::TEST_SK));
 }
 
 impl ContractSession {
     pub fn new() -> Self {
-        let mut rng = StdRng::seed_from_u64(0xF0CACC1A);
-        let deploy_sk = AccountSecretKey::random(&mut rng);
-        let deploy_pk = AccountPublicKey::from(&deploy_sk);
-
-        let governance_sk = AccountSecretKey::random(&mut rng);
-        let governance_pk = AccountPublicKey::from(&governance_sk);
-
-        let mut rng = StdRng::seed_from_u64(0xBEEF);
-        let test_sk = AccountSecretKey::random(&mut rng);
-        let test_pk = AccountPublicKey::from(&test_sk);
-
         // deploy a session with transfer & stake contract deployed
         // pass a list of accounts to fund
         let mut network_session = NetworkSession::instantiate(vec![
-            (&deploy_pk, MOONLIGHT_BALANCE),
-            (&governance_pk, MOONLIGHT_BALANCE),
-            (&test_pk, MOONLIGHT_BALANCE),
+            (&*Self::DEPLOY_PK, MOONLIGHT_BALANCE),
+            (&*Self::GOVERNANCE_PK, MOONLIGHT_BALANCE),
+            (&*Self::TEST_PK, MOONLIGHT_BALANCE),
         ]);
 
         // never set governance to deploy
-        assert_ne!(governance_sk, deploy_sk);
+        assert_ne!(*Self::GOVERNANCE_SK, *Self::DEPLOY_SK);
 
         // deploy the Token contract
         network_session
@@ -127,17 +101,14 @@ impl ContractSession {
                     .owner(DEPLOYER)
                     .init_arg(&(
                         vec![
-                            (Account::External(deploy_pk), INITIAL_BALANCE),
+                            (Account::from(*Self::DEPLOY_PK), INITIAL_BALANCE),
+                            (Account::from(HOLDER_ID), INITIAL_HOLDER_BALANCE),
                             (
-                                Account::Contract(HOLDER_ID),
-                                INITIAL_HOLDER_BALANCE,
-                            ),
-                            (
-                                Account::External(governance_pk),
+                                Account::from(*Self::GOVERNANCE_PK),
                                 INITIAL_GOVERNANCE_BALANCE,
                             ),
                         ],
-                        Account::External(governance_pk),
+                        Account::from(*Self::GOVERNANCE_PK),
                     ))
                     .contract_id(TOKEN_ID),
             )
@@ -155,21 +126,15 @@ impl ContractSession {
             .expect("Deploying the holder contract should succeed");
 
         let mut session = Self {
-            deploy_sk,
-            deploy_pk,
-            governance_sk,
-            governance: governance_pk,
-            test_sk,
-            test_pk,
             session: network_session,
         };
 
-        assert_eq!(session.account(deploy_pk).balance, INITIAL_BALANCE);
+        assert_eq!(session.account(*Self::DEPLOY_PK).balance, INITIAL_BALANCE);
         assert_eq!(
-            session.account(governance_pk).balance,
+            session.account(*Self::GOVERNANCE_PK).balance,
             INITIAL_GOVERNANCE_BALANCE
         );
-        assert_eq!(session.account(test_pk).balance, 0);
+        assert_eq!(session.account(*Self::TEST_PK).balance, 0);
         assert_eq!(session.account(HOLDER_ID).balance, INITIAL_HOLDER_BALANCE);
 
         session
@@ -196,7 +161,7 @@ impl ContractSession {
     // TODO: Find a way to return CallReceipt<R>
     pub fn call_token<A>(
         &mut self,
-        tx_sk: AccountSecretKey,
+        tx_sk: &AccountSecretKey,
         fn_name: &str,
         fn_arg: &A,
     ) -> CallReceipt<Result<Vec<u8>, ContractError>>
@@ -240,7 +205,7 @@ impl ContractSession {
 
     pub fn call_holder<A>(
         &mut self,
-        tx_sk: AccountSecretKey,
+        tx_sk: &AccountSecretKey,
         fn_name: &str,
         fn_arg: &A,
     ) -> CallReceipt<Result<Vec<u8>, ContractError>>
