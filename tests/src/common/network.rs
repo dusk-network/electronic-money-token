@@ -76,7 +76,7 @@ impl NetworkSession {
     /// owned by the `moonlight_sk`.
     pub fn icc_transaction(
         &mut self,
-        moonlight_sk: AccountSecretKey,
+        moonlight_sk: &AccountSecretKey,
         contract: ContractId,
         fn_name: &str,
         fn_arg: Vec<u8>,
@@ -87,7 +87,7 @@ impl NetworkSession {
             fn_args: fn_arg,
         };
 
-        let moonlight_pk = AccountPublicKey::from(&moonlight_sk);
+        let moonlight_pk = AccountPublicKey::from(moonlight_sk);
 
         let AccountData { nonce, .. } =
             account(&mut self.session, &moonlight_pk)
