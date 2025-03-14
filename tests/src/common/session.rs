@@ -55,29 +55,30 @@ pub struct ContractSession {
 }
 
 impl ContractSession {
-    pub const DEPLOY_SK: LazyLock<AccountSecretKey> = LazyLock::new(|| {
+    pub const INITIAL_GOVERNANCE_SK: LazyLock<AccountSecretKey> =
+        LazyLock::new(|| {
+            let mut rng = StdRng::seed_from_u64(0x5EAF00D);
+            AccountSecretKey::random(&mut rng)
+        });
+
+    pub const INITIAL_GOVERNANCE_PK: LazyLock<AccountPublicKey> =
+        LazyLock::new(|| AccountPublicKey::from(&*Self::INITIAL_GOVERNANCE_SK));
+
+    pub const TEST_SK_1: LazyLock<AccountSecretKey> = LazyLock::new(|| {
         let mut rng = StdRng::seed_from_u64(0xF0CACC1A);
         AccountSecretKey::random(&mut rng)
     });
 
-    pub const DEPLOY_PK: LazyLock<AccountPublicKey> =
-        LazyLock::new(|| AccountPublicKey::from(&*Self::DEPLOY_SK));
+    pub const TEST_PK_1: LazyLock<AccountPublicKey> =
+        LazyLock::new(|| AccountPublicKey::from(&*Self::TEST_SK_1));
 
-    pub const GOVERNANCE_SK: LazyLock<AccountSecretKey> = LazyLock::new(|| {
-        let mut rng = StdRng::seed_from_u64(0x5EAF00D);
-        AccountSecretKey::random(&mut rng)
-    });
-
-    pub const GOVERNANCE_PK: LazyLock<AccountPublicKey> =
-        LazyLock::new(|| AccountPublicKey::from(&*Self::GOVERNANCE_SK));
-
-    pub const TEST_SK: LazyLock<AccountSecretKey> = LazyLock::new(|| {
+    pub const TEST_SK_2: LazyLock<AccountSecretKey> = LazyLock::new(|| {
         let mut rng = StdRng::seed_from_u64(0x5A1AD);
         AccountSecretKey::random(&mut rng)
     });
 
-    pub const TEST_PK: LazyLock<AccountPublicKey> =
-        LazyLock::new(|| AccountPublicKey::from(&*Self::TEST_SK));
+    pub const TEST_PK_2: LazyLock<AccountPublicKey> =
+        LazyLock::new(|| AccountPublicKey::from(&*Self::TEST_SK_2));
 }
 
 impl ContractSession {
@@ -85,13 +86,10 @@ impl ContractSession {
         // deploy a session with transfer & stake contract deployed
         // pass a list of accounts to fund
         let mut network_session = NetworkSession::instantiate(vec![
-            (&*Self::DEPLOY_PK, MOONLIGHT_BALANCE),
-            (&*Self::GOVERNANCE_PK, MOONLIGHT_BALANCE),
-            (&*Self::TEST_PK, MOONLIGHT_BALANCE),
+            (&*Self::INITIAL_GOVERNANCE_PK, MOONLIGHT_BALANCE),
+            (&*Self::TEST_PK_1, MOONLIGHT_BALANCE),
+            (&*Self::TEST_PK_2, MOONLIGHT_BALANCE),
         ]);
-
-        // never set governance to deploy
-        assert_ne!(*Self::GOVERNANCE_SK, *Self::DEPLOY_SK);
 
         // deploy the Token contract
         network_session
@@ -101,14 +99,14 @@ impl ContractSession {
                     .owner(DEPLOYER)
                     .init_arg(&(
                         vec![
-                            (Account::from(*Self::DEPLOY_PK), INITIAL_BALANCE),
-                            (Account::from(HOLDER_ID), INITIAL_HOLDER_BALANCE),
                             (
-                                Account::from(*Self::GOVERNANCE_PK),
+                                Account::from(*Self::INITIAL_GOVERNANCE_PK),
                                 INITIAL_GOVERNANCE_BALANCE,
                             ),
+                            (Account::from(*Self::TEST_PK_1), INITIAL_BALANCE),
+                            (Account::from(HOLDER_ID), INITIAL_HOLDER_BALANCE),
                         ],
-                        Account::from(*Self::GOVERNANCE_PK),
+                        Account::from(*Self::INITIAL_GOVERNANCE_PK),
                     ))
                     .contract_id(TOKEN_ID),
             )
@@ -129,12 +127,12 @@ impl ContractSession {
             session: network_session,
         };
 
-        assert_eq!(session.account(*Self::DEPLOY_PK).balance, INITIAL_BALANCE);
         assert_eq!(
-            session.account(*Self::GOVERNANCE_PK).balance,
+            session.account(*Self::INITIAL_GOVERNANCE_PK).balance,
             INITIAL_GOVERNANCE_BALANCE
         );
-        assert_eq!(session.account(*Self::TEST_PK).balance, 0);
+        assert_eq!(session.account(*Self::TEST_PK_1).balance, INITIAL_BALANCE);
+        assert_eq!(session.account(*Self::TEST_PK_2).balance, 0);
         assert_eq!(session.account(HOLDER_ID).balance, INITIAL_HOLDER_BALANCE);
 
         session
