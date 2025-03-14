@@ -11,8 +11,8 @@
 
 /// Types used for administrative functions.
 pub mod admin_management;
-/// Types used for access control through ownership.
-pub mod ownership;
+/// Types used for access control through governance.
+pub mod governance;
 /// Types used for sanctions.
 pub mod sanctions;
 /// Types used for supply management.

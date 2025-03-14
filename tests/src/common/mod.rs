@@ -8,4 +8,5 @@
 //! TODO: These utils could be generally available somewhere
 
 pub mod network;
+pub mod session;
 pub mod utils;
