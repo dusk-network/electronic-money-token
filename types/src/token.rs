@@ -18,15 +18,15 @@ use rkyv::{Archive, Deserialize, Serialize};
 pub const ZERO_ADDRESS: Account =
     Account::Contract(ContractId::from_bytes([0; CONTRACT_ID_BYTES]));
 
-/// Arguments to query for how much of an allowance a spender has of the `owner`
+/// Arguments to query for how much of an allowance a spender has of the holder
 /// account.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
 )]
 #[archive_attr(derive(CheckBytes))]
 pub struct Allowance {
-    /// The account that owns the tokens.
-    pub owner: Account,
+    /// The account that holds the tokens.
+    pub holder: Account,
     /// The account allowed to spend the `owner`s tokens.
     pub spender: Account,
 }
@@ -61,7 +61,7 @@ impl Transfer {
     }
 }
 
-/// Data used to transfer tokens from an owner (sender) to a receiver, by an
+/// Data used to transfer tokens from a holder (sender) to a receiver, by an
 /// allowed party (spender).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
