@@ -275,7 +275,7 @@ impl ContractSession {
 
     pub fn allowance(
         &mut self,
-        owner: impl Into<Account>,
+        holder: impl Into<Account>,
         spender: impl Into<Account>,
     ) -> u64 {
         self.session
@@ -283,7 +283,7 @@ impl ContractSession {
                 TOKEN_ID,
                 "allowance",
                 &Allowance {
-                    owner: owner.into(),
+                    holder: holder.into(),
                     spender: spender.into(),
                 },
             )
