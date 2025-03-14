@@ -343,7 +343,7 @@ impl TokenState {
     }
 
     fn allowance(&self, allowance: Allowance) -> u64 {
-        match self.allowances.get(&allowance.owner) {
+        match self.allowances.get(&allowance.holder) {
             Some(allowances) => {
                 allowances.get(&allowance.spender).copied().unwrap_or(0)
             }
@@ -413,7 +413,7 @@ impl TokenState {
 
     /// Note:
     /// the spender must not be blocked or frozen.
-    /// the actual owner of the funds must not be blocked or frozen.
+    /// the actual holder of the funds must not be blocked or frozen.
     /// the receiver must not be blocked but can be frozen.
     fn transfer_from(&mut self, transfer: TransferFrom) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
@@ -425,11 +425,11 @@ impl TokenState {
         assert!(!spender_account.is_blocked(), "{}", BLOCKED);
         assert!(!spender_account.is_frozen(), "{}", FROZEN);
 
-        let owner = *transfer.sender();
+        let holder = *transfer.sender();
 
         let allowance = self
             .allowances
-            .get_mut(&owner)
+            .get_mut(&holder)
             .expect("The account has no allowances")
             .get_mut(&spender)
             .expect("The spender is not allowed to use the account");
@@ -439,17 +439,17 @@ impl TokenState {
             panic!("The spender can't spent the defined amount");
         }
 
-        let owner_account =
-            self.accounts.get_mut(&owner).expect(ACCOUNT_NOT_FOUND);
-        assert!(!owner_account.is_blocked(), "{}", BLOCKED);
-        assert!(!owner_account.is_frozen(), "{}", FROZEN);
+        let holder_account =
+            self.accounts.get_mut(&holder).expect(ACCOUNT_NOT_FOUND);
+        assert!(!holder_account.is_blocked(), "{}", BLOCKED);
+        assert!(!holder_account.is_frozen(), "{}", FROZEN);
 
-        if owner_account.balance < value {
+        if holder_account.balance < value {
             panic!("{}", BALANCE_TOO_LOW);
         }
 
         *allowance -= value;
-        owner_account.balance -= value;
+        holder_account.balance -= value;
 
         let receiver = *transfer.receiver();
         let receiver_account =
@@ -463,7 +463,7 @@ impl TokenState {
         abi::emit(
             TransferEvent::TRANSFER_TOPIC,
             TransferEvent {
-                sender: owner,
+                sender: holder,
                 spender: Some(spender),
                 receiver,
                 value,
@@ -478,7 +478,7 @@ impl TokenState {
                 contract,
                 "token_received",
                 &TransferInfo {
-                    sender: owner,
+                    sender: holder,
                     value,
                 },
             ) {
@@ -488,12 +488,12 @@ impl TokenState {
     }
 
     fn approve(&mut self, approve: Approve) {
-        // owner of the funds
-        let owner = sender_account();
+        // holder of the funds
+        let holder = sender_account();
 
         let spender = *approve.spender();
 
-        let allowances = self.allowances.entry(owner).or_default();
+        let allowances = self.allowances.entry(holder).or_default();
 
         let value = approve.value();
         allowances.insert(spender, value);
@@ -501,7 +501,7 @@ impl TokenState {
         abi::emit(
             "approve",
             ApproveEvent {
-                sender: owner,
+                sender: holder,
                 spender,
                 value,
             },
