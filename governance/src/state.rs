@@ -22,6 +22,8 @@ use crate::error;
 
 /// The state of the token governance contract.
 pub struct Governance {
+    // The contract-id of the token-contract.
+    token_contract: ContractId,
     // The owners, and only the owners, of a token-contract are authorized to
     // change the owners or operators of the  token-contract.
     owners: Vec<PublicKey>,
@@ -42,15 +44,6 @@ pub struct Governance {
 
 /// The state of the governance contract at deployment.
 pub static mut STATE: Governance = Governance::new();
-
-/// Calculate the super-majority for the given set of keys.
-#[must_use]
-fn supermajority(pks: &Vec<PublicKey>) -> u8 {
-    let len = u8::try_from(pks.len()).expect(
-        "Neither owner nor operator key sets are larger than `u8::MAX`",
-    );
-    len / 2 + 1
-}
 
 /// Basic contract implementation.
 impl Governance {
@@ -182,7 +175,7 @@ impl Governance {
             .get(icc)
             .copied()
             .map(|threshold| match threshold {
-                0 => supermajority(&self.owners),
+                0 => supermajority(self.owners.len()),
                 _ => threshold,
             })
     }
@@ -246,7 +239,7 @@ impl Governance {
         );
 
         // the threshold needs to be a super-majority
-        let threshold = supermajority(&self.owners);
+        let threshold = supermajority(self.owners.len());
 
         // construct the signature message
         let mut sig_msg =
@@ -302,7 +295,7 @@ impl Governance {
         );
 
         // the threshold needs to be a super-majority
-        let threshold = supermajority(&self.owners);
+        let threshold = supermajority(self.owners.len());
 
         // construct the signature message
         let mut sig_msg = Vec::with_capacity(
@@ -350,7 +343,7 @@ impl Governance {
         signers: &[u8],
     ) {
         // the threshold needs to be a super-majority
-        let threshold = supermajority(&self.owners);
+        let threshold = supermajority(self.owners.len());
 
         // check the signature
         let mut sig_msg = Vec::with_capacity(u64::SIZE + Account::SIZE);
@@ -390,7 +383,7 @@ impl Governance {
         signers: &[u8],
     ) {
         // the threshold needs to be a super-majority
-        let threshold = supermajority(&self.owners);
+        let threshold = supermajority(self.owners.len());
 
         // check the signature
         let sig_msg = self.owner_nonce().to_be_bytes();
@@ -485,7 +478,7 @@ impl Governance {
 
         // this call will panic if the signature is not correct or not signed by
         // a super-majority of operators
-        let threshold = supermajority(&self.operators);
+        let threshold = supermajority(self.operators.len());
         self.authorize_operators(&sig_msg, sig, signers, threshold);
 
         // add the icc or update its threshold if it already exists
@@ -608,19 +601,64 @@ impl Governance {
     }
 }
 
+/// Calculate the super-majority for the given amount eligible signers.
+///
+/// # Panics
+/// This function panics if the amount is 0 or larger than `u8::MAX`
+#[must_use]
+fn supermajority(amt: usize) -> u8 {
+    assert!(amt > 0, "Cannot calculate supermajority of 0");
+    let amt = u8::try_from(amt).expect(
+        "Neither owner nor operator key sets are larger than `u8::MAX`",
+    );
+    amt / 2 + 1
+}
+
 /// Checks whether a given set contains duplicate elements.
+#[must_use]
 fn contains_duplicates<T>(elements: impl AsRef<[T]>) -> bool
 where
     T: PartialEq,
 {
     let elements = elements.as_ref();
     let len = elements.len();
-    for i in 0..len {
-        for j in i..len {
+    for i in 0..len - 2 {
+        for j in i..len - 1 {
             if elements[i] == elements[j] {
                 return true;
             }
         }
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_supermajority() {
+        asser_eq!(supermajority(1), 1);
+        asser_eq!(supermajority(2), 2);
+        asser_eq!(supermajority(3), 2);
+        asser_eq!(supermajority(4), 3);
+        asser_eq!(supermajority(5), 3);
+        asser_eq!(supermajority(42), 22);
+        asser_eq!(supermajority(101), 51);
+        asser_eq!(supermajority(u8::MAX), 178);
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot calculate supermajority of 0")]
+    fn test_supermajority_lower_bount() {
+        supermajority(0);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Neither owner nor operator key sets are larger than `u8::MAX`"
+    )]
+    fn test_supermajority_upper_bound() {
+        supermajority(u8::MAX + 1);
+    }
 }
