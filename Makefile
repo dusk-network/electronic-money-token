@@ -7,9 +7,8 @@ help: ## Display this help screen
 		-E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-test: contract holder-contract ## Run the tests
-	@cargo test --release --manifest-path=tests/Cargo.toml -- --test-threads=1
-# We currently need to use --test-threads=1, otherwise Piecrust will throw a PersistenceError when running the tests in parallel
+test: ## Run the tests
+	$(MAKE) -C ./contract/ $@
 
 contract: setup-compiler ## Compile the token contract
 	@RUSTFLAGS="-C link-args=-zstack-size=65536" \
@@ -43,8 +42,7 @@ holder-contract: setup-compiler ## Compile the holder-contract used for testing
 
 
 clippy: ## Run clippy
-	# @cargo clippy --all-features --release -- -D warnings
-	@cargo +dusk clippy -Z build-std=core,alloc --manifest-path=contract/Cargo.toml --release --target wasm64-unknown-unknown -- -D warnings
+	$(MAKE) -C ./contract/ $@
 
 setup-compiler: ## Run the setup-compiler script
 	@./scripts/setup-compiler.sh $(COMPILER_VERSION)
