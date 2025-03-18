@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-//! Types used to inteact with the `ttoken-contract`.
+//! Types used to inteact with the `emt-contract`.
 
 #![no_std]
 #![deny(missing_docs)]
