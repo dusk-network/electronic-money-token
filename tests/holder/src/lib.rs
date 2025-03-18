@@ -17,7 +17,7 @@ extern crate alloc;
 
 use dusk_core::abi::{self, ContractId};
 
-use emt_types::*;
+use emt_core::*;
 
 // The contract ID of the token contract
 const TOKEN_ID: ContractId = ContractId::from_bytes([1; 32]);
