@@ -12,8 +12,8 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace.dependencies]
-ttoken-types = { path = "./types", version = "=0.1.0" }
-ttoken-tests = { path = "./tests/" }
+emt-types = { path = "./types", version = "=0.1.0" }
+emt-tests = { path = "./tests/" }
 
 dusk-bytes = "0.1"
 
