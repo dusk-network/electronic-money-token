@@ -27,7 +27,7 @@ use rkyv::{Archive, Deserialize, Infallible, Serialize};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use emt_types::*;
+use emt_core::*;
 
 use emt_tests::network::NetworkSession;
 
