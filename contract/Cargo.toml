@@ -1,17 +1,17 @@
 [package]
-name = "ttoken-contract"
+name = "emt-contract"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-ttoken-types = { workspace = true }
+emt-types = { workspace = true }
 dusk-core = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 dusk-core = { workspace = true, features = ["abi-dlmalloc"] }
 
 [dev-dependencies]
-ttoken-tests = { workspace = true }
+emt-tests = { workspace = true }
 dusk-vm = { workspace = true }
 rkyv = { workspace = true }
 bytecheck = { workspace = true }

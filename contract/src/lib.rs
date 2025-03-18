@@ -18,19 +18,19 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use dusk_core::abi;
-use ttoken_types::admin_management::events::PauseToggled;
-use ttoken_types::admin_management::PAUSED_MESSAGE;
-use ttoken_types::governance::arguments::TransferGovernance;
-use ttoken_types::governance::events::{
+use emt_types::admin_management::events::PauseToggled;
+use emt_types::admin_management::PAUSED_MESSAGE;
+use emt_types::governance::arguments::TransferGovernance;
+use emt_types::governance::events::{
     GovernanceRenouncedEvent, GovernanceTransferredEvent,
 };
-use ttoken_types::governance::{GOVERNANCE_NOT_FOUND, UNAUTHORIZED_ACCOUNT};
-use ttoken_types::sanctions::arguments::Sanction;
-use ttoken_types::sanctions::events::AccountStatusEvent;
-use ttoken_types::sanctions::{BLOCKED, FROZEN};
-use ttoken_types::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
-use ttoken_types::supply_management::SUPPLY_OVERFLOW;
-use ttoken_types::{
+use emt_types::governance::{GOVERNANCE_NOT_FOUND, UNAUTHORIZED_ACCOUNT};
+use emt_types::sanctions::arguments::Sanction;
+use emt_types::sanctions::events::AccountStatusEvent;
+use emt_types::sanctions::{BLOCKED, FROZEN};
+use emt_types::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
+use emt_types::supply_management::SUPPLY_OVERFLOW;
+use emt_types::{
     Account, AccountInfo, Allowance, Approve, ApproveEvent, Transfer,
     TransferEvent, TransferFrom, TransferInfo, ACCOUNT_NOT_FOUND,
     BALANCE_TOO_LOW, SHIELDED_NOT_SUPPORTED, ZERO_ADDRESS,

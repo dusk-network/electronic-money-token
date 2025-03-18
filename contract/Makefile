@@ -1,5 +1,5 @@
-TOKEN_WASM:="../target/wasm64-unknown-unknown/release/ttoken_contract.wasm"
-TEST_HOLDER_WASM:="../target/wasm64-unknown-unknown/release/ttoken_holder_contract.wasm"
+TOKEN_WASM:="../target/wasm64-unknown-unknown/release/emt_contract.wasm"
+TEST_HOLDER_WASM:="../target/wasm64-unknown-unknown/release/emt_holder_contract.wasm"
 
 all: ## Build the token contract
 	@cargo build --release
