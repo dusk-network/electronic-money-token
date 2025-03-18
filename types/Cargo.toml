@@ -1,5 +1,5 @@
 [package]
-name = "ttoken-types"
+name = "emt-types"
 version.workspace = true
 edition.workspace = true
 
