@@ -14,4 +14,4 @@ dusk-vm = { workspace = true }
 bytecheck = { workspace = true }
 rkyv = { workspace = true }
 
-rand = "0.8.5"
+rand = { workspace = true }

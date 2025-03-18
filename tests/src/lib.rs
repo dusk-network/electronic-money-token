@@ -4,9 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-pub mod common;
-mod token;
+//! Test-suite for testing DUSK smart contracts.
 
-fn main() {
-    unreachable!("`main` should never run for this crate");
-}
+pub mod network;
+pub mod utils;
