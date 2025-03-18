@@ -1,12 +1,12 @@
 [package]
-name = "ttoken-tests"
+name = "emt-tests"
 version.workspace = true
 edition.workspace = true
 
 publish = false
 
 [dependencies]
-ttoken-types = { workspace = true }
+emt-types = { workspace = true }
 
 dusk-core = { workspace = true }
 dusk-vm = { workspace = true }

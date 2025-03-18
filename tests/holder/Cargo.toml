@@ -1,10 +1,10 @@
 [package]
-name = "ttoken-holder-contract"
+name = "emt-holder-contract"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-ttoken-types = { workspace = true }
+emt-types = { workspace = true }
 
 dusk-core = { workspace = true, features = ["abi-dlmalloc"] }
 
