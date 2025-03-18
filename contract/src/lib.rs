@@ -4,6 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+#![cfg(target_family = "wasm")]
 #![no_std]
 
 extern crate alloc;

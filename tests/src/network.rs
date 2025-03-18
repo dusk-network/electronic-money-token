@@ -20,7 +20,7 @@ use dusk_vm::{CallReceipt, ContractData, Error as VMError, Session, VM};
 use rkyv::validation::validators::DefaultValidator;
 use rkyv::{Archive, Deserialize, Infallible, Serialize};
 
-use crate::common::utils::{account, chain_id};
+use crate::utils::{account, chain_id};
 
 const ZERO_ADDRESS: ContractId = ContractId::from_bytes([0; CONTRACT_ID_BYTES]);
 const GAS_LIMIT: u64 = 0x10000000;
@@ -127,7 +127,7 @@ impl NetworkSession {
 
         // deploy transfer contract
         let transfer_contract =
-            include_bytes!("../../genesis-contracts/transfer_contract.wasm");
+            include_bytes!("../genesis-contracts/transfer_contract.wasm");
 
         session
             .deploy(
@@ -141,7 +141,7 @@ impl NetworkSession {
 
         // deploy stake contract
         let stake_contract =
-            include_bytes!("../../genesis-contracts/stake_contract.wasm");
+            include_bytes!("../genesis-contracts/stake_contract.wasm");
 
         session
             .deploy(

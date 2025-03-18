@@ -29,12 +29,16 @@ use rand::SeedableRng;
 
 use ttoken_types::*;
 
-use crate::common::network::NetworkSession;
+use ttoken_tests::network::NetworkSession;
 
-const TOKEN_BYTECODE: &[u8] =
-    include_bytes!("../../../build/ttoken_contract.wasm");
-const HOLDER_BYTECODE: &[u8] =
-    include_bytes!("../../../build/ttoken_holder_contract.wasm");
+const TOKEN_BYTECODE: &[u8] = include_bytes!(
+    "../../target/wasm64-unknown-unknown/release/ttoken_contract.wasm"
+);
+const HOLDER_BYTECODE: &[u8] = include_bytes!(
+    "../../target/wasm64-unknown-unknown/release/ttoken_holder_contract.wasm"
+);
+
+const DEPLOYER: [u8; 64] = [0u8; 64];
 
 pub const TOKEN_ID: ContractId = ContractId::from_bytes([1; 32]);
 pub const HOLDER_ID: ContractId = ContractId::from_bytes([2; 32]);
@@ -46,49 +50,46 @@ pub const INITIAL_GOVERNANCE_BALANCE: u64 = 1000;
 pub const INITIAL_SUPPLY: u64 =
     INITIAL_BALANCE + INITIAL_HOLDER_BALANCE + INITIAL_GOVERNANCE_BALANCE;
 
-const DEPLOYER: [u8; 64] = [0u8; 64];
-
 type Result<T, Error = VMError> = core::result::Result<T, Error>;
 
-pub struct ContractSession {
+pub struct TestSession {
     session: NetworkSession,
 }
 
-impl ContractSession {
-    pub const INITIAL_GOVERNANCE_SK: LazyLock<AccountSecretKey> =
-        LazyLock::new(|| {
-            let mut rng = StdRng::seed_from_u64(0x5EAF00D);
-            AccountSecretKey::random(&mut rng)
-        });
+impl TestSession {
+    pub const SK_0: LazyLock<AccountSecretKey> = LazyLock::new(|| {
+        let mut rng = StdRng::seed_from_u64(0x5EAF00D);
+        AccountSecretKey::random(&mut rng)
+    });
 
-    pub const INITIAL_GOVERNANCE_PK: LazyLock<AccountPublicKey> =
-        LazyLock::new(|| AccountPublicKey::from(&*Self::INITIAL_GOVERNANCE_SK));
+    pub const PK_0: LazyLock<AccountPublicKey> =
+        LazyLock::new(|| AccountPublicKey::from(&*Self::SK_0));
 
-    pub const TEST_SK_1: LazyLock<AccountSecretKey> = LazyLock::new(|| {
+    pub const SK_1: LazyLock<AccountSecretKey> = LazyLock::new(|| {
         let mut rng = StdRng::seed_from_u64(0xF0CACC1A);
         AccountSecretKey::random(&mut rng)
     });
 
-    pub const TEST_PK_1: LazyLock<AccountPublicKey> =
-        LazyLock::new(|| AccountPublicKey::from(&*Self::TEST_SK_1));
+    pub const PK_1: LazyLock<AccountPublicKey> =
+        LazyLock::new(|| AccountPublicKey::from(&*Self::SK_1));
 
-    pub const TEST_SK_2: LazyLock<AccountSecretKey> = LazyLock::new(|| {
+    pub const SK_2: LazyLock<AccountSecretKey> = LazyLock::new(|| {
         let mut rng = StdRng::seed_from_u64(0x5A1AD);
         AccountSecretKey::random(&mut rng)
     });
 
-    pub const TEST_PK_2: LazyLock<AccountPublicKey> =
-        LazyLock::new(|| AccountPublicKey::from(&*Self::TEST_SK_2));
+    pub const PK_2: LazyLock<AccountPublicKey> =
+        LazyLock::new(|| AccountPublicKey::from(&*Self::SK_2));
 }
 
-impl ContractSession {
+impl TestSession {
     pub fn new() -> Self {
         // deploy a session with transfer & stake contract deployed
         // pass a list of accounts to fund
         let mut network_session = NetworkSession::instantiate(vec![
-            (&*Self::INITIAL_GOVERNANCE_PK, MOONLIGHT_BALANCE),
-            (&*Self::TEST_PK_1, MOONLIGHT_BALANCE),
-            (&*Self::TEST_PK_2, MOONLIGHT_BALANCE),
+            (&*Self::PK_0, MOONLIGHT_BALANCE),
+            (&*Self::PK_1, MOONLIGHT_BALANCE),
+            (&*Self::PK_2, MOONLIGHT_BALANCE),
         ]);
 
         // deploy the Token contract
@@ -100,13 +101,13 @@ impl ContractSession {
                     .init_arg(&(
                         vec![
                             (
-                                Account::from(*Self::INITIAL_GOVERNANCE_PK),
+                                Account::from(*Self::PK_0),
                                 INITIAL_GOVERNANCE_BALANCE,
                             ),
-                            (Account::from(*Self::TEST_PK_1), INITIAL_BALANCE),
+                            (Account::from(*Self::PK_1), INITIAL_BALANCE),
                             (Account::from(HOLDER_ID), INITIAL_HOLDER_BALANCE),
                         ],
-                        Account::from(*Self::INITIAL_GOVERNANCE_PK),
+                        Account::from(*Self::PK_0),
                     ))
                     .contract_id(TOKEN_ID),
             )
@@ -128,11 +129,11 @@ impl ContractSession {
         };
 
         assert_eq!(
-            session.account(*Self::INITIAL_GOVERNANCE_PK).balance,
+            session.account(*Self::PK_0).balance,
             INITIAL_GOVERNANCE_BALANCE
         );
-        assert_eq!(session.account(*Self::TEST_PK_1).balance, INITIAL_BALANCE);
-        assert_eq!(session.account(*Self::TEST_PK_2).balance, 0);
+        assert_eq!(session.account(*Self::PK_1).balance, INITIAL_BALANCE);
+        assert_eq!(session.account(*Self::PK_2).balance, 0);
         assert_eq!(session.account(HOLDER_ID).balance, INITIAL_HOLDER_BALANCE);
 
         session
