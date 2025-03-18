@@ -13,6 +13,7 @@ edition = "2021"
 
 [workspace.dependencies]
 ttoken-types = { path = "./types", version = "=0.1.0" }
+ttoken-tests = { path = "./tests/" }
 
 dusk-bytes = "0.1"
 
@@ -25,3 +26,4 @@ rkyv = { version = "0.7.39", default-features = false, features = [
 	"alloc",
 	"validation",
 ] }
+rand = { version = "0.8.5", default-features = false }
