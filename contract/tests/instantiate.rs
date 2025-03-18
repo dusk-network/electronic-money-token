@@ -27,15 +27,15 @@ use rkyv::{Archive, Deserialize, Infallible, Serialize};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use ttoken_types::*;
+use emt_types::*;
 
-use ttoken_tests::network::NetworkSession;
+use emt_tests::network::NetworkSession;
 
 const TOKEN_BYTECODE: &[u8] = include_bytes!(
-    "../../target/wasm64-unknown-unknown/release/ttoken_contract.wasm"
+    "../../target/wasm64-unknown-unknown/release/emt_contract.wasm"
 );
 const HOLDER_BYTECODE: &[u8] = include_bytes!(
-    "../../target/wasm64-unknown-unknown/release/ttoken_holder_contract.wasm"
+    "../../target/wasm64-unknown-unknown/release/emt_holder_contract.wasm"
 );
 
 const DEPLOYER: [u8; 64] = [0u8; 64];

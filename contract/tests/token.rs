@@ -14,13 +14,13 @@ use dusk_core::transfer::MoonlightTransactionEvent;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use ttoken_types::admin_management::PAUSED_MESSAGE;
-use ttoken_types::governance::arguments::TransferGovernance;
-use ttoken_types::governance::UNAUTHORIZED_ACCOUNT;
-use ttoken_types::sanctions::arguments::Sanction;
-use ttoken_types::sanctions::{BLOCKED, FROZEN};
-use ttoken_types::supply_management::SUPPLY_OVERFLOW;
-use ttoken_types::*;
+use emt_types::admin_management::PAUSED_MESSAGE;
+use emt_types::governance::arguments::TransferGovernance;
+use emt_types::governance::UNAUTHORIZED_ACCOUNT;
+use emt_types::sanctions::arguments::Sanction;
+use emt_types::sanctions::{BLOCKED, FROZEN};
+use emt_types::supply_management::SUPPLY_OVERFLOW;
+use emt_types::*;
 
 pub mod instantiate;
 use instantiate::{
