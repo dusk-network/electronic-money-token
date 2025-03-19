@@ -1,5 +1,5 @@
 [package]
-name = "emt-types"
+name = "emt-core"
 version.workspace = true
 edition.workspace = true
 

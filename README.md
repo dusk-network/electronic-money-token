@@ -36,14 +36,14 @@ Contracts implementing this standard will allow the user to:
 
 Some of the functionality of the contract requires data to be sent to it that assures ownership of a
 given public key, as well as ensuring the non-repeatability of certain calls. The data that a user
-will use to interact with this contract is defined in the [`types` crate] in this repository. The
+will use to interact with this contract is defined in the [`core` crate] in this repository. The
 example contract implementation in the [`contract` crate] makes use of [`rkyv`] serialization. This
 is convenient for the implementation since [`dusk-core`] abi supports it natively, however it is not a
 requirement, and implementors may choose any serialization they wish. This will result in different
 gas costs. As a consequence, this specification *does not require* specific serialization from
 contracts wishing to implement it.
 
-[`types` crate]: ./types
+[`core` crate]: ./core
 [`contract` crate]: ./contract
 [`rkyv`]: https://github.com/rkyv/rkyv
 [`dusk-abi`]: https://github.com/dusk-network/rusk/core/src/abi.rs

@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-	"types",
+	"core",
 	"contract",
 	"tests",
 	"tests/holder"
@@ -12,7 +12,7 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace.dependencies]
-emt-types = { path = "./types", version = "=0.1.0" }
+emt-core = { path = "./core", version = "=0.1.0" }
 emt-tests = { path = "./tests/" }
 
 dusk-bytes = "0.1"

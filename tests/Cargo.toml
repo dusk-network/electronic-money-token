@@ -6,7 +6,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-emt-types = { workspace = true }
+emt-core = { workspace = true }
 
 dusk-core = { workspace = true }
 dusk-vm = { workspace = true }
