@@ -5,6 +5,10 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 #![cfg(target_family = "wasm")]
+#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(clippy::pedantic)]
+#![deny(unused_crate_dependencies)]
+#![deny(unused_extern_crates)]
 #![no_std]
 
 extern crate alloc;
@@ -26,7 +30,11 @@ use ttoken_types::sanctions::events::AccountStatusEvent;
 use ttoken_types::sanctions::{BLOCKED, FROZEN};
 use ttoken_types::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
 use ttoken_types::supply_management::SUPPLY_OVERFLOW;
-use ttoken_types::*;
+use ttoken_types::{
+    Account, AccountInfo, Allowance, Approve, ApproveEvent, Transfer,
+    TransferEvent, TransferFrom, TransferInfo, ACCOUNT_NOT_FOUND,
+    BALANCE_TOO_LOW, SHIELDED_NOT_SUPPORTED, ZERO_ADDRESS,
+};
 
 /// The state of the token contract.
 struct TokenState {
@@ -217,9 +225,10 @@ impl TokenState {
             self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
 
         // Prevent overflow
-        self.supply = match self.supply.checked_add(amount) {
-            Some(supply) => supply,
-            None => panic!("{}", SUPPLY_OVERFLOW),
+        self.supply = if let Some(supply) = self.supply.checked_add(amount) {
+            supply
+        } else {
+            panic!("{}", SUPPLY_OVERFLOW)
         };
 
         receiver_account.balance += amount;
@@ -292,9 +301,11 @@ impl TokenState {
 
         let value = transfer.value();
 
-        if obliged_sender_account.balance < value {
-            panic!("{}", BALANCE_TOO_LOW);
-        }
+        assert!(
+            obliged_sender_account.balance >= value,
+            "{}",
+            BALANCE_TOO_LOW
+        );
 
         obliged_sender_account.balance -= value;
 
@@ -320,15 +331,15 @@ impl TokenState {
 
 /// Basic token contract implementation.
 impl TokenState {
-    fn name(&self) -> String {
+    fn name() -> String {
         String::from("Transparent Fungible Token Sample")
     }
 
-    fn symbol(&self) -> String {
+    fn symbol() -> String {
         String::from("TFTS")
     }
 
-    fn decimals(&self) -> u8 {
+    fn decimals() -> u8 {
         18
     }
 
@@ -343,6 +354,7 @@ impl TokenState {
             .unwrap_or(AccountInfo::EMPTY)
     }
 
+    #[allow(clippy::large_types_passed_by_value)]
     fn allowance(&self, allowance: Allowance) -> u64 {
         match self.allowances.get(&allowance.owner) {
             Some(allowances) => {
@@ -360,6 +372,7 @@ impl TokenState {
     /// # Note
     /// the sender must not be blocked or frozen.
     /// the receiver must not be blocked but can be frozen.
+    #[allow(clippy::large_types_passed_by_value)]
     fn transfer(&mut self, transfer: Transfer) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
@@ -372,9 +385,7 @@ impl TokenState {
 
         let value = transfer.value();
 
-        if sender_account.balance < value {
-            panic!("{}", BALANCE_TOO_LOW);
-        }
+        assert!(sender_account.balance >= value, "{}", BALANCE_TOO_LOW);
 
         sender_account.balance -= value;
 
@@ -416,6 +427,7 @@ impl TokenState {
     /// the spender must not be blocked or frozen.
     /// the actual owner of the funds must not be blocked or frozen.
     /// the receiver must not be blocked but can be frozen.
+    #[allow(clippy::large_types_passed_by_value)]
     fn transfer_from(&mut self, transfer: TransferFrom) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
@@ -436,18 +448,17 @@ impl TokenState {
             .expect("The spender is not allowed to use the account");
 
         let value = transfer.value();
-        if value > *allowance {
-            panic!("The spender can't spent the defined amount");
-        }
+        assert!(
+            value <= *allowance,
+            "The spender can't spent the defined amount"
+        );
 
         let owner_account =
             self.accounts.get_mut(&owner).expect(ACCOUNT_NOT_FOUND);
         assert!(!owner_account.is_blocked(), "{}", BLOCKED);
         assert!(!owner_account.is_frozen(), "{}", FROZEN);
 
-        if owner_account.balance < value {
-            panic!("{}", BALANCE_TOO_LOW);
-        }
+        assert!(owner_account.balance >= value, "{}", BALANCE_TOO_LOW);
 
         *allowance -= value;
         owner_account.balance -= value;
@@ -511,54 +522,54 @@ impl TokenState {
 }
 
 #[no_mangle]
-unsafe fn init(arg_len: u32) -> u32 {
+unsafe extern "C" fn init(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |(initial_accounts, governance)| {
-        STATE.init(initial_accounts, governance)
+        STATE.init(initial_accounts, governance);
     })
 }
 
 #[no_mangle]
-unsafe fn name(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |_: ()| STATE.name())
+unsafe extern "C" fn name(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(): ()| TokenState::name())
 }
 
 #[no_mangle]
-unsafe fn symbol(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |_: ()| STATE.symbol())
+unsafe extern "C" fn symbol(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(): ()| TokenState::symbol())
 }
 
 #[no_mangle]
-unsafe fn decimals(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |_: ()| STATE.decimals())
+unsafe extern "C" fn decimals(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(): ()| TokenState::decimals())
 }
 
 #[no_mangle]
-unsafe fn total_supply(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |_: ()| STATE.total_supply())
+unsafe extern "C" fn total_supply(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(): ()| STATE.total_supply())
 }
 
 #[no_mangle]
-unsafe fn account(arg_len: u32) -> u32 {
+unsafe extern "C" fn account(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.account(arg))
 }
 
 #[no_mangle]
-unsafe fn allowance(arg_len: u32) -> u32 {
+unsafe extern "C" fn allowance(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.allowance(arg))
 }
 
 #[no_mangle]
-unsafe fn transfer(arg_len: u32) -> u32 {
+unsafe extern "C" fn transfer(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.transfer(arg))
 }
 
 #[no_mangle]
-unsafe fn transfer_from(arg_len: u32) -> u32 {
+unsafe extern "C" fn transfer_from(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.transfer_from(arg))
 }
 
 #[no_mangle]
-unsafe fn approve(arg_len: u32) -> u32 {
+unsafe extern "C" fn approve(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.approve(arg))
 }
 
@@ -567,18 +578,18 @@ unsafe fn approve(arg_len: u32) -> u32 {
  */
 
 #[no_mangle]
-unsafe fn transfer_governance(arg_len: u32) -> u32 {
+unsafe extern "C" fn transfer_governance(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.transfer_governance(arg))
 }
 
 #[no_mangle]
-unsafe fn renounce_governance(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |_: ()| STATE.renounce_governance())
+unsafe extern "C" fn renounce_governance(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(): ()| STATE.renounce_governance())
 }
 
 #[no_mangle]
-unsafe fn governance(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |_: ()| STATE.governance)
+unsafe extern "C" fn governance(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(): ()| STATE.governance)
 }
 
 /*
@@ -586,12 +597,12 @@ unsafe fn governance(arg_len: u32) -> u32 {
  */
 
 #[no_mangle]
-unsafe fn mint(arg_len: u32) -> u32 {
+unsafe extern "C" fn mint(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |(receiver, amount)| STATE.mint(receiver, amount))
 }
 
 #[no_mangle]
-unsafe fn burn(arg_len: u32) -> u32 {
+unsafe extern "C" fn burn(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.burn(arg))
 }
 
@@ -600,19 +611,19 @@ unsafe fn burn(arg_len: u32) -> u32 {
  */
 
 #[no_mangle]
-unsafe fn toggle_pause(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |_: ()| STATE.toggle_pause())
+unsafe extern "C" fn toggle_pause(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(): ()| STATE.toggle_pause())
 }
 
 #[no_mangle]
-unsafe fn is_paused(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |_: ()| STATE.is_paused())
+unsafe extern "C" fn is_paused(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(): ()| STATE.is_paused())
 }
 
 #[no_mangle]
-unsafe fn force_transfer(arg_len: u32) -> u32 {
+unsafe extern "C" fn force_transfer(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |(transfer, obliged_sender)| {
-        STATE.force_transfer(transfer, obliged_sender)
+        STATE.force_transfer(transfer, obliged_sender);
     })
 }
 
@@ -621,32 +632,32 @@ unsafe fn force_transfer(arg_len: u32) -> u32 {
  */
 
 #[no_mangle]
-unsafe fn block(arg_len: u32) -> u32 {
+unsafe extern "C" fn block(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.block(arg))
 }
 
 #[no_mangle]
-unsafe fn freeze(arg_len: u32) -> u32 {
+unsafe extern "C" fn freeze(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.freeze(arg))
 }
 
 #[no_mangle]
-unsafe fn unblock(arg_len: u32) -> u32 {
+unsafe extern "C" fn unblock(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.unblock(arg))
 }
 
 #[no_mangle]
-unsafe fn unfreeze(arg_len: u32) -> u32 {
+unsafe extern "C" fn unfreeze(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.unfreeze(arg))
 }
 
 #[no_mangle]
-unsafe fn blocked(arg_len: u32) -> u32 {
+unsafe extern "C" fn blocked(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.blocked(arg))
 }
 
 #[no_mangle]
-unsafe fn frozen(arg_len: u32) -> u32 {
+unsafe extern "C" fn frozen(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.frozen(arg))
 }
 
