@@ -12,8 +12,7 @@ pub const PAUSED_MESSAGE: &str = "Contract is paused";
 
 /// Events emitted by admin management transactions.
 pub mod events {
-
-    use super::*;
+    use super::{Archive, CheckBytes, Deserialize, Serialize};
 
     /// Event emitted when a contract is paused or unpaused.
     #[derive(

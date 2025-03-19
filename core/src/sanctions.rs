@@ -16,7 +16,9 @@ pub const FROZEN: &str = "Account is frozen";
 
 /// Arguments for sanction transactions.
 pub mod arguments {
-    use super::*;
+    use super::{
+        Account, AccountInfo, Archive, CheckBytes, Deserialize, Serialize,
+    };
 
     /// Data used to sanction an account.
     #[derive(
@@ -54,11 +56,13 @@ pub mod arguments {
         }
 
         /// Get the account specified for this transaction.
+        #[must_use]
         pub fn account(&self) -> &Account {
             &self.account
         }
 
         /// Get the sanction type specified for this transaction.
+        #[must_use]
         pub fn sanction_type(&self) -> u64 {
             self.sanction_type
         }
@@ -67,7 +71,7 @@ pub mod arguments {
 
 /// Events for sanction transactions.
 pub mod events {
-    use super::*;
+    use super::{Account, Archive, CheckBytes, Deserialize, Serialize};
 
     /// Event emitted when an account status changes.
     #[derive(

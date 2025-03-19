@@ -13,12 +13,12 @@ use crate::Account;
 pub const GOVERNANCE_NOT_FOUND: &str = "The governance does not exist";
 
 /// Error message for when the governance is not authorized i.e., wrong
-/// public_sender value.
+/// `public_sender` value.
 pub const UNAUTHORIZED_ACCOUNT: &str = "Unauthorized account";
 
 /// Arguments for governance transactions.
 pub mod arguments {
-    use super::*;
+    use super::{Account, Archive, CheckBytes, Deserialize, Serialize};
 
     /// Data used to transfer governance of a contract.
     ///
@@ -47,6 +47,7 @@ pub mod arguments {
         }
 
         /// Get the new governance specified for this transaction.
+        #[must_use]
         pub fn new_governance(&self) -> &Account {
             &self.new_governance
         }
@@ -55,7 +56,7 @@ pub mod arguments {
 
 /// Events emitted by governance transactions.
 pub mod events {
-    use super::*;
+    use super::{Account, Archive, CheckBytes, Deserialize, Serialize};
 
     /// Event emitted when the governance of a contract is transferred.
     #[derive(

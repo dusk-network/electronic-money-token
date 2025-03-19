@@ -7,7 +7,18 @@
 //! Types used to inteact with the `emt-contract`.
 
 #![no_std]
+#![warn(missing_debug_implementations, unreachable_pub, rustdoc::all)]
+#![deny(rustdoc::broken_intra_doc_links)]
 #![deny(missing_docs)]
+#![deny(unused_extern_crates)]
+#![deny(unused_must_use)]
+#![deny(
+    rust_2018_idioms,
+    rust_2018_compatibility,
+    rust_2021_compatibility,
+    rust_2024_compatibility
+)]
+#![deny(clippy::pedantic)]
 
 /// Types used for administrative functions.
 pub mod admin_management;
