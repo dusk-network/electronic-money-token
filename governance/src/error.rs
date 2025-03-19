@@ -31,16 +31,14 @@ pub const ICC_NOT_FOUND: &str =
 /// Error message given when there are duplicate owner-keys.
 pub const DUPLICATE_OWNER: &str = "Duplicate owner-key found";
 
-/// Error message given when there are duplicate owner-keys.
+/// Error message given when there are duplicate operator-keys.
 pub const DUPLICATE_OPERATOR: &str = "Duplicate operator-key found";
 
-/// Error message given when one of the signer indices is out of bounds for the
-/// owner-keys.
-pub const OWNER_NOT_FOUND: &str = "The given owner index doesn't exist";
+/// Error message given when there are duplicate signer-keys.
+pub const DUPLICATE_SIGNER: &str = "Duplicate signer-key found";
 
-/// Error message given when one of the signer indices is out of bounds for the
-/// operator-keys.
-pub const OPERATOR_NOT_FOUND: &str = "The given operator index doesn't exist";
+/// Error message given when one of the signer indices doesn't exist
+pub const SIGNER_NOT_FOUND: &str = "The given signer doesn't exist";
 
 /// Error message given in case of an invalid signature.
 pub const INVALID_SIGNATURE: &str = "The signature is invalid";

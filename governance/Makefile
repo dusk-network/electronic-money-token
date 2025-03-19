@@ -1,6 +1,6 @@
-TOKEN_WASM:="../target/wasm64-unknown-unknown/release/ttoken_contract.wasm"
+TOKEN_WASM:="../target/wasm64-unknown-unknown/release/emt_token.wasm"
 GOVERNANCE_WASM:="../target/wasm64-unknown-unknown/release/ttoken_governance.wasm"
-TEST_HOLDER_WASM:="../target/wasm64-unknown-unknown/release/ttoken_holder_contract.wasm"
+TEST_HOLDER_WASM:="../target/wasm64-unknown-unknown/release/emt_holder_contact.wasm"
 
 all: ## Build the token contract
 	@cargo build --release
@@ -11,7 +11,7 @@ help: ## Display this help screen
 		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 $(TOKEN_WASM): ## Build token contract wasm file if it doesn't exist
-	$(MAKE) -C ../ contract
+	$(MAKE) -C ../ token
 
 $(GOVERNANCE_WASM): ## Build governance contract wasm file if it doesn't exist
 	$(MAKE) -C ../ governance

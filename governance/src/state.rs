@@ -15,10 +15,12 @@ use dusk_core::abi::{self, ContractId, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::{
     MultisigPublicKey, MultisigSignature, PublicKey,
 };
-use ttoken_types::governance::arguments::TransferGovernance;
-use ttoken_types::Account;
+use emt_core::governance::arguments::TransferGovernance;
+use emt_core::Account;
 
-use crate::error;
+use crate::{contains_duplicates, error, supermajority};
+
+const EMPTY: ContractId = ContractId::from_bytes([0u8; CONTRACT_ID_BYTES]);
 
 /// The state of the token governance contract.
 pub struct Governance {
@@ -47,18 +49,11 @@ pub static mut STATE: Governance = Governance::new();
 
 /// Basic contract implementation.
 impl Governance {
-    /// The contract-id of the token-contract.
-    ///
-    /// [!IMPORTANT]
-    /// The token-contract is constant and must be set to the correct id
-    /// **before** the governance contract is deployed.
-    pub const TOKEN_CONTRACT: ContractId =
-        ContractId::from_bytes([0u8; CONTRACT_ID_BYTES]);
-
     /// Create a new empty instance of the governance-contract.
     #[must_use]
-    pub const fn new() -> Self {
+    const fn new() -> Self {
         Self {
+            token_contract: EMPTY,
             owners: Vec::new(),
             owner_nonce: 0,
             operators: Vec::new(),
@@ -82,9 +77,10 @@ impl Governance {
     ///   authorize
     pub fn init(
         &mut self,
+        token_contract: ContractId,
         owners: Vec<PublicKey>,
         operators: Vec<PublicKey>,
-        icc_vec: Vec<(String, u8)>,
+        icc_data: Vec<(String, u8)>,
     ) {
         // panic if the contract has already been initialized
         assert!(self.owners.is_empty(), "{}", error::ALLREADY_INITIALIZED);
@@ -104,16 +100,27 @@ impl Governance {
         );
         // panic if there are duplicate owners
         assert!(!contains_duplicates(&owners), "{}", error::DUPLICATE_OWNER);
-        // panic if there are duplicate operators
-        assert!(
-            !contains_duplicates(&operators),
-            "{}",
-            error::DUPLICATE_OPERATOR
-        );
 
+        // initialize token-contract and owners
+        self.token_contract = token_contract;
+        self.owners = owners;
+
+        // initialize operators (if any)
+        if !operators.is_empty() {
+            // panic if there are duplicate operators
+            assert!(
+                !contains_duplicates(&operators),
+                "{}",
+                error::DUPLICATE_OPERATOR
+            );
+            self.operators = operators;
+        }
+
+        // initialize inter-contract calls (if any)
         let mut inter_contract_calls = BTreeMap::new();
-        for (icc, threshold) in icc_vec {
-            // panic if inter-contract calls that need owner approval are added
+        for (icc, threshold) in icc_data {
+            // panic if inter-contract calls that need owner approval are
+            // added
             assert!(
                 !Self::OWNER_ICC.contains(&icc.as_str()),
                 "{}",
@@ -121,9 +128,6 @@ impl Governance {
             );
             inter_contract_calls.insert(icc, threshold);
         }
-
-        self.owners = owners;
-        self.operators = operators;
         self.inter_contract_calls = inter_contract_calls;
     }
 
@@ -137,6 +141,12 @@ impl Governance {
     #[must_use]
     pub fn symbol(&self) -> String {
         String::from("TGS")
+    }
+
+    /// Return the linked token-contract.
+    #[must_use]
+    pub fn token_contract(&self) -> ContractId {
+        self.token_contract
     }
 
     /// Return the current owners stored in the governance contract.
@@ -195,6 +205,38 @@ impl Governance {
         "renounce_governance",
     ];
 
+    /// Update the token-contract in the governance-contract.
+    /// This might be useful when the token-contract changes but the governance
+    /// remains the same.
+    ///
+    /// The signature message for this inter-contract calls is the current
+    /// owner-nonce in be-bytes appended by the new token-contract `ContractId`.
+    ///
+    /// Note: A super-majority of owner signatures is required to perform this
+    /// action.
+    ///
+    /// # Panics
+    /// This function will panic if:
+    /// - The signature is incorrect or not signed by a super-majority of owners
+    pub fn set_token_contract(
+        &mut self,
+        new_token_contract: ContractId,
+        sig: MultisigSignature,
+        signers: Vec<u8>,
+    ) {
+        // the threshold needs to be a super-majority
+        let threshold = supermajority(self.owners.len());
+
+        // construct the signature message
+        let mut sig_msg = Vec::with_capacity(u64::SIZE + CONTRACT_ID_BYTES);
+        sig_msg.extend(&self.owner_nonce.to_be_bytes());
+        sig_msg.extend(&new_token_contract.to_bytes());
+
+        // this call will panic if the signature is not correct or the threshold
+        // is not met
+        self.authorize_owners(threshold, &sig_msg, sig, signers);
+    }
+
     /// Update the owner public-keys in the governance-contract.
     ///
     /// The signature message for this inter-contract calls is the current
@@ -219,9 +261,9 @@ impl Governance {
     // The same applies for `set_operators`.
     pub fn set_owners(
         &mut self,
-        sig: MultisigSignature,
-        signers: &[u8],
         new_owners: Vec<PublicKey>,
+        sig: MultisigSignature,
+        signers: Vec<u8>,
     ) {
         // panic if no owners are given
         assert!(!new_owners.is_empty(), "{}", error::EMTPY_OWNER);
@@ -251,7 +293,7 @@ impl Governance {
 
         // this call will panic if the signature is not correct or the threshold
         // is not met
-        self.authorize_owners(&sig_msg, sig, signers, threshold);
+        self.authorize_owners(threshold, &sig_msg, sig, signers);
 
         // update the owners to the new set
         self.owners = new_owners;
@@ -277,9 +319,9 @@ impl Governance {
     // NOTE: See `set_owner`.
     pub fn set_operators(
         &mut self,
-        sig: MultisigSignature,
-        signers: &[u8],
         new_operators: Vec<PublicKey>,
+        sig: MultisigSignature,
+        signers: Vec<u8>,
     ) {
         // panic if more than `u8::MAX` operators are given
         assert!(
@@ -308,7 +350,7 @@ impl Governance {
 
         // this call will panic if the signature is not correct or the threshold
         // is not met
-        self.authorize_owners(&sig_msg, sig, signers, threshold);
+        self.authorize_owners(threshold, &sig_msg, sig, signers);
 
         // update the operators to the new set
         self.operators = new_operators;
@@ -340,7 +382,7 @@ impl Governance {
         &mut self,
         new_governance: Account,
         sig: MultisigSignature,
-        signers: &[u8],
+        signers: Vec<u8>,
     ) {
         // the threshold needs to be a super-majority
         let threshold = supermajority(self.owners.len());
@@ -349,11 +391,11 @@ impl Governance {
         let mut sig_msg = Vec::with_capacity(u64::SIZE + Account::SIZE);
         sig_msg.extend(&self.owner_nonce.to_be_bytes());
         sig_msg.extend(&new_governance.to_bytes());
-        self.authorize_owners(&sig_msg, sig, signers, threshold);
+        self.authorize_owners(threshold, &sig_msg, sig, signers);
 
         // transfer the ownership of the token-contract
         let _: () = abi::call(
-            Self::TOKEN_CONTRACT,
+            self.token_contract(),
             "transfer_ownership",
             &TransferGovernance::new(new_governance),
         )
@@ -380,17 +422,17 @@ impl Governance {
     pub fn renounce_governance(
         &mut self,
         sig: MultisigSignature,
-        signers: &[u8],
+        signers: Vec<u8>,
     ) {
         // the threshold needs to be a super-majority
         let threshold = supermajority(self.owners.len());
 
         // check the signature
         let sig_msg = self.owner_nonce().to_be_bytes();
-        self.authorize_owners(&sig_msg, sig, signers, threshold);
+        self.authorize_owners(threshold, &sig_msg, sig, signers);
 
         // transfer the ownership of the token-contract
-        let _: () = abi::call(Self::TOKEN_CONTRACT, "renounce_ownership", &())
+        let _: () = abi::call(self.token_contract(), "renounce_ownership", &())
             .expect("renouncing the governance should succeed");
 
         // increment the owners nonce
@@ -412,26 +454,26 @@ impl Governance {
     /// - The icc is not registered in the contract-state.
     pub fn execute_icc(
         &mut self,
-        icc_name: &str,
-        icc_arguments: &[u8],
+        icc_name: String,
+        icc_arguments: Vec<u8>,
         sig: MultisigSignature,
-        signers: &[u8],
+        signers: Vec<u8>,
     ) {
         // construct the signature message
         let mut sig_msg = Vec::with_capacity(
             u64::SIZE + icc_name.len() + icc_arguments.len(),
         );
         sig_msg.extend(&self.operator_nonce.to_be_bytes());
-        sig_msg.extend(icc_arguments);
+        sig_msg.extend(&icc_arguments);
 
         // verify the signature
         let threshold = self
-            .icc_threshold(icc_name)
+            .icc_threshold(&icc_name)
             .unwrap_or_else(|| panic!("{}", error::ICC_NOT_FOUND));
-        self.authorize_operators(&sig_msg, sig, signers, threshold);
+        self.authorize_operators(threshold, &sig_msg, sig, signers);
 
         // call the specified method of the token-contract
-        let _ = abi::call_raw(Self::TOKEN_CONTRACT, icc_name, icc_arguments)
+        let _ = abi::call_raw(self.token_contract(), &icc_name, &icc_arguments)
             .expect("calling the specified icc should succeed");
 
         // increment the operator nonce
@@ -460,7 +502,7 @@ impl Governance {
         icc_name: String,
         icc_threshold: u8,
         sig: MultisigSignature,
-        signers: &[u8],
+        signers: Vec<u8>,
     ) {
         // panic if inter-contract calls that need owner approval are added
         assert!(
@@ -479,7 +521,7 @@ impl Governance {
         // this call will panic if the signature is not correct or not signed by
         // a super-majority of operators
         let threshold = supermajority(self.operators.len());
-        self.authorize_operators(&sig_msg, sig, signers, threshold);
+        self.authorize_operators(threshold, &sig_msg, sig, signers);
 
         // add the icc or update its threshold if it already exists
         self.inter_contract_calls.insert(icc_name, icc_threshold);
@@ -501,24 +543,12 @@ impl Governance {
     /// - There are duplicate signers
     fn authorize_owners(
         &self,
-        sig_msg: &[u8],
-        sig: MultisigSignature,
-        signers: &[u8],
         threshold: u8,
+        sig_msg: impl AsRef<[u8]>,
+        sig: MultisigSignature,
+        signers: impl AsRef<[u8]>,
     ) {
-        // panic if the signers contain duplicates
-        assert!(!contains_duplicates(signers), "{}", error::DUPLICATE_OWNER);
-
-        // panic if one of the signer indices is out of bounds of the
-        // owner-keys
-        assert!(
-            (signers.iter().max().copied().unwrap_or_default() as usize)
-                < self.owners.len(),
-            "{}",
-            error::OWNER_NOT_FOUND
-        );
-
-        self.authorize(sig_msg, sig, signers, threshold, true);
+        self.authorize(threshold, sig_msg, sig, signers, true);
     }
 
     /// Check if the aggregated signature of the given operators is valid.
@@ -531,28 +561,12 @@ impl Governance {
     /// - There are duplicate signers
     fn authorize_operators(
         &self,
-        sig_msg: &[u8],
-        sig: MultisigSignature,
-        signers: &[u8],
         threshold: u8,
+        sig_msg: impl AsRef<[u8]>,
+        sig: MultisigSignature,
+        signers: impl AsRef<[u8]>,
     ) {
-        // panic if the signers contain duplicates
-        assert!(
-            !contains_duplicates(signers),
-            "{}",
-            error::DUPLICATE_OPERATOR
-        );
-
-        // panic if one of the signer indices is out of bounds of the
-        // operator-keys
-        assert!(
-            (signers.iter().max().copied().unwrap_or_default() as usize)
-                < self.operators.len(),
-            "{}",
-            error::OPERATOR_NOT_FOUND
-        );
-
-        self.authorize(sig_msg, sig, signers, threshold, false);
+        self.authorize(threshold, sig_msg, sig, signers, false);
     }
 
     /// Check if the given aggregated signature is correct given the public-keys
@@ -564,15 +578,33 @@ impl Governance {
     /// - The public-keys are less than the specified threshold
     fn authorize(
         &self,
-        sig_msg: &[u8],
-        sig: MultisigSignature,
-        signers: &[u8],
         threshold: u8,
+        sig_msg: impl AsRef<[u8]>,
+        sig: MultisigSignature,
+        signers: impl AsRef<[u8]>,
         is_owner: bool,
     ) {
+        let signer_idx = signers.as_ref();
+        let sig_msg = sig_msg.as_ref();
+
+        // panic if the signers contain duplicates
+        assert!(
+            !contains_duplicates(signer_idx),
+            "{}",
+            error::DUPLICATE_SIGNER
+        );
+
+        // panic if one of the signer's indices doesn't exist
+        assert!(
+            (signer_idx.iter().max().copied().unwrap_or_default() as usize)
+                < self.owners.len(),
+            "{}",
+            error::SIGNER_NOT_FOUND
+        );
+
         // panic if the threshold of signers is not met
         assert!(
-            signers.len() >= threshold as usize,
+            signer_idx.len() >= threshold as usize,
             "{}",
             error::THRESHOLD_NOT_MET
         );
@@ -583,7 +615,7 @@ impl Governance {
         } else {
             self.operators()
         };
-        let signers: Vec<PublicKey> = signers
+        let signers: Vec<PublicKey> = signer_idx
             .iter()
             .map(|index| public_keys[*index as usize])
             .collect();
@@ -598,67 +630,5 @@ impl Governance {
             "{}",
             error::INVALID_SIGNATURE
         );
-    }
-}
-
-/// Calculate the super-majority for the given amount eligible signers.
-///
-/// # Panics
-/// This function panics if the amount is 0 or larger than `u8::MAX`
-#[must_use]
-fn supermajority(amt: usize) -> u8 {
-    assert!(amt > 0, "Cannot calculate supermajority of 0");
-    let amt = u8::try_from(amt).expect(
-        "Neither owner nor operator key sets are larger than `u8::MAX`",
-    );
-    amt / 2 + 1
-}
-
-/// Checks whether a given set contains duplicate elements.
-#[must_use]
-fn contains_duplicates<T>(elements: impl AsRef<[T]>) -> bool
-where
-    T: PartialEq,
-{
-    let elements = elements.as_ref();
-    let len = elements.len();
-    for i in 0..len - 2 {
-        for j in i..len - 1 {
-            if elements[i] == elements[j] {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_supermajority() {
-        asser_eq!(supermajority(1), 1);
-        asser_eq!(supermajority(2), 2);
-        asser_eq!(supermajority(3), 2);
-        asser_eq!(supermajority(4), 3);
-        asser_eq!(supermajority(5), 3);
-        asser_eq!(supermajority(42), 22);
-        asser_eq!(supermajority(101), 51);
-        asser_eq!(supermajority(u8::MAX), 178);
-    }
-
-    #[test]
-    #[should_panic(expected = "Cannot calculate supermajority of 0")]
-    fn test_supermajority_lower_bount() {
-        supermajority(0);
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "Neither owner nor operator key sets are larger than `u8::MAX`"
-    )]
-    fn test_supermajority_upper_bound() {
-        supermajority(u8::MAX + 1);
     }
 }
