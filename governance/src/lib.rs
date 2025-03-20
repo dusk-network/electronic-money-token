@@ -38,8 +38,13 @@ pub(crate) mod wasm {
     unsafe extern "C" fn init(arg_len: u32) -> u32 {
         abi::wrap_call(
             arg_len,
-            |(token_contract, owner, operator, icc_data)| {
-                STATE.init(token_contract, owner, operator, icc_data)
+            |(token_contract, owner, operator, operator_token_call_data)| {
+                STATE.init(
+                    token_contract,
+                    owner,
+                    operator,
+                    operator_token_call_data,
+                )
             },
         )
     }
@@ -75,19 +80,16 @@ pub(crate) mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn icc_threshold(arg_len: u32) -> u32 {
-        abi::wrap_call(arg_len, |icc: String| STATE.icc_threshold(icc.as_str()))
+    unsafe extern "C" fn operator_signature_threshold(arg_len: u32) -> u32 {
+        abi::wrap_call(arg_len, |call_name: String| {
+            STATE.operator_signature_threshold(call_name.as_str())
+        })
     }
 
     /*
      * Functions that need the owners' approval.
      */
 
-    // pub fn set_token_contract(
-    //     &mut self,
-    //     new_token_contract: ContractId,
-    //     sig: MultisigSignature,
-    //     signers: &[u8],
     #[no_mangle]
     unsafe extern "C" fn set_token_contract(arg_len: u32) -> u32 {
         abi::wrap_call(arg_len, |(new_token_contract, sig, signers)| {
@@ -95,12 +97,6 @@ pub(crate) mod wasm {
         })
     }
 
-    // pub fn set_owners(
-    //     &mut self,
-    //     new_owners: Vec<PublicKey>,
-    //     sig: MultisigSignature,
-    //     signers: &[u8],
-    // ) {
     #[no_mangle]
     unsafe extern "C" fn set_owners(arg_len: u32) -> u32 {
         abi::wrap_call(arg_len, |(new_owners, sig, signers)| {
@@ -108,12 +104,6 @@ pub(crate) mod wasm {
         })
     }
 
-    // pub fn set_operators(
-    //     &mut self,
-    //     new_operators: Vec<PublicKey>,
-    //     sig: MultisigSignature,
-    //     signers: &[u8],
-    // ) {
     #[no_mangle]
     unsafe extern "C" fn set_operators(arg_len: u32) -> u32 {
         abi::wrap_call(arg_len, |(new_operators, sig, signers)| {
@@ -121,12 +111,6 @@ pub(crate) mod wasm {
         })
     }
 
-    // pub fn transfer_governance(
-    //     &mut self,
-    //     new_governance: Account,
-    //     sig: MultisigSignature,
-    //     signers: &[u8],
-    // ) {
     #[no_mangle]
     unsafe extern "C" fn transfer_governance(arg_len: u32) -> u32 {
         abi::wrap_call(arg_len, |(new_governance, sig, signers)| {
@@ -134,65 +118,39 @@ pub(crate) mod wasm {
         })
     }
 
-    // pub fn renounce_governance(
-    //     &mut self,
-    //     sig: MultisigSignature,
-    //     signers: &[u8],
-    // ) {
     #[no_mangle]
     unsafe extern "C" fn renounce_governance(arg_len: u32) -> u32 {
         abi::wrap_call(arg_len, |(sig, signers)| {
             STATE.renounce_governance(sig, signers)
         })
     }
-}
-/*
 
-#[no_mangle]
-unsafe fn account(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.account(arg))
-}
+    /*
+     * Functions that need the operators' approval.
+     */
 
-#[no_mangle]
-unsafe fn allowance(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.allowance(arg))
-}
+    #[no_mangle]
+    unsafe extern "C" fn operator_token_call(arg_len: u32) -> u32 {
+        abi::wrap_call(arg_len, |(call_name, call_arguments, sig, signers)| {
+            STATE.operator_token_call(call_name, call_arguments, sig, signers)
+        })
+    }
 
-#[no_mangle]
-unsafe fn transfer(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.transfer(arg))
+    #[no_mangle]
+    unsafe extern "C" fn set_operator_token_call(arg_len: u32) -> u32 {
+        abi::wrap_call(
+            arg_len,
+            |(call_name, operator_signature_threshold, sig, signers)| {
+                STATE.set_operator_token_call(
+                    call_name,
+                    operator_signature_threshold,
+                    sig,
+                    signers,
+                )
+            },
+        )
+    }
 }
-
-#[no_mangle]
-unsafe fn transfer_from(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.transfer_from(arg))
-}
-
-#[no_mangle]
-unsafe fn transfer_from_contract(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.transfer_from_contract(arg))
-}
-
-#[no_mangle]
-unsafe fn approve(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.approve(arg))
-}
-
-/*
- * Supply management functions
- */
-
-#[no_mangle]
-unsafe fn mint(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.mint(arg))
-}
-
-#[no_mangle]
-unsafe fn burn(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.burn(arg))
-}
-}
-*/
 
 /// Calculate the super-majority for the given amount eligible signers.
 ///

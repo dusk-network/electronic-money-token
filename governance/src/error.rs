@@ -24,9 +24,9 @@ pub const TOO_MANY_OPERATORS: &str =
 pub const ALLREADY_INITIALIZED: &str =
     "The contract has already been initialized";
 
-/// Error message given when a given inter-contract call is not registered.
-pub const ICC_NOT_FOUND: &str =
-    "The given inter-contract call is not registered";
+/// Error message given when a given token-contract call is not registered.
+pub const TOKEN_CALL_NOT_FOUND: &str =
+    "The given token-contract call is not registered";
 
 /// Error message given when there are duplicate owner-keys.
 pub const DUPLICATE_OWNER: &str = "Duplicate owner-key found";
@@ -57,5 +57,5 @@ pub const INVALID_NONCE: &str = "The given nonce is not correct";
 
 /// Error message given when an operator tries to trigger an inter-contract call
 /// that only the owners can authorize.
-pub const UNAUTHORIZED_ICC: &str =
+pub const UNAUTHORIZED_TOKEN_CALL: &str =
     "This inter-contract call need owners authorization";

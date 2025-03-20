@@ -36,12 +36,11 @@ pub struct Governance {
     operators: Vec<PublicKey>,
     // The nonce for the operators, initialized at 0 and strictly increasing.
     operator_nonce: u64,
-    // A map for all the inter-contract calls executable by the operators on
-    // the token-contract. Each icc has a threshold of signers that
-    // are required to execute the icc.
-    // If the threshold for an icc is set to 0, a super-majority of
-    // signers is needed.
-    inter_contract_calls: BTreeMap<String, u8>,
+    // A map for all the inter-contract calls to the token-contract, that are
+    // executable by the operators. Each call has a threshold of signers
+    // that are required for its execution. If the threshold for a call is set
+    // to 0, a super-majority of signers is needed.
+    operator_token_calls: BTreeMap<String, u8>,
 }
 
 /// The state of the governance contract at deployment.
@@ -58,7 +57,7 @@ impl Governance {
             owner_nonce: 0,
             operators: Vec::new(),
             operator_nonce: 0,
-            inter_contract_calls: BTreeMap::new(),
+            operator_token_calls: BTreeMap::new(),
         }
     }
 
@@ -73,14 +72,13 @@ impl Governance {
     /// - The given set of operator keys is larger than `u8::MAX`.
     /// - There are duplicate owner keys.
     /// - There are duplicate operator keys.
-    /// - One of the new inter-contract calls is an icc that only owners can
-    ///   authorize
+    /// - One of the new operator-calls is reserved for owner-calls.
     pub fn init(
         &mut self,
         token_contract: ContractId,
         owners: Vec<PublicKey>,
         operators: Vec<PublicKey>,
-        icc_data: Vec<(String, u8)>,
+        operator_token_call_data: Vec<(String, u8)>,
     ) {
         // panic if the contract has already been initialized
         assert!(self.owners.is_empty(), "{}", error::ALLREADY_INITIALIZED);
@@ -117,18 +115,18 @@ impl Governance {
         }
 
         // initialize inter-contract calls (if any)
-        let mut inter_contract_calls = BTreeMap::new();
-        for (icc, threshold) in icc_data {
+        let mut operator_token_calls = BTreeMap::new();
+        for (call_name, signature_threshold) in operator_token_call_data {
             // panic if inter-contract calls that need owner approval are
             // added
             assert!(
-                !Self::OWNER_ICC.contains(&icc.as_str()),
+                !Self::OWNER_TOKEN_CALLS.contains(&call_name.as_str()),
                 "{}",
-                error::UNAUTHORIZED_ICC,
+                error::UNAUTHORIZED_TOKEN_CALL,
             );
-            inter_contract_calls.insert(icc, threshold);
+            operator_token_calls.insert(call_name, signature_threshold);
         }
-        self.inter_contract_calls = inter_contract_calls;
+        self.operator_token_calls = operator_token_calls;
     }
 
     /// Return the name of the contract.
@@ -175,17 +173,17 @@ impl Governance {
         self.operator_nonce
     }
 
-    /// Return the minimum amount of operators that must sign a given icc
-    /// in order for it to be executed on the token-contract.
-    /// If the stored threshold for an icc is 0, a super-majority of
-    /// signers is required for executing that icc.
+    /// Return the minimum amount of operators that must sign a given call to
+    /// the token-contract in order for it to be executed.
+    /// If the stored signature threshold for a call is 0, a super-majority of
+    /// signers is required for its execution.
     #[must_use]
-    pub fn icc_threshold(&self, icc: &str) -> Option<u8> {
-        self.inter_contract_calls
-            .get(icc)
+    pub fn operator_signature_threshold(&self, call_name: &str) -> Option<u8> {
+        self.operator_token_calls
+            .get(call_name)
             .copied()
             .map(|threshold| match threshold {
-                0 => supermajority(self.owners.len()),
+                0 => supermajority(self.operators.len()),
                 _ => threshold,
             })
     }
@@ -194,13 +192,13 @@ impl Governance {
 // Methods that need the owners' approval.
 impl Governance {
     /// Since the token-contract will execute every inter-contract call that
-    /// comes from the governance contract, every icc that need
-    /// authorization by the owners **must** be excluded from the
-    /// inter-contract calls that the operators need to authorize.
-    const OWNER_ICC: [&'static str; 2] = [
-        // "set_owners" and "set_operators" also need owners approval but
-        // because they don't contain a call to the token-contract, they
-        // don't need to be added here.
+    /// comes from the governance contract, every token-contract call that need
+    /// authorization by the owners **must** be excluded from the calls that the
+    /// operators need to authorize.
+    const OWNER_TOKEN_CALLS: [&'static str; 2] = [
+        // 'set_token_contract`, `set_owners` and `set_operators` also need
+        // owners approval but because they don't contain a call to the
+        // token-contract, they don't need to be added here.
         "transfer_governance",
         "renounce_governance",
     ];
@@ -442,52 +440,59 @@ impl Governance {
 
 // Methods that need the operators' approval
 impl Governance {
-    /// Execute a given inter-contract call on the token-contract.
+    /// Execute a call to the token-contract, that doesn't require owner's
+    /// approval.
     ///
-    /// The signature message for executing an icc is the current
-    /// operator-nonce in big endian, appended by the icc-name and -arguments.
+    /// The signature message for executing an operator approved token-contract
+    /// call is the current operator-nonce in big endian, appended by the
+    /// call-name and -arguments.
     ///
     /// # Panics
     /// This function will panic if:
     /// - The signature is incorrect or not signed by the required threshold of
     ///   operators
-    /// - The icc is not registered in the contract-state.
-    pub fn execute_icc(
+    /// - The `call_name` is not registered in the contract-state.
+    pub fn operator_token_call(
         &mut self,
-        icc_name: String,
-        icc_arguments: Vec<u8>,
+        call_name: String,
+        call_arguments: Vec<u8>,
         sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
         // construct the signature message
         let mut sig_msg = Vec::with_capacity(
-            u64::SIZE + icc_name.len() + icc_arguments.len(),
+            u64::SIZE + call_name.len() + call_arguments.len(),
         );
         sig_msg.extend(&self.operator_nonce.to_be_bytes());
-        sig_msg.extend(&icc_arguments);
+        sig_msg.extend(&call_arguments);
 
         // verify the signature
         let threshold = self
-            .icc_threshold(&icc_name)
-            .unwrap_or_else(|| panic!("{}", error::ICC_NOT_FOUND));
+            .operator_signature_threshold(&call_name)
+            .unwrap_or_else(|| panic!("{}", error::TOKEN_CALL_NOT_FOUND));
         self.authorize_operators(threshold, &sig_msg, sig, signers);
 
         // call the specified method of the token-contract
-        let _ = abi::call_raw(self.token_contract(), &icc_name, &icc_arguments)
-            .expect("calling the specified icc should succeed");
+        let _ = abi::call_raw(
+            self.token_contract(),
+            &call_name,
+            &call_arguments,
+        )
+        .expect(
+            "calling the specified method on the token-contract should succeed",
+        );
 
         // increment the operator nonce
         self.operator_nonce += 1;
     }
 
-    /// Add a new icc to the stored set of inter-contract calls or (if the
-    /// icc already exists) update the icc threshold. A
-    /// threshold of 0 means that the icc needs a super-majority of
-    /// operator-signatures to be executed.
+    /// Add a new call to the stored set of operator calls or update the call
+    /// threshold if it already exists. A threshold of 0 means that the call
+    /// needs a super-majority of operator-signatures to be executed.
     ///
-    /// The signature message for adding an icc is the current
-    /// operator-nonce in big endian, appended by the icc-name as bytes and the
-    /// threshold.
+    /// The signature message for adding an operator token-contract call is the
+    /// current operator-nonce in big endian, appended by the call-name as
+    /// bytes and the signature threshold for that call.
     ///
     /// Note: A super-majority of operator signatures is required to perform
     /// this action.
@@ -496,35 +501,36 @@ impl Governance {
     /// This function will panic if:
     /// - The signature is incorrect or not signed by a super-majority of
     ///   operators
-    /// - The new icc is an icc that only owners can authorize
-    pub fn set_inter_contract_call(
+    /// - The new operator-calls is reserved for owner-calls.
+    pub fn set_operator_token_call(
         &mut self,
-        icc_name: String,
-        icc_threshold: u8,
+        call_name: String,
+        operator_signature_threshold: u8,
         sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
         // panic if inter-contract calls that need owner approval are added
         assert!(
-            !Self::OWNER_ICC.contains(&icc_name.as_str()),
+            !Self::OWNER_TOKEN_CALLS.contains(&call_name.as_str()),
             "{}",
-            error::UNAUTHORIZED_ICC,
+            error::UNAUTHORIZED_TOKEN_CALL,
         );
         // construct the signature message
-        let icc_bytes = icc_name.as_bytes();
+        let call_name_bytes = call_name.as_bytes();
         let mut sig_msg =
-            Vec::with_capacity(u64::SIZE + icc_bytes.len() + u8::SIZE);
+            Vec::with_capacity(u64::SIZE + call_name_bytes.len() + u8::SIZE);
         sig_msg.extend(&self.operator_nonce.to_be_bytes());
-        sig_msg.extend(icc_bytes);
-        sig_msg.extend(&[icc_threshold]);
+        sig_msg.extend(call_name_bytes);
+        sig_msg.extend(&[operator_signature_threshold]);
 
         // this call will panic if the signature is not correct or not signed by
         // a super-majority of operators
         let threshold = supermajority(self.operators.len());
         self.authorize_operators(threshold, &sig_msg, sig, signers);
 
-        // add the icc or update its threshold if it already exists
-        self.inter_contract_calls.insert(icc_name, icc_threshold);
+        // add the call or update its threshold if it already exists
+        self.operator_token_calls
+            .insert(call_name, operator_signature_threshold);
 
         // increment the operator nonce
         self.operator_nonce += 1;
