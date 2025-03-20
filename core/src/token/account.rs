@@ -38,10 +38,11 @@ pub enum Account {
 }
 
 impl Account {
-    /// The size of the serialized account: 1 + PublicKey::RAW_SIZE
+    /// The size of the serialized account: 1 + `PublicKey::RAW_SIZE`
     pub const SIZE: usize = 194;
 
     /// Convert the account to bytes.
+    #[must_use]
     pub fn to_bytes(&self) -> [u8; Self::SIZE] {
         match self {
             Account::External(pk) => {
@@ -58,7 +59,7 @@ impl Account {
                 let contract_bytes = contract.to_bytes();
 
                 bytes[0] = 1;
-                bytes[1..1 + contract_bytes.len()]
+                bytes[1..=contract_bytes.len()]
                     .copy_from_slice(&contract_bytes);
 
                 bytes
@@ -91,7 +92,7 @@ impl PartialOrd for Account {
 
 impl Ord for Account {
     fn cmp(&self, other: &Self) -> Ordering {
-        use Account::*;
+        use Account::{Contract, External};
 
         match (self, other) {
             (External(lhs), External(rhs)) => {
@@ -114,6 +115,7 @@ impl Ord for Account {
     Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
 )]
 #[archive_attr(derive(CheckBytes))]
+#[allow(clippy::module_name_repetitions)]
 pub struct AccountInfo {
     /// The balance of the account.
     pub balance: u64,
@@ -143,11 +145,13 @@ impl AccountInfo {
     };
 
     /// Check if the account is blocked.
+    #[must_use]
     pub fn is_blocked(&self) -> bool {
         self.status == Self::BLOCKED
     }
 
     /// Check if the account is frozen.
+    #[must_use]
     pub fn is_frozen(&self) -> bool {
         self.status == Self::FROZEN
     }

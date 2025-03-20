@@ -51,11 +51,13 @@ impl Transfer {
     }
 
     /// The account to transfer to.
+    #[must_use]
     pub fn receiver(&self) -> &Account {
         &self.receiver
     }
 
     /// The value to transfer.
+    #[must_use]
     pub fn value(&self) -> u64 {
         self.value
     }
@@ -89,16 +91,19 @@ impl TransferFrom {
     }
 
     /// The account from which the tokens are spent.
+    #[must_use]
     pub fn sender(&self) -> &Account {
         &self.sender
     }
 
     /// The account to transfer to.
+    #[must_use]
     pub fn receiver(&self) -> &Account {
         &self.receiver
     }
 
     /// The value to transfer.
+    #[must_use]
     pub fn value(&self) -> u64 {
         self.value
     }
@@ -124,11 +129,13 @@ impl Approve {
     }
 
     /// The account to allow spending tokens from.
+    #[must_use]
     pub fn spender(&self) -> &Account {
         &self.spender
     }
 
     /// The value to approve the transfer of.
+    #[must_use]
     pub fn value(&self) -> u64 {
         self.value
     }
