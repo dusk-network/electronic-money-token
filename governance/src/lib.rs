@@ -215,10 +215,12 @@ where
 {
     let elements = elements.as_ref();
     let len = elements.len();
-    for i in 0..len - 2 {
-        for j in i..len - 1 {
-            if elements[i] == elements[j] {
-                return true;
+    if len > 0 {
+        for i in 0..len - 1 {
+            for j in i + 1..len {
+                if elements[i] == elements[j] {
+                    return true;
+                }
             }
         }
     }
@@ -253,5 +255,23 @@ mod tests {
     )]
     fn test_supermajority_upper_bound() {
         let _ = supermajority(u8::MAX as usize + 1);
+    }
+
+    #[test]
+    fn test_contains_duplicates() {
+        // test sets without duplicates
+        let empty: [u32; 0] = [];
+        assert!(!contains_duplicates(empty));
+        assert!(!contains_duplicates([1]));
+        assert!(!contains_duplicates([1, 2, 3]));
+        assert!(!contains_duplicates([1, 2, 3, 4, 5]));
+
+        // test sets without duplicates
+        assert!(contains_duplicates([1, 1]));
+        assert!(contains_duplicates([1, 2, 2]));
+        assert!(contains_duplicates([1, 1, 2, 3]));
+        assert!(contains_duplicates([1, 2, 3, 3]));
+        assert!(contains_duplicates([1, 2, 2, 3]));
+        assert!(contains_duplicates([1, 2, 3, 3, 4, 5]));
     }
 }
