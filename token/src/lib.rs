@@ -36,7 +36,7 @@ use emt_core::{
     BALANCE_TOO_LOW, SHIELDED_NOT_SUPPORTED, ZERO_ADDRESS,
 };
 
-/// The state of the token contract.
+/// The state of the token-contract.
 struct TokenState {
     accounts: BTreeMap<Account, AccountInfo>,
     allowances: BTreeMap<Account, BTreeMap<Account, u64>>,
@@ -329,7 +329,7 @@ impl TokenState {
     }
 }
 
-/// Basic token contract implementation.
+/// Basic token-contract implementation.
 impl TokenState {
     fn name() -> String {
         String::from("Transparent Fungible Token Sample")

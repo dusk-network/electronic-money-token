@@ -1,5 +1,5 @@
 [package]
-name = "emt-contract"
+name = "emt-token"
 version.workspace = true
 edition.workspace = true
 

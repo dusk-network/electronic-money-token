@@ -32,7 +32,7 @@ use emt_core::*;
 use emt_tests::network::NetworkSession;
 
 const TOKEN_BYTECODE: &[u8] = include_bytes!(
-    "../../target/wasm64-unknown-unknown/release/emt_contract.wasm"
+    "../../target/wasm64-unknown-unknown/release/emt_token.wasm"
 );
 const HOLDER_BYTECODE: &[u8] = include_bytes!(
     "../../target/wasm64-unknown-unknown/release/emt_holder_contract.wasm"
@@ -111,7 +111,7 @@ impl TestSession {
                     ))
                     .contract_id(TOKEN_ID),
             )
-            .expect("Deploying the token contract should succeed");
+            .expect("Deploying the token-contract should succeed");
 
         // deploy the holder contract
         network_session
@@ -189,7 +189,7 @@ impl TestSession {
             .icc_transaction(tx_sk, TOKEN_ID, fn_name, vec_fn_arg)
     }
 
-    /// Helper function to call a "view" function on the token contract that
+    /// Helper function to call a "view" function on the token-contract that
     /// does not take any arguments.
     pub fn call_getter<R>(&mut self, fn_name: &str) -> Result<CallReceipt<R>>
     where

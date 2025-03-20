@@ -19,7 +19,7 @@ use dusk_core::abi::{self, ContractId};
 
 use emt_core::*;
 
-// The contract ID of the token contract
+// The contract ID of the token-contract
 const TOKEN_ID: ContractId = ContractId::from_bytes([1; 32]);
 
 struct TokenState {
@@ -56,12 +56,12 @@ impl TokenState {
         self.balance -= transfer.value();
     }
 
-    /// Handles incoming token transfers from the token contract.
+    /// Handles incoming token transfers from the token-contract.
     ///
-    /// This function is called automatically by the token contract's transfer
+    /// This function is called automatically by the token-contract's transfer
     /// function when this contract is the receiver of a transfer.
     fn token_received(&mut self, transfer: TransferInfo) {
-        // Only accept transfers from the specific token contract we're tracking
+        // Only accept transfers from the specific token-contract we're tracking
         if abi::caller().expect("Expected a contract as caller") == TOKEN_ID {
             self.balance += transfer.value;
         } else {
