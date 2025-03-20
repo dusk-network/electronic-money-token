@@ -1,0 +1,350 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) DUSK NETWORK. All rights reserved.
+
+use std::sync::LazyLock;
+
+use dusk_core::abi::ContractError;
+use dusk_core::abi::{ContractId, StandardBufSerializer};
+use dusk_core::dusk;
+use dusk_core::signatures::bls::{
+    PublicKey as AccountPublicKey, SecretKey as AccountSecretKey,
+};
+use dusk_vm::{CallReceipt, ContractData, Error as VMError};
+
+use bytecheck::CheckBytes;
+
+use rkyv::de::deserializers::SharedDeserializeMap;
+use rkyv::ser::serializers::{
+    BufferScratch, BufferSerializer, CompositeSerializer,
+};
+use rkyv::ser::Serializer;
+use rkyv::validation::validators::DefaultValidator;
+use rkyv::{Archive, Deserialize, Infallible, Serialize};
+
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+
+use emt_core::*;
+
+use emt_tests::network::NetworkSession;
+
+const TOKEN_BYTECODE: &[u8] = include_bytes!(
+    "../../target/wasm64-unknown-unknown/release/emt_token.wasm"
+);
+const GOVERNANCE_BYTECODE: &[u8] = include_bytes!(
+    "../../target/wasm64-unknown-unknown/release/emt_governance.wasm"
+);
+const HOLDER_BYTECODE: &[u8] = include_bytes!(
+    "../../target/wasm64-unknown-unknown/release/emt_holder_contract.wasm"
+);
+
+const DEPLOYER: [u8; 64] = [0u8; 64];
+
+pub const TOKEN_ID: ContractId = ContractId::from_bytes([1; 32]);
+pub const GOVERNANCE_ID: ContractId = ContractId::from_bytes([2; 32]);
+pub const HOLDER_ID: ContractId = ContractId::from_bytes([3; 32]);
+
+pub const INITIAL_BALANCE: u64 = 1000;
+
+type Result<T, Error = VMError> = core::result::Result<T, Error>;
+
+pub struct TestKeys<const O: usize, const P: usize, const H: usize> {
+    pub owners_sk: [AccountSecretKey; O],
+    pub owners_pk: [AccountPublicKey; O],
+    pub operators_sk: [AccountSecretKey; P],
+    pub operators_pk: [AccountPublicKey; P],
+    pub holders_sk: [AccountSecretKey; H],
+    pub holders_pk: [AccountPublicKey; H],
+}
+
+impl<const O: usize, const P: usize, const H: usize> TestKeys<O, P, H> {
+    pub fn new() -> Self {
+        let mut rng = StdRng::seed_from_u64(0x5EAF00D);
+
+        // generate owners keys
+        let mut owners_sk = Vec::with_capacity(O);
+        let mut owners_pk = Vec::with_capacity(O);
+        for _ in 0..O {
+            let sk = AccountSecretKey::random(&mut rng);
+            let pk = AccountPublicKey::from(&sk);
+            owners_sk.push(sk);
+            owners_pk.push(pk);
+        }
+
+        // generate operators keys
+        let mut operators_sk = Vec::with_capacity(P);
+        let mut operators_pk = Vec::with_capacity(P);
+        for _ in 0..P {
+            let sk = AccountSecretKey::random(&mut rng);
+            let pk = AccountPublicKey::from(&sk);
+            operators_sk.push(sk);
+            operators_pk.push(pk);
+        }
+
+        // generate holders keys
+        let mut holders_sk = Vec::with_capacity(P);
+        let mut holders_pk = Vec::with_capacity(P);
+        for _ in 0..P {
+            let sk = AccountSecretKey::random(&mut rng);
+            let pk = AccountPublicKey::from(&sk);
+            holders_sk.push(sk);
+            holders_pk.push(pk);
+        }
+
+        Self {
+            owners_sk: owners_sk.try_into().unwrap(),
+            owners_pk: owners_pk.try_into().unwrap(),
+            operators_sk: operators_sk.try_into().unwrap(),
+            operators_pk: operators_pk.try_into().unwrap(),
+            holders_sk: holders_sk.try_into().unwrap(),
+            holders_pk: holders_pk.try_into().unwrap(),
+        }
+    }
+}
+// pub const OWNERS_SK<const O usize>: LazyLock<[AccountSecretKey; O]> =
+// LazyLock::new(|| {     let mut rng = StdRng::seed_from_u64(0x5EAF00D);
+//     let mut keys = Vec::with_capacity(O);
+//     for _ in 0..O {
+//         keys.push(AccountSecretKey::random(&mut rng));
+//     }
+//     keys.try_into().unwrap()
+// });
+// pub const OWNERS_PK: LazyLock<[AccountPublicKey; O]> = LazyLock::new(|| {
+//     let mut keys = Vec::with_capacity(O);
+//     for i in 0..O {
+//         keys.push(AccountPublicKey::from(&*Self::OWNERS_SK[i]));
+//     }
+//     keys.try_into().unwrap()
+// });
+// }
+
+// pub const SK_1: LazyLock<AccountSecretKey> = LazyLock::new(|| {
+//     let mut rng = StdRng::seed_from_u64(0xF0CACC1A);
+//     AccountSecretKey::random(&mut rng)
+// });
+// pub const PK_1: LazyLock<AccountPublicKey> =
+//     LazyLock::new(|| AccountPublicKey::from(&*Self::SK_1));
+//
+// pub const SK_2: LazyLock<AccountSecretKey> = LazyLock::new(|| {
+//     let mut rng = StdRng::seed_from_u64(0x5A1AD);
+//     AccountSecretKey::random(&mut rng)
+// });
+// pub const PK_2: LazyLock<AccountPublicKey> =
+//     LazyLock::new(|| AccountPublicKey::from(&*Self::SK_2));
+
+pub struct TestSession {
+    session: NetworkSession,
+}
+
+impl TestSession {
+    pub fn new<const O: usize, const P: usize, const H: usize>() -> Self {
+        let test_keys: TestKeys<O, P, H> = TestKeys::new();
+
+        // deploy a session with transfer & stake contract deployed and a list
+        // of public accounts that own DUSK for gas-costs
+        const MOONLIGHT_BALANCE: u64 = dusk(1_000.0);
+        let mut public_keys = Vec::with_capacity(O + P + H);
+        public_keys.extend_from_slice(&test_keys.owners_pk);
+        public_keys.extend_from_slice(&test_keys.operators_pk);
+        public_keys.extend_from_slice(&test_keys.holders_pk);
+        let public_balances = public_keys
+            .iter()
+            .map(|pk| (pk, MOONLIGHT_BALANCE))
+            .collect();
+        let mut network_session = NetworkSession::instantiate(public_balances);
+
+        // deploy the token-contract with the governance-contract set as
+        // governance
+        let token_balances: Vec<(Account, u64)> = public_keys
+            .iter()
+            .map(|pk| (Account::from(*pk), INITIAL_BALANCE))
+            .collect();
+        let token_init_args = (token_balances, Account::from(GOVERNANCE_ID));
+        network_session
+            .deploy(
+                TOKEN_BYTECODE,
+                ContractData::builder()
+                    .owner(DEPLOYER)
+                    .init_arg(&token_init_args)
+                    .contract_id(TOKEN_ID),
+            )
+            .expect("Deploying the token-contract should succeed");
+
+        // deploy the governance-contract
+        // token_contract: ContractId,
+        // owners: Vec<PublicKey>,
+        // operators: Vec<PublicKey>,
+        // operator_token_call_data: Vec<(String, u8)>,
+        // let governance_init_args = (TOKEN_ID,);
+        // network_session
+        //     .deploy(
+        //         GOVERNANCE_BYTECODE,
+        //         ContractData::builder()
+        //             .owner(DEPLOYER)
+        //             .init_arg(&(
+        //                 vec![
+        //                     (
+        //                         Account::from(*Self::OWNERS_PK[0]),
+        //                         INITIAL_BALANCE_0,
+        //                     ),
+        //                     (Account::from(*Self::PK_1), INITIAL_BALANCE_1),
+        //                     (
+        //                         Account::from(HOLDER_ID),
+        //                         INITIAL_BALANCE_HOLDER_CONTRACT,
+        //                     ),
+        //                 ],
+        //                 Account::from(*Self::OWNERS_PK[0]),
+        //             ))
+        //             .contract_id(TOKEN_ID),
+        //     )
+        //     .expect("Deploying the token-contract should succeed");
+
+        // deploy the test holder-contract
+        // let holder_init_args = (TOKEN_ID, INITIAL_BALANCE_HOLDER_CONTRACT);
+        // network_session
+        //     .deploy(
+        //         HOLDER_BYTECODE,
+        //         ContractData::builder()
+        //             .owner(DEPLOYER)
+        //             .init_arg(&holder_init_args)
+        //             .contract_id(HOLDER_ID),
+        //     )
+        //     .expect("Deploying the test holder-contract should succeed");
+        //
+        let mut session = Self {
+            session: network_session,
+        };
+
+        // assert_eq!(
+        //     session.account(*Self::OWNERS_PK[0]).balance,
+        //     INITIAL_BALANCE_0
+        // );
+        // assert_eq!(session.account(*Self::PK_1).balance, INITIAL_BALANCE_1);
+        // assert_eq!(session.account(*Self::PK_2).balance, 0);
+        // assert_eq!(
+        //     session.account(HOLDER_ID).balance,
+        //     INITIAL_BALANCE_HOLDER_CONTRACT
+        // );
+
+        session
+    }
+
+    fn serialize<A>(fn_arg: &A) -> Vec<u8>
+    where
+        A: for<'b> Serialize<StandardBufSerializer<'b>>,
+        A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
+    {
+        let mut sbuf = [0u8; 1024];
+        let scratch = BufferScratch::new(&mut sbuf);
+        let mut buffer = [0u8; 1024];
+        let ser = BufferSerializer::new(&mut buffer[..]);
+        let mut ser = CompositeSerializer::new(ser, scratch, Infallible);
+
+        ser.serialize_value(fn_arg)
+            .expect("Failed to rkyv serialize fn_arg");
+        let pos = ser.pos();
+
+        buffer[..pos].to_vec()
+    }
+
+    // TODO: Find a way to return CallReceipt<R>
+    pub fn call_token<A>(
+        &mut self,
+        tx_sk: &AccountSecretKey,
+        fn_name: &str,
+        fn_arg: &A,
+    ) -> CallReceipt<Result<Vec<u8>, ContractError>>
+    where
+        A: for<'b> Serialize<StandardBufSerializer<'b>>
+            + PartialEq
+            + std::fmt::Debug,
+        A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
+        <A as Archive>::Archived: Deserialize<A, SharedDeserializeMap>,
+        //R: Archive,
+        //R::Archived: Deserialize<R, Infallible> + for<'b>
+        // CheckBytes<DefaultValidator<'b>>,
+    {
+        let vec_fn_arg;
+        {
+            vec_fn_arg = Self::serialize(fn_arg);
+
+            // deserialize the vec_fn_arg for sanity check
+            let back = rkyv::from_bytes::<A>(&vec_fn_arg)
+                .expect("failed to deserialize previously serialized fn_arg");
+
+            assert_eq!(&back, fn_arg);
+        }
+
+        self.session
+            .icc_transaction(tx_sk, TOKEN_ID, fn_name, vec_fn_arg)
+    }
+
+    /// Helper function to call a "view" function on the token-contract that
+    /// does not take any arguments.
+    pub fn call_getter<R>(&mut self, fn_name: &str) -> Result<CallReceipt<R>>
+    where
+        R: Archive,
+        R::Archived: Deserialize<R, Infallible>
+            + for<'b> CheckBytes<DefaultValidator<'b>>,
+    {
+        // TODO: find out if there is another way to do that instead of passing
+        // &() as fn_arg
+        self.session.direct_call::<(), R>(TOKEN_ID, fn_name, &())
+    }
+
+    pub fn call_holder<A>(
+        &mut self,
+        tx_sk: &AccountSecretKey,
+        fn_name: &str,
+        fn_arg: &A,
+    ) -> CallReceipt<Result<Vec<u8>, ContractError>>
+    where
+        A: for<'b> Serialize<StandardBufSerializer<'b>>,
+        A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
+    {
+        let fn_arg = Self::serialize(fn_arg);
+
+        self.session
+            .icc_transaction(tx_sk, HOLDER_ID, fn_name, fn_arg)
+    }
+
+    pub fn account(&mut self, account: impl Into<Account>) -> AccountInfo {
+        self.session
+            .direct_call(TOKEN_ID, "account", &account.into())
+            .expect("Querying an account should succeed")
+            .data
+    }
+
+    pub fn governance(&mut self) -> Account {
+        self.call_getter("governance")
+            .expect("Querying governance should succeed")
+            .data
+    }
+
+    pub fn total_supply(&mut self) -> u64 {
+        self.call_getter("total_supply")
+            .expect("Querying the supply should succeed")
+            .data
+    }
+
+    pub fn allowance(
+        &mut self,
+        owner: impl Into<Account>,
+        spender: impl Into<Account>,
+    ) -> u64 {
+        self.session
+            .direct_call(
+                TOKEN_ID,
+                "allowance",
+                &Allowance {
+                    owner: owner.into(),
+                    spender: spender.into(),
+                },
+            )
+            .expect("Querying an allowance should succeed")
+            .data
+    }
+}
