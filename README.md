@@ -1,18 +1,190 @@
+
 # Dusk - Electronic Money Token
 
-> Unstable : No guarantees can be made regarding the function signatures stability, the project is in development.
 
-## Introduction
+## 📋 Features
 
-Dusk's chain supports cheaply verifying zero-knowledge proofs passed to a token-contract. Tokens
-leveraging this functionality will often obfuscate certain pieces of data - such as the amount being
-sent, or the receiver - while still keeping tranfers secure. Here we are *not* making use of this
-functionality, and are instead defining a classic token - here called a *transparent* token due to
-its properties.
+### Normal Functions
 
-The token is fungible, i.e. each token is exactly the same as another.
+```rust
+// View/Query Functions
+fn name() -> String
+fn symbol() -> String
+fn decimals() -> u8
+fn total_supply() -> u64
+fn account(account: Account) -> AccountInfo
+fn allowance(allowance: Allowance) -> u64
+fn governance() -> Account
+fn is_paused() -> bool
+fn blocked(account: Account) -> bool
+fn frozen(account: Account) -> bool
 
-## Build
+// Standard Functions
+fn transfer(transfer: Transfer)
+fn transfer_from(transfer: TransferFrom)
+fn approve(approve: Approve)
+```
+
+### Admin Functionality 
+
+```rust
+// Admin Only Functions
+fn init(initial_accounts: Vec<(Account, u64)>, governance: Account)
+fn transfer_governance(transfer_governance: TransferGovernance)
+fn renounce_governance()
+fn mint(receiver: Account, amount: u64)
+fn burn(amount: u64)
+fn toggle_pause()
+fn force_transfer(transfer: Transfer, obliged_sender: Account)
+fn freeze(freeze_account: Sanction)
+fn unfreeze(unfreeze_account: Sanction)
+fn block(block_account: Sanction)
+fn unblock(unblock_account: Sanction)
+```
+
+### Events
+
+```rust
+GovernanceTransferredEvent::TOPIC  -> GovernanceTransferredEvent
+GovernanceRenouncedEvent::TOPIC  -> GovernanceRenouncedEvent
+BLOCKED_TOPIC  -> AccountStatusEvent
+FROZEN_TOPIC  -> AccountStatusEvent
+UNBLOCKED_TOPIC  -> AccountStatusEvent
+UNFROZEN_TOPIC  -> AccountStatusEvent
+MINT_TOPIC  -> TransferEvent
+BURN_TOPIC  -> TransferEvent
+PauseToggled::TOPIC  -> PauseToggled
+FORCE_TRANSFER_TOPIC  -> TransferEvent
+TRANSFER_TOPIC  -> TransferEvent
+APPROVE_TOPIC,  -> ApproveEvent
+```
+
+### Roles
+
+There are normal users & a governance account. The governance account can also be a contract for more sophisticated role-based access control.
+
+### View/Query Functions
+
+#### `name() -> String`
+- Returns the name of the token
+
+#### `symbol() -> String`
+- Returns the token symbol
+
+#### `decimals() -> u8`
+- Returns the number of decimal places for the token
+
+#### `total_supply() -> u64`
+- Returns the total supply of tokens in circulation
+
+#### `account(account: Account) -> AccountInfo`
+- Returns account information for the given account, including balance and sanction status
+
+#### `allowance(allowance: Allowance) -> u64`
+- Returns the amount of tokens that a spender is allowed to spend on behalf of an owner
+
+#### `governance() -> Account`
+- Returns the current governance account that has administrative privileges
+
+#### `is_paused() -> bool`
+- Returns whether the contract is currently paused
+
+#### `blocked(account: Account) -> bool`
+- Returns whether an account is blocked (sanctioned)
+
+#### `frozen(account: Account) -> bool`
+- Returns whether an account is frozen (sanctioned)
+
+### Standard Functions
+
+#### `transfer(transfer: Transfer)`
+##### Invariant
+- Cannot be called if contract is paused
+- Sender must not be blocked or frozen
+- Receiver must not be blocked (can be frozen)
+
+##### Functionality
+- Transfers tokens from sender to receiver
+- Emits `TransferEvent::TRANSFER_TOPIC` with `TransferEvent`
+
+##### `transfer_from(transfer: TransferFrom)`
+##### Invariant
+- Cannot be called if contract is paused
+- Spender and owner must not be blocked or frozen
+- Receiver must not be blocked (can be frozen)
+
+##### Functionality 
+- Transfers tokens from an owner to a receiver. The tokens are transferred by a spender on behalf of the owner
+- Requires prior approval from the owner through the `approve(approve: Approve)` function
+- Emits `TransferEvent::TRANSFER_TOPIC` with `TransferEvent`
+
+##### `approve(approve: Approve)`
+
+##### Functionality 
+- Allows an owner to authorize a spender to spend tokens on their behalf
+- Emits `"approve"` with `ApproveEvent`
+
+### Governance Only Functions
+
+#### Global invariants
+
+Any governance function can only be called by the governance account.
+
+#### `transfer_governance(transfer_governance: TransferGovernance)`
+- Transfers governance rights to a new account
+- Emits `GovernanceTransferredEvent::TOPIC` with `GovernanceTransferredEvent`
+
+#### `renounce_governance()`
+- Renounces governance, setting governance to zero address
+- Emits `GovernanceRenouncedEvent::TOPIC` with `GovernanceRenouncedEvent`
+
+#### `mint(receiver: Account, amount: u64)`
+- Creates new tokens and assigns them to the receiver
+- Emits `MINT_TOPIC` with `TransferEvent`
+
+#### `burn(amount: u64)`
+- Destroys tokens from the governance account
+- Emits `BURN_TOPIC` with `TransferEvent`
+
+#### `toggle_pause()`
+- Toggles the paused state of the contract
+- Emits `PauseToggled::TOPIC` with `PauseToggled`
+
+#### `force_transfer(transfer: Transfer, obliged_sender: Account)`
+- Forces a transfer of tokens from one account to another
+- Emits `TransferEvent::FORCE_TRANSFER_TOPIC` with `TransferEvent`
+
+#### `block(block_account: Sanction)`
+- Blocks an account from sending or receiving tokens
+- Emits `AccountStatusEvent::BLOCKED_TOPIC` with `AccountStatusEvent`
+
+#### `freeze(freeze_account: Sanction)`
+- Freezes an account, preventing it from sending tokens but allowing receipt
+- Emits `AccountStatusEvent::FROZEN_TOPIC` with `AccountStatusEvent`
+
+#### `unblock(unblock_account: Sanction)`
+- Removes a block sanction from an account
+- Emits `AccountStatusEvent::UNBLOCKED_TOPIC` with `AccountStatusEvent`
+
+#### `unfreeze(unfreeze_account: Sanction)`
+- Removes a freeze sanction from an account
+- Emits `AccountStatusEvent::UNFROZEN_TOPIC` with `AccountStatusEvent`
+
+### Special functions
+
+#### `init(initial_accounts: Vec<(Account, u64)>, governance: Account)`
+
+##### Invariant
+
+- Can only be called during deployment. This is a dusk/dusk-vm specific feature.
+
+##### Functionality
+
+- Initializes the token contract with initial account balances and sets the governance account
+- Called only once when contract is deployed
+- Does not emit events
+
+## 🛠️ Build and Tests
 
 Have [`rust`] and [`make`] installed and run:
 
@@ -20,59 +192,16 @@ Have [`rust`] and [`make`] installed and run:
 make
 ```
 
-[`rust`]: https://www.rust-lang.org/tools/install
-[`make`]: https://www.gnu.org/software/make
+To run tests:
 
-## Features
-
-Contracts implementing this standard will allow the user to:
-
-- Transfer tokens from one account to another
-- Get the total supply of tokens
-- Approve third-parties spending tokens of an account
-- Get the current token balance of an account
-
-### Data Structures
-
-Some of the functionality of the token-contract requires data to be sent to it that assures ownership of a
-given public key, as well as ensuring the non-repeatability of certain calls. The data that a user
-will use to interact with this token-contract is defined in the [`core` crate] in this repository. The
-example token-contract implementation in the [`token` crate] makes use of [`rkyv`] serialization. This
-is convenient for the implementation since [`dusk-core`] abi supports it natively, however it is not a
-requirement, and implementors may choose any serialization they wish. This will result in different
-gas costs. As a consequence, this specification *does not require* specific serialization from
-contracts wishing to implement it.
-
-[`core` crate]: ./core
-[`token` crate]: ./token
-[`rkyv`]: https://github.com/rkyv/rkyv
-[`dusk-abi`]: https://github.com/dusk-network/rusk/core/src/abi.rs
-
-### Functions
-
-The following functions will be defined by a token-contract implementing this specification. `&self` and
-`&mut self` are used to denote whether a function mutates the state handled by the token-contract, and
-closely matches its use in the implementation.
-
-```rust
-fn name(&self) -> String;
-fn symbol(&self) -> String;
-fn decimals(&self) -> u8;
-fn total_supply(&self) -> u64;
-fn account(&self, _: PublicKey) -> AccountData;
-fn allowance(&self, _: Allowance) -> u64;
-fn transfer(&mut self, _: Transfer);
-fn transfer_from(&mut self, _: TransferFrom);
-fn approve(&mut self, _: Approve);
+```sh
+make test
 ```
 
-For this token-contract we use BLS12_381 public keys, since Dusk has native support for them. However,
-implementers of the token standard may choose a different type of cryptography for their own token.
+See also `make help` for all the available commands
 
-### Events
-
-On a `transfer`, `transfer_from`, and `approve` events are emitted related to the action performed.
-The data included with these events is defined with the `TransferEvent` and `ApproveEvent`.
+[`rust`]: https://www.rust-lang.org/tools/install
+[`make`]: https://www.gnu.org/software/make
 
 ### Additional Considerations
 
