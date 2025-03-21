@@ -170,9 +170,6 @@ impl TestSession {
             + std::fmt::Debug,
         A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
         <A as Archive>::Archived: Deserialize<A, SharedDeserializeMap>,
-        //R: Archive,
-        //R::Archived: Deserialize<R, Infallible> + for<'b>
-        // CheckBytes<DefaultValidator<'b>>,
     {
         let vec_fn_arg;
         {
@@ -191,7 +188,7 @@ impl TestSession {
 
     /// Helper function to call a "view" function on the token-contract that
     /// does not take any arguments.
-    pub fn call_getter<R>(&mut self, fn_name: &str) -> Result<CallReceipt<R>>
+    pub fn call_getter<R>(&mut self, fn_name: &str) -> CallReceipt<R>
     where
         R: Archive,
         R::Archived: Deserialize<R, Infallible>
@@ -221,20 +218,15 @@ impl TestSession {
     pub fn account(&mut self, account: impl Into<Account>) -> AccountInfo {
         self.session
             .direct_call(TOKEN_ID, "account", &account.into())
-            .expect("Querying an account should succeed")
             .data
     }
 
     pub fn governance(&mut self) -> Account {
-        self.call_getter("governance")
-            .expect("Querying governance should succeed")
-            .data
+        self.call_getter("governance").data
     }
 
     pub fn total_supply(&mut self) -> u64 {
-        self.call_getter("total_supply")
-            .expect("Querying the supply should succeed")
-            .data
+        self.call_getter("total_supply").data
     }
 
     pub fn allowance(
@@ -251,7 +243,6 @@ impl TestSession {
                     spender: spender.into(),
                 },
             )
-            .expect("Querying an allowance should succeed")
             .data
     }
 }

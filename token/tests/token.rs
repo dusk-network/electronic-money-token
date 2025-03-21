@@ -529,13 +529,7 @@ fn test_pause() {
         panic!("Pause should succeed, err: {e}");
     }
 
-    assert_eq!(
-        session
-            .call_getter::<bool>("is_paused")
-            .expect("Querying the pause state should succeed")
-            .data,
-        true
-    );
+    assert_eq!(session.call_getter::<bool>("is_paused").data, true);
 
     let transfer = Transfer::new(*TestSession::PK_2, VALUE);
     let receipt =
@@ -568,13 +562,7 @@ fn test_pause() {
         panic!("Unpause should succeed, err: {e}");
     }
 
-    assert_eq!(
-        session
-            .call_getter::<bool>("is_paused")
-            .expect("Querying the pause state should succeed")
-            .data,
-        false
-    );
+    assert_eq!(session.call_getter::<bool>("is_paused").data, false);
 
     let receipt =
         session.call_token(&*TestSession::SK_1, "transfer", &transfer);
