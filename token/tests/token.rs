@@ -72,12 +72,9 @@ fn transfer() {
 
     let transfer = Transfer::new(receiver_pk, TRANSFERRED_AMOUNT);
 
-    let receipt =
-        session.call_token(&*TestSession::SK_1, "transfer", &transfer);
-
-    if let Err(e) = receipt.data {
-        panic!("Transfer should succeed, err: {e}");
-    }
+    session
+        .call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer)
+        .expect("Call should pass");
 
     assert_eq!(
         session.account(*TestSession::PK_1).balance,
@@ -111,12 +108,9 @@ fn transfer_to_contract() {
 
     let transfer = Transfer::new(HOLDER_ID, TRANSFERRED_AMOUNT);
 
-    let receipt =
-        session.call_token(&*TestSession::SK_1, "transfer", &transfer);
-
-    if let Err(e) = receipt.data {
-        panic!("Transfer should succeed, err: {e}");
-    }
+    session
+        .call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer)
+        .expect("Call should pass");
 
     assert_eq!(
         session.account(*TestSession::PK_1).balance,
@@ -152,12 +146,9 @@ fn transfer_from_contract() {
 
     let transfer = Transfer::new(*TestSession::PK_1, TRANSFERRED_AMOUNT);
 
-    let receipt =
-        session.call_holder::<_>(&*TestSession::SK_1, "token_send", &transfer);
-
-    if let Err(e) = receipt.data {
-        panic!("Transfer should succeed, err: {e}");
-    }
+    let receipt = session
+        .call_holder::<_, ()>(&*TestSession::SK_1, "token_send", &transfer)
+        .expect("Call should pass");
 
     receipt.events.iter().for_each(|event| {
         if event.topic == "moonlight" {
@@ -216,11 +207,9 @@ fn approve() {
     );
 
     let approve = Approve::new(test_account, APPROVED_AMOUNT);
-    let receipt = session.call_token(&*TestSession::SK_1, "approve", &approve);
-
-    if let Err(e) = receipt.data {
-        panic!("Approve should succeed, err: {e}");
-    }
+    session
+        .call_token::<_, ()>(&*TestSession::SK_1, "approve", &approve)
+        .expect("Call should pass");
 
     assert_eq!(
         session.allowance(*TestSession::PK_1, test_account),
@@ -259,8 +248,9 @@ fn transfer_from() {
 
     let approve = Approve::new(spender_account, APPROVED_AMOUNT);
 
-    let receipt = session.call_token(&*TestSession::SK_1, "approve", &approve);
-    receipt.data.expect("Approve should succeed");
+    session
+        .call_token::<_, ()>(&*TestSession::SK_1, "approve", &approve)
+        .expect("Call should pass");
 
     assert_eq!(
         session.allowance(*TestSession::PK_1, spender_account),
@@ -273,15 +263,13 @@ fn transfer_from() {
         spender_account,
         TRANSFERRED_AMOUNT,
     );
-    let receipt = session.call_token(
-        &*TestSession::SK_2,
-        "transfer_from",
-        &transfer_from,
-    );
-
-    if let Err(e) = receipt.data {
-        panic!("Transfer from should succeed, err: {e}");
-    }
+    session
+        .call_token::<_, ()>(
+            &*TestSession::SK_2,
+            "transfer_from",
+            &transfer_from,
+        )
+        .expect("Call should pass");
 
     assert_eq!(
         session.account(*TestSession::PK_1).balance,
@@ -307,15 +295,13 @@ fn transfer_governance() {
     let new_governance = Account::from(*TestSession::PK_2);
 
     let transfer_governance = TransferGovernance::new(new_governance);
-    let receipt = session.call_token(
-        &*TestSession::SK_0,
-        "transfer_governance",
-        &transfer_governance,
-    );
-
-    if let Err(e) = receipt.data {
-        panic!("Transfer governance should succeed, err: {e}");
-    }
+    session
+        .call_token::<_, ()>(
+            &*TestSession::SK_0,
+            "transfer_governance",
+            &transfer_governance,
+        )
+        .expect("Call should pass");
 
     assert_eq!(session.governance(), new_governance);
 }
@@ -333,31 +319,28 @@ fn governance_fails() {
     let new_governance = Account::from(*TestSession::PK_2);
 
     let transfer_governance = TransferGovernance::new(new_governance);
-    let receipt = session.call_token(
+    let receipt = session.call_token::<_, ()>(
         &wrong_governance_sk,
         "transfer_governance",
         &transfer_governance,
     );
 
-    match receipt.data.err() {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+    } else {
+        panic!("Expected a panic error");
     }
 
-    let receipt =
-        session.call_token(wrong_governance_sk, "renounce_governance", &());
+    let receipt = session.call_token::<_, ()>(
+        wrong_governance_sk,
+        "renounce_governance",
+        &(),
+    );
 
-    match receipt.data.err() {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+    } else {
+        panic!("Expected a panic error");
     }
 
     assert_eq!(session.governance(), Account::from(*TestSession::PK_0));
@@ -368,12 +351,9 @@ fn governance_fails() {
 fn renounce_governance() {
     let mut session = TestSession::new();
 
-    let receipt =
-        session.call_token(&*TestSession::SK_0, "renounce_governance", &());
-
-    if let Err(e) = receipt.data {
-        panic!("Renounce governance should succeed, err: {e}");
-    }
+    session
+        .call_token::<_, ()>(&*TestSession::SK_0, "renounce_governance", &())
+        .expect("Call should pass");
 
     assert_eq!(
         session.governance(),
@@ -398,15 +378,13 @@ fn test_mint() {
     assert_eq!(session.total_supply(), INITIAL_SUPPLY);
 
     // mint with governance sk
-    let receipt = session.call_token(
-        &*TestSession::SK_0,
-        "mint",
-        &(mint_receiver, mint_amount),
-    );
-
-    if let Err(e) = receipt.data {
-        panic!("Mint should succeed, err: {e}");
-    }
+    let receipt = session
+        .call_token::<_, ()>(
+            &*TestSession::SK_0,
+            "mint",
+            &(mint_receiver, mint_amount),
+        )
+        .expect("Call should pass");
 
     assert_eq!(receipt.events.len(), 2);
 
@@ -438,34 +416,28 @@ fn test_mint() {
     // mint overflow
     let too_much = u64::MAX;
 
-    let receipt = session.call_token(
+    let receipt = session.call_token::<_, ()>(
         &*TestSession::SK_0,
         "mint",
         &(mint_receiver, too_much),
     );
 
-    match receipt.data.err() {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, SUPPLY_OVERFLOW);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, SUPPLY_OVERFLOW);
+    } else {
+        panic!("Expected a panic error");
     }
 
-    let receipt = session.call_token(
+    let receipt = session.call_token::<_, ()>(
         &*TestSession::SK_2,
         "mint",
         &(mint_receiver, mint_amount),
     );
 
-    match receipt.data.err() {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+    } else {
+        panic!("Expected a panic error");
     }
 }
 
@@ -477,38 +449,32 @@ fn test_burn() {
     let mut session = TestSession::new();
     let burn_amount = 1000;
 
-    let receipt = session.call_token(&*TestSession::SK_0, "burn", &burn_amount);
-
-    if let Err(e) = receipt.data {
-        panic!("Burn should succeed, err: {e}");
-    }
+    session
+        .call_token::<_, ()>(&*TestSession::SK_0, "burn", &burn_amount)
+        .expect("Call should pass");
 
     assert_eq!(session.total_supply(), INITIAL_SUPPLY - burn_amount);
 
     // burn more than the governance account has
     let burn_amount = u64::MAX;
 
-    let receipt = session.call_token(&*TestSession::SK_0, "burn", &burn_amount);
+    let receipt =
+        session.call_token::<_, ()>(&*TestSession::SK_0, "burn", &burn_amount);
 
-    match receipt.data.err() {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, BALANCE_TOO_LOW);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, BALANCE_TOO_LOW);
+    } else {
+        panic!("Expected a panic error");
     }
 
     // unauthorized account
-    let receipt = session.call_token(&*TestSession::SK_2, "burn", &burn_amount);
+    let receipt =
+        session.call_token::<_, ()>(&*TestSession::SK_2, "burn", &burn_amount);
 
-    match receipt.data.err() {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+    } else {
+        panic!("Expected a panic error");
     }
 }
 
@@ -523,31 +489,26 @@ fn test_pause() {
 
     let mut session = TestSession::new();
 
-    let receipt = session.call_token(&*TestSession::SK_0, "toggle_pause", &());
-
-    if let Err(e) = receipt.data {
-        panic!("Pause should succeed, err: {e}");
-    }
+    session
+        .call_token::<_, ()>(&*TestSession::SK_0, "toggle_pause", &())
+        .expect("Call should pass");
 
     assert_eq!(
         session
             .call_getter::<bool>("is_paused")
-            .expect("Querying the pause state should succeed")
+            .expect("call to pass")
             .data,
         true
     );
 
     let transfer = Transfer::new(*TestSession::PK_2, VALUE);
     let receipt =
-        session.call_token(&*TestSession::SK_1, "transfer", &transfer);
+        session.call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer);
 
-    match receipt.data.err() {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, PAUSED_MESSAGE);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, PAUSED_MESSAGE);
+    } else {
+        panic!("Expected a panic error");
     }
 
     assert_eq!(
@@ -562,37 +523,30 @@ fn test_pause() {
         "The account to transfer to should have no balance"
     );
 
-    let receipt = session.call_token(&*TestSession::SK_0, "toggle_pause", &());
-
-    if let Err(e) = receipt.data {
-        panic!("Unpause should succeed, err: {e}");
-    }
+    session
+        .call_token::<_, ()>(&*TestSession::SK_0, "toggle_pause", &())
+        .expect("Call should pass");
 
     assert_eq!(
         session
             .call_getter::<bool>("is_paused")
-            .expect("Querying the pause state should succeed")
+            .expect("call to pass")
             .data,
         false
     );
 
-    let receipt =
-        session.call_token(&*TestSession::SK_1, "transfer", &transfer);
-
-    if let Err(e) = receipt.data {
-        panic!("Transfer should succeed again, err: {e}");
-    }
+    session
+        .call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer)
+        .expect("Call should pass");
 
     // unauthorized account
-    let receipt = session.call_token(&*TestSession::SK_2, "toggle_pause", &());
+    let receipt =
+        session.call_token::<_, ()>(&*TestSession::SK_2, "toggle_pause", &());
 
-    match receipt.data.err() {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+    } else {
+        panic!("Expected a panic error");
     }
 }
 
@@ -607,12 +561,9 @@ fn test_force_transfer() {
 
     // Make a normal transfer from deploy account to the test account
     let transfer = Transfer::new(*TestSession::PK_2, VALUE);
-    let receipt =
-        session.call_token(&*TestSession::SK_1, "transfer", &transfer);
-
-    if let Err(e) = receipt.data {
-        panic!("Transfer should succeed, err: {e}");
-    }
+    session
+        .call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer)
+        .expect("Call should pass");
 
     assert_eq!(
         session.account(*TestSession::PK_1).balance,
@@ -628,15 +579,13 @@ fn test_force_transfer() {
     // Force transfer from test account to governance account
     let force_transfer = Transfer::new(*TestSession::PK_0, VALUE);
     let obliged_sender = Account::from(*TestSession::PK_2);
-    let receipt = session.call_token(
-        &*TestSession::SK_0,
-        "force_transfer",
-        &(force_transfer, obliged_sender),
-    );
-
-    if let Err(e) = receipt.data {
-        panic!("Force transfer should succeed, err: {e}");
-    }
+    session
+        .call_token::<_, ()>(
+            &*TestSession::SK_0,
+            "force_transfer",
+            &(force_transfer, obliged_sender),
+        )
+        .expect("Call should pass");
 
     assert_eq!(
         session.account(*TestSession::PK_2).balance,
@@ -654,39 +603,31 @@ fn test_force_transfer() {
     // will be too low)
     let force_transfer = Transfer::new(*TestSession::PK_0, VALUE);
 
-    match session
-        .call_token(
-            &*TestSession::SK_0,
-            "force_transfer",
-            &(force_transfer, obliged_sender),
-        )
-        .data
-        .err()
-    {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, BALANCE_TOO_LOW);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    let receipt = session.call_token::<_, ()>(
+        &*TestSession::SK_0,
+        "force_transfer",
+        &(force_transfer, obliged_sender),
+    );
+
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, BALANCE_TOO_LOW);
+    } else {
+        panic!("Expected a panic error");
     }
 
     // unauthorized account
     let force_transfer = Transfer::new(*TestSession::PK_2, VALUE);
     let obliged_sender = Account::from(*TestSession::PK_0);
-    let receipt = session.call_token(
+    let receipt = session.call_token::<_, ()>(
         &*TestSession::SK_2,
         "force_transfer",
         &(force_transfer, obliged_sender),
     );
 
-    match receipt.data.err() {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+    } else {
+        panic!("Expected a panic error");
     }
 }
 
@@ -713,169 +654,149 @@ fn test_sanctions() {
     // Transfer VALUE to test account
     let transfer = Transfer::new(blocked_account, VALUE);
     session
-        .call_token(&*TestSession::SK_1, "transfer", &transfer)
-        .data
-        .expect("Transfer should succeed");
+        .call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer)
+        .expect("Call should pass")
+        .data;
 
     // Block test account
     let sanction = Sanction::block_account(blocked_account);
-    let receipt = session.call_token(&*TestSession::SK_0, "block", &sanction);
-
-    if let Err(e) = receipt.data {
-        panic!("Block should succeed, err: {e}");
-    }
+    session
+        .call_token::<_, ()>(&*TestSession::SK_0, "block", &sanction)
+        .expect("Call should pass");
 
     assert_eq!(
-        rkyv::from_bytes::<bool>(
-            &session
-                .call_token(&*TestSession::SK_2, "blocked", &blocked_account)
-                .data
-                .expect("Querying the state should succeed")
-        )
-        .expect("Deserializing the state should succeed"),
+        session
+            .call_token::<_, bool>(
+                &*TestSession::SK_2,
+                "blocked",
+                &blocked_account
+            )
+            .expect("Querying the state should succeed")
+            .data,
         true
     );
 
     // Unfreeze test account
     let unsanction = Sanction::unsanction_account(blocked_account);
-    match session
-        .call_token(&*TestSession::SK_0, "unfreeze", &unsanction)
-        .data
-        .err()
-    {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, "The account is not frozen");
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    let receipt = session.call_token::<_, ()>(
+        &*TestSession::SK_0,
+        "unfreeze",
+        &unsanction,
+    );
+
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, "The account is not frozen");
+    } else {
+        panic!("Expected a panic error");
     }
 
     // Transfer VALUE to test account
     let transfer = Transfer::new(blocked_account, VALUE);
-    match session
-        .call_token(&*TestSession::SK_1, "transfer", &transfer)
-        .data
-        .err()
-    {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, BLOCKED);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    let receipt =
+        session.call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer);
+
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, BLOCKED);
+    } else {
+        panic!("Expected a panic error");
     }
 
     // Transfer VALUE from test account
     let transfer = Transfer::new(*TestSession::PK_1, VALUE);
-    match session
-        .call_token(&*TestSession::SK_2, "transfer", &transfer)
-        .data
-        .err()
-    {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, BLOCKED);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    let receipt =
+        session.call_token::<_, ()>(&*TestSession::SK_2, "transfer", &transfer);
+
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, BLOCKED);
+    } else {
+        panic!("Expected a panic error");
     }
 
     // Freeze test account
     let frozen_account = blocked_account;
     let sanction = Sanction::freeze_account(frozen_account);
-    let receipt = session.call_token(&*TestSession::SK_0, "freeze", &sanction);
-
-    if let Err(e) = receipt.data {
-        panic!("Freeze should succeed, err: {e}");
-    }
+    session
+        .call_token::<_, ()>(&*TestSession::SK_0, "freeze", &sanction)
+        .expect("Call should pass");
 
     assert_eq!(
-        rkyv::from_bytes::<bool>(
-            &session
-                .call_token(&*TestSession::SK_2, "frozen", &frozen_account)
-                .data
-                .expect("Querying the state should succeed")
-        )
-        .expect("Deserializing the state should succeed"),
+        session
+            .call_token::<_, bool>(
+                &*TestSession::SK_2,
+                "frozen",
+                &frozen_account
+            )
+            .expect("Querying the state should succeed")
+            .data,
         true
     );
 
     // Transfer VALUE to test account
     let transfer = Transfer::new(frozen_account, VALUE);
     session
-        .call_token(&*TestSession::SK_1, "transfer", &transfer)
-        .data
+        .call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer)
         .expect("Transfer to frozen account should succeed");
 
     // Transfer VALUE from test account
     let transfer = Transfer::new(*TestSession::PK_1, VALUE);
-    match session
-        .call_token(&*TestSession::SK_2, "transfer", &transfer)
-        .data
-        .err()
-    {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, FROZEN);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    let receipt =
+        session.call_token::<_, ()>(&*TestSession::SK_2, "transfer", &transfer);
+
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, FROZEN);
+    } else {
+        panic!("Expected a panic error");
     }
 
     // Unblock test account
     let unsanction = Sanction::unsanction_account(frozen_account);
-    match session
-        .call_token(&*TestSession::SK_0, "unblock", &unsanction)
-        .data
-        .err()
-    {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, "The account is not blocked");
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    let receipt = session.call_token::<_, ()>(
+        &*TestSession::SK_0,
+        "unblock",
+        &unsanction,
+    );
+
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, "The account is not blocked");
+    } else {
+        panic!("Expected a panic error");
     }
 
     // Unauthorized account
     let unsanction = Sanction::unsanction_account(frozen_account);
-    match session
-        .call_token(&*TestSession::SK_2, "unblock", &unsanction)
-        .data
-        .err()
-    {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    let receipt = session.call_token::<_, ()>(
+        &*TestSession::SK_2,
+        "unblock",
+        &unsanction,
+    );
+
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+    } else {
+        panic!("Expected a panic error");
     }
-    match session
-        .call_token(&*TestSession::SK_2, "unfreeze", &unsanction)
-        .data
-        .err()
-    {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+
+    let receipt = session.call_token::<_, ()>(
+        &*TestSession::SK_2,
+        "unfreeze",
+        &unsanction,
+    );
+
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+    } else {
+        panic!("Expected a panic error");
     }
 
     // Unfreeze test account
     let unsanction = Sanction::unsanction_account(frozen_account);
     session
-        .call_token(&*TestSession::SK_0, "unfreeze", &unsanction)
-        .data
+        .call_token::<_, ()>(&*TestSession::SK_0, "unfreeze", &unsanction)
         .expect("Unfreezing should succeed");
 
     // Transfer VALUE from test account
     let transfer = Transfer::new(*TestSession::PK_1, VALUE);
     session
-        .call_token(&*TestSession::SK_2, "transfer", &transfer)
-        .data
+        .call_token::<_, ()>(&*TestSession::SK_2, "transfer", &transfer)
         .expect("Transfer should succeed again");
 }
