@@ -60,7 +60,7 @@ impl NetworkSession {
         contract: ContractId,
         fn_name: &str,
         fn_arg: &A,
-    ) -> Result<CallReceipt<R>>
+    ) -> CallReceipt<R>
     where
         A: for<'b> Serialize<StandardBufSerializer<'b>>,
         A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
@@ -68,7 +68,11 @@ impl NetworkSession {
         R::Archived: Deserialize<R, Infallible>
             + for<'b> CheckBytes<DefaultValidator<'b>>,
     {
-        self.session.call(contract, fn_name, fn_arg, u64::MAX)
+        self.session
+            .call(contract, fn_name, fn_arg, u64::MAX)
+            .unwrap_or_else(|e| {
+                panic!("Calling the contract should succeed: {:?}", e)
+            })
     }
 
     /// Calls the contract trough the transfer-contract which is the standard
