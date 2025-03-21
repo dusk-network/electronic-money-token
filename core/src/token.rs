@@ -171,6 +171,11 @@ pub struct ApproveEvent {
     pub value: u64,
 }
 
+impl ApproveEvent {
+    /// Event topic used when a spender is approved.
+    pub const APPROVE_TOPIC: &'static str = "approve";
+}
+
 /// Used to inform a contract of the source of funds they're receiving.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
