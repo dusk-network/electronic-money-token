@@ -332,11 +332,11 @@ impl TokenState {
 /// Basic token-contract implementation.
 impl TokenState {
     fn name() -> String {
-        String::from("Transparent Fungible Token Sample")
+        String::from("Electronic Money Token")
     }
 
     fn symbol() -> String {
-        String::from("TFTS")
+        String::from("EMT")
     }
 
     fn decimals() -> u8 {
@@ -511,7 +511,7 @@ impl TokenState {
         allowances.insert(spender, value);
 
         abi::emit(
-            "approve",
+            ApproveEvent::APPROVE_TOPIC,
             ApproveEvent {
                 sender: owner,
                 spender,
