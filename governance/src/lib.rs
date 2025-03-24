@@ -22,6 +22,7 @@ pub use wasm::*;
 
 #[cfg(target_family = "wasm")]
 pub(crate) mod wasm {
+
     extern crate alloc;
 
     use alloc::string::String;
@@ -50,13 +51,8 @@ pub(crate) mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn name(arg_len: u32) -> u32 {
-        abi::wrap_call(arg_len, |(): ()| STATE.name())
-    }
-
-    #[no_mangle]
-    unsafe extern "C" fn symbol(arg_len: u32) -> u32 {
-        abi::wrap_call(arg_len, |(): ()| STATE.symbol())
+    unsafe extern "C" fn token_contract(arg_len: u32) -> u32 {
+        abi::wrap_call(arg_len, |(): ()| STATE.token_contract())
     }
 
     #[no_mangle]

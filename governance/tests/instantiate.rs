@@ -4,8 +4,6 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use std::sync::LazyLock;
-
 use dusk_core::abi::ContractError;
 use dusk_core::abi::{ContractId, StandardBufSerializer};
 use dusk_core::dusk;
@@ -37,9 +35,9 @@ const TOKEN_BYTECODE: &[u8] = include_bytes!(
 const GOVERNANCE_BYTECODE: &[u8] = include_bytes!(
     "../../target/wasm64-unknown-unknown/release/emt_governance.wasm"
 );
-const HOLDER_BYTECODE: &[u8] = include_bytes!(
-    "../../target/wasm64-unknown-unknown/release/emt_holder_contract.wasm"
-);
+// const HOLDER_BYTECODE: &[u8] = include_bytes!(
+//     "../../target/wasm64-unknown-unknown/release/emt_holder_contract.wasm"
+// );
 
 const DEPLOYER: [u8; 64] = [0u8; 64];
 
@@ -104,36 +102,6 @@ impl<const O: usize, const P: usize, const H: usize> TestKeys<O, P, H> {
         }
     }
 }
-// pub const OWNERS_SK<const O usize>: LazyLock<[AccountSecretKey; O]> =
-// LazyLock::new(|| {     let mut rng = StdRng::seed_from_u64(0x5EAF00D);
-//     let mut keys = Vec::with_capacity(O);
-//     for _ in 0..O {
-//         keys.push(AccountSecretKey::random(&mut rng));
-//     }
-//     keys.try_into().unwrap()
-// });
-// pub const OWNERS_PK: LazyLock<[AccountPublicKey; O]> = LazyLock::new(|| {
-//     let mut keys = Vec::with_capacity(O);
-//     for i in 0..O {
-//         keys.push(AccountPublicKey::from(&*Self::OWNERS_SK[i]));
-//     }
-//     keys.try_into().unwrap()
-// });
-// }
-
-// pub const SK_1: LazyLock<AccountSecretKey> = LazyLock::new(|| {
-//     let mut rng = StdRng::seed_from_u64(0xF0CACC1A);
-//     AccountSecretKey::random(&mut rng)
-// });
-// pub const PK_1: LazyLock<AccountPublicKey> =
-//     LazyLock::new(|| AccountPublicKey::from(&*Self::SK_1));
-//
-// pub const SK_2: LazyLock<AccountSecretKey> = LazyLock::new(|| {
-//     let mut rng = StdRng::seed_from_u64(0x5A1AD);
-//     AccountSecretKey::random(&mut rng)
-// });
-// pub const PK_2: LazyLock<AccountPublicKey> =
-//     LazyLock::new(|| AccountPublicKey::from(&*Self::SK_2));
 
 pub struct TestSession {
     session: NetworkSession,
@@ -156,13 +124,16 @@ impl TestSession {
             .collect();
         let mut network_session = NetworkSession::instantiate(public_balances);
 
-        // deploy the token-contract with the governance-contract set as
-        // governance
-        let token_balances: Vec<(Account, u64)> = public_keys
-            .iter()
-            .map(|pk| (Account::from(*pk), INITIAL_BALANCE))
-            .collect();
-        let token_init_args = (token_balances, Account::from(GOVERNANCE_ID));
+        // deploy the token-contract
+        let token_init_args = (
+            // fund all keys with an initial balance
+            public_keys
+                .iter()
+                .map(|pk| (Account::from(*pk), INITIAL_BALANCE))
+                .collect::<Vec<_>>(),
+            // set the governance-contract as token-contract governance
+            Account::from(GOVERNANCE_ID),
+        );
         network_session
             .deploy(
                 TOKEN_BYTECODE,
@@ -174,33 +145,33 @@ impl TestSession {
             .expect("Deploying the token-contract should succeed");
 
         // deploy the governance-contract
-        // token_contract: ContractId,
-        // owners: Vec<PublicKey>,
-        // operators: Vec<PublicKey>,
-        // operator_token_call_data: Vec<(String, u8)>,
-        // let governance_init_args = (TOKEN_ID,);
-        // network_session
-        //     .deploy(
-        //         GOVERNANCE_BYTECODE,
-        //         ContractData::builder()
-        //             .owner(DEPLOYER)
-        //             .init_arg(&(
-        //                 vec![
-        //                     (
-        //                         Account::from(*Self::OWNERS_PK[0]),
-        //                         INITIAL_BALANCE_0,
-        //                     ),
-        //                     (Account::from(*Self::PK_1), INITIAL_BALANCE_1),
-        //                     (
-        //                         Account::from(HOLDER_ID),
-        //                         INITIAL_BALANCE_HOLDER_CONTRACT,
-        //                     ),
-        //                 ],
-        //                 Account::from(*Self::OWNERS_PK[0]),
-        //             ))
-        //             .contract_id(TOKEN_ID),
-        //     )
-        //     .expect("Deploying the token-contract should succeed");
+        let governance_init_args = (
+            // set the token-contract in the governance state
+            TOKEN_ID,
+            // set the owner and operator keys
+            test_keys.owners_pk.to_vec(),
+            test_keys.operators_pk.to_vec(),
+            // register all operator token-contract calls
+            vec![
+                ("block".to_string(), 0),
+                ("freeze".to_string(), 0),
+                ("unblock".to_string(), 0),
+                ("unfreeze".to_string(), 0),
+                ("mint".to_string(), 0),
+                ("burn".to_string(), 0),
+                ("toggle_pause".to_string(), 0),
+                ("force_transfer".to_string(), 0),
+            ],
+        );
+        network_session
+            .deploy(
+                GOVERNANCE_BYTECODE,
+                ContractData::builder()
+                    .owner(DEPLOYER)
+                    .init_arg(&governance_init_args)
+                    .contract_id(GOVERNANCE_ID),
+            )
+            .expect("Deploying the governance-contract should succeed");
 
         // deploy the test holder-contract
         // let holder_init_args = (TOKEN_ID, INITIAL_BALANCE_HOLDER_CONTRACT);
@@ -214,20 +185,9 @@ impl TestSession {
         //     )
         //     .expect("Deploying the test holder-contract should succeed");
         //
-        let mut session = Self {
+        let session = Self {
             session: network_session,
         };
-
-        // assert_eq!(
-        //     session.account(*Self::OWNERS_PK[0]).balance,
-        //     INITIAL_BALANCE_0
-        // );
-        // assert_eq!(session.account(*Self::PK_1).balance, INITIAL_BALANCE_1);
-        // assert_eq!(session.account(*Self::PK_2).balance, 0);
-        // assert_eq!(
-        //     session.account(HOLDER_ID).balance,
-        //     INITIAL_BALANCE_HOLDER_CONTRACT
-        // );
 
         session
     }
@@ -250,8 +210,9 @@ impl TestSession {
         buffer[..pos].to_vec()
     }
 
-    // TODO: Find a way to return CallReceipt<R>
-    pub fn call_token<A>(
+    /// Execute a state-transition of the governance-contract, paying gas with
+    /// `tx_sk`.
+    pub fn execute_governance<A>(
         &mut self,
         tx_sk: &AccountSecretKey,
         fn_name: &str,
@@ -263,88 +224,84 @@ impl TestSession {
             + std::fmt::Debug,
         A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
         <A as Archive>::Archived: Deserialize<A, SharedDeserializeMap>,
-        //R: Archive,
-        //R::Archived: Deserialize<R, Infallible> + for<'b>
-        // CheckBytes<DefaultValidator<'b>>,
     {
-        let vec_fn_arg;
-        {
-            vec_fn_arg = Self::serialize(fn_arg);
+        let vec_fn_arg = Self::serialize(fn_arg);
 
-            // deserialize the vec_fn_arg for sanity check
-            let back = rkyv::from_bytes::<A>(&vec_fn_arg)
-                .expect("failed to deserialize previously serialized fn_arg");
+        // deserialize the vec_fn_arg for sanity check
+        let back = rkyv::from_bytes::<A>(&vec_fn_arg)
+            .expect("failed to deserialize previously serialized fn_arg");
 
-            assert_eq!(&back, fn_arg);
-        }
+        assert_eq!(&back, fn_arg);
 
         self.session
-            .icc_transaction(tx_sk, TOKEN_ID, fn_name, vec_fn_arg)
+            .icc_transaction(tx_sk, GOVERNANCE_ID, fn_name, vec_fn_arg)
     }
 
-    /// Helper function to call a "view" function on the token-contract that
-    /// does not take any arguments.
-    pub fn call_getter<R>(&mut self, fn_name: &str) -> Result<CallReceipt<R>>
+    /// Query the governance-contract directly without paying gas.
+    pub fn query_governance<A, R>(
+        &mut self,
+        fn_name: &str,
+        fn_arg: &A,
+    ) -> CallReceipt<R>
     where
+        A: for<'b> Serialize<StandardBufSerializer<'b>>
+            + PartialEq
+            + std::fmt::Debug,
+        A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
+        <A as Archive>::Archived: Deserialize<A, SharedDeserializeMap>,
         R: Archive,
         R::Archived: Deserialize<R, Infallible>
             + for<'b> CheckBytes<DefaultValidator<'b>>,
     {
-        // TODO: find out if there is another way to do that instead of passing
-        // &() as fn_arg
-        self.session.direct_call::<(), R>(TOKEN_ID, fn_name, &())
-    }
-
-    pub fn call_holder<A>(
-        &mut self,
-        tx_sk: &AccountSecretKey,
-        fn_name: &str,
-        fn_arg: &A,
-    ) -> CallReceipt<Result<Vec<u8>, ContractError>>
-    where
-        A: for<'b> Serialize<StandardBufSerializer<'b>>,
-        A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
-    {
-        let fn_arg = Self::serialize(fn_arg);
-
         self.session
-            .icc_transaction(tx_sk, HOLDER_ID, fn_name, fn_arg)
+            .direct_call::<A, R>(GOVERNANCE_ID, fn_name, fn_arg)
     }
 
-    pub fn account(&mut self, account: impl Into<Account>) -> AccountInfo {
-        self.session
-            .direct_call(TOKEN_ID, "account", &account.into())
-            .expect("Querying an account should succeed")
-            .data
-    }
-
-    pub fn governance(&mut self) -> Account {
-        self.call_getter("governance")
-            .expect("Querying governance should succeed")
-            .data
-    }
-
-    pub fn total_supply(&mut self) -> u64 {
-        self.call_getter("total_supply")
-            .expect("Querying the supply should succeed")
-            .data
-    }
-
-    pub fn allowance(
-        &mut self,
-        owner: impl Into<Account>,
-        spender: impl Into<Account>,
-    ) -> u64 {
-        self.session
-            .direct_call(
-                TOKEN_ID,
-                "allowance",
-                &Allowance {
-                    owner: owner.into(),
-                    spender: spender.into(),
-                },
-            )
-            .expect("Querying an allowance should succeed")
-            .data
-    }
+    // pub fn call_holder<A>(
+    //     &mut self,
+    //     tx_sk: &AccountSecretKey,
+    //     fn_name: &str,
+    //     fn_arg: &A,
+    // ) -> CallReceipt<Result<Vec<u8>, ContractError>>
+    // where
+    //     A: for<'b> Serialize<StandardBufSerializer<'b>>,
+    //     A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
+    // {
+    //     let fn_arg = Self::serialize(fn_arg);
+    //
+    //     self.session
+    //         .icc_transaction(tx_sk, HOLDER_ID, fn_name, fn_arg)
+    // }
+    //
+    // pub fn account(&mut self, account: impl Into<Account>) -> AccountInfo {
+    //     self.session
+    //         .direct_call(TOKEN_ID, "account", &account.into())
+    //         .data
+    // }
+    //
+    // pub fn governance(&mut self) -> Account {
+    //     self.call_getter("governance").data
+    // }
+    //
+    // pub fn total_supply(&mut self) -> u64 {
+    //     self.call_getter("total_supply").data
+    // }
+    //
+    // pub fn allowance(
+    //     &mut self,
+    //     owner: impl Into<Account>,
+    //     spender: impl Into<Account>,
+    // ) -> u64 {
+    //     self.session
+    //         .direct_call(
+    //             TOKEN_ID,
+    //             "allowance",
+    //             &Allowance {
+    //                 owner: owner.into(),
+    //                 spender: spender.into(),
+    //             },
+    //         )
+    //         .expect("Querying an allowance should succeed")
+    //         .data
+    // }
 }

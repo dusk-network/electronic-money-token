@@ -129,18 +129,6 @@ impl Governance {
         self.operator_token_calls = operator_token_calls;
     }
 
-    /// Return the name of the contract.
-    #[must_use]
-    pub fn name(&self) -> String {
-        String::from("Token Governance Sample")
-    }
-
-    /// Return the symbol of the contract.
-    #[must_use]
-    pub fn symbol(&self) -> String {
-        String::from("TGS")
-    }
-
     /// Return the linked token-contract.
     #[must_use]
     pub fn token_contract(&self) -> ContractId {

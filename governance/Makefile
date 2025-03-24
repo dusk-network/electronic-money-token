@@ -1,5 +1,5 @@
 TOKEN_WASM:="../target/wasm64-unknown-unknown/release/emt_token.wasm"
-GOVERNANCE_WASM:="../target/wasm64-unknown-unknown/release/ttoken_governance.wasm"
+GOVERNANCE_WASM:="../target/wasm64-unknown-unknown/release/emt_governance.wasm"
 TEST_HOLDER_WASM:="../target/wasm64-unknown-unknown/release/emt_holder_contact.wasm"
 
 all: ## Build the token contract
