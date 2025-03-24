@@ -66,8 +66,26 @@ impl TokenState {
         // Only accept transfers from the specific token-contract we're tracking
         if abi::caller().expect("Expected a contract as caller") == TOKEN_ID {
             self.balance += transfer.value;
-        } else {
-            panic!("Only the {TOKEN_ID} contract can call this function");
+
+            // Check if self.balance now corresponds to the balance in the
+            // token-contract
+            match abi::call::<_, AccountInfo>(
+                TOKEN_ID,
+                "account",
+                &Account::Contract(self.this_contract),
+            ) {
+                Ok(acc_info) => {
+                    assert!(
+                        self.balance == acc_info.balance,
+                        "Balance mismatch: {0} != {1}",
+                        self.balance,
+                        acc_info.balance
+                    );
+                }
+                Err(err) => panic!(
+                    "Failed to get account info from token-contract: {err}"
+                ),
+            }
         }
     }
 }
