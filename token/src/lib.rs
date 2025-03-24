@@ -21,9 +21,7 @@ use dusk_core::abi;
 use emt_core::admin_management::events::PauseToggled;
 use emt_core::admin_management::PAUSED_MESSAGE;
 use emt_core::governance::arguments::TransferGovernance;
-use emt_core::governance::events::{
-    GovernanceRenouncedEvent, GovernanceTransferredEvent,
-};
+use emt_core::governance::events::GovernanceTransferredEvent;
 use emt_core::governance::{GOVERNANCE_NOT_FOUND, UNAUTHORIZED_ACCOUNT};
 use emt_core::sanctions::arguments::Sanction;
 use emt_core::sanctions::events::AccountStatusEvent;
@@ -75,7 +73,7 @@ impl TokenState {
             .or_insert(AccountInfo::EMPTY);
 
         abi::emit(
-            GovernanceTransferredEvent::TOPIC,
+            GovernanceTransferredEvent::GOVERNANCE_TRANSFERRED,
             GovernanceTransferredEvent {
                 previous_governance: ZERO_ADDRESS,
                 new_governance: governance,
@@ -121,7 +119,7 @@ impl TokenState {
             .or_insert(AccountInfo::EMPTY);
 
         abi::emit(
-            GovernanceTransferredEvent::TOPIC,
+            GovernanceTransferredEvent::GOVERNANCE_TRANSFERRED,
             GovernanceTransferredEvent {
                 previous_governance,
                 new_governance,
@@ -136,9 +134,10 @@ impl TokenState {
         self.governance = ZERO_ADDRESS;
 
         abi::emit(
-            GovernanceRenouncedEvent::TOPIC,
-            GovernanceRenouncedEvent {
+            GovernanceTransferredEvent::GOVERNANCE_RENOUNCED,
+            GovernanceTransferredEvent {
                 previous_governance,
+                new_governance: ZERO_ADDRESS,
             },
         );
     }
