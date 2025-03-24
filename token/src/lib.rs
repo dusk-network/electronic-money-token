@@ -18,6 +18,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use dusk_core::abi;
+use dusk_core::transfer::data::ContractCall;
 use emt_core::admin_management::events::PauseToggled;
 use emt_core::admin_management::PAUSED_MESSAGE;
 use emt_core::governance::arguments::TransferGovernance;
@@ -408,18 +409,32 @@ impl TokenState {
                 value,
             },
         );
+    }
 
-        // if the transfer is to a contract, the acceptance function of said
-        // contract is called. if it fails (panic or OoG) the transfer
+    #[allow(clippy::large_types_passed_by_value)]
+    fn transfer_and_call(
+        &mut self,
+        transfer: Transfer,
+        contract_call: ContractCall,
+    ) {
+        self.transfer(transfer);
+
+        // Note: Do we want to make it possible to call any contract while
+        // transferring somewhere else?
+        // let receiver = *transfer.receiver();
+
+
+        // If the call to the contract fails (panic or OoG) the transfer
         // also fails.
-        if let Account::Contract(contract) = receiver {
-            if let Err(err) = abi::call::<_, ()>(
-                contract,
-                "token_received",
-                &TransferInfo { sender, value },
-            ) {
-                panic!("Failed calling `token_received` on the receiving contract: {err}");
-            }
+        if let Err(err) = abi::call::<_, ()>(
+            contract_call.contract,
+            &contract_call.fn_name,
+            &contract_call.fn_args,
+        ) {
+            panic!(
+                "Failed calling `{}` on the contract: {err}",
+                contract_call.fn_name
+            );
         }
     }
 
@@ -561,6 +576,13 @@ unsafe extern "C" fn allowance(arg_len: u32) -> u32 {
 #[no_mangle]
 unsafe extern "C" fn transfer(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.transfer(arg))
+}
+
+#[no_mangle]
+unsafe extern "C" fn transfer_and_call(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(transfer, contract_call)| {
+        STATE.transfer_and_call(transfer, contract_call)
+    })
 }
 
 #[no_mangle]
