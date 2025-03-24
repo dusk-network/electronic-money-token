@@ -50,10 +50,20 @@ struct TokenState {
 impl TokenState {
     fn init(&mut self, accounts: Vec<(Account, u64)>, governance: Account) {
         for (account, balance) in accounts {
-            let account =
+            let account_entry =
                 self.accounts.entry(account).or_insert(AccountInfo::EMPTY);
-            account.balance += balance;
+            account_entry.balance += balance;
             self.supply += balance;
+
+            abi::emit(
+                MINT_TOPIC,
+                TransferEvent {
+                    sender: ZERO_ADDRESS,
+                    spender: None,
+                    receiver: account,
+                    value: balance,
+                },
+            );
         }
 
         // Set the governance
@@ -63,6 +73,14 @@ impl TokenState {
         self.accounts
             .entry(self.governance)
             .or_insert(AccountInfo::EMPTY);
+
+        abi::emit(
+            GovernanceTransferredEvent::TOPIC,
+            GovernanceTransferredEvent {
+                previous_governance: ZERO_ADDRESS,
+                new_governance: governance,
+            },
+        );
     }
 }
 
