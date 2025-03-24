@@ -165,6 +165,8 @@ impl Governance {
     /// the token-contract in order for it to be executed.
     /// If the stored signature threshold for a call is 0, a super-majority of
     /// signers is required for its execution.
+    /// Returns `None` if the `call_name` is not a registered operators
+    /// token-contract call.
     #[must_use]
     pub fn operator_signature_threshold(&self, call_name: &str) -> Option<u8> {
         self.operator_token_calls
@@ -191,7 +193,8 @@ impl Governance {
         "renounce_governance",
     ];
 
-    /// Update the token-contract in the governance-contract.
+    /// Update the token-contract in the governance-contract and return the old
+    /// token-contract ID.
     /// This might be useful when the token-contract changes but the governance
     /// remains the same.
     ///
@@ -209,7 +212,7 @@ impl Governance {
         new_token_contract: ContractId,
         sig: MultisigSignature,
         signers: Vec<u8>,
-    ) {
+    ) -> ContractId {
         // the threshold needs to be a super-majority
         let threshold = supermajority(self.owners.len());
 
@@ -221,6 +224,8 @@ impl Governance {
         // this call will panic if the signature is not correct or the threshold
         // is not met
         self.authorize_owners(threshold, &sig_msg, sig, signers);
+
+        core::mem::replace(&mut self.token_contract, new_token_contract)
     }
 
     /// Update the owner public-keys in the governance-contract.

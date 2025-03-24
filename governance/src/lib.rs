@@ -18,10 +18,7 @@ pub mod error;
 pub(crate) mod state;
 
 #[cfg(target_family = "wasm")]
-pub use wasm::*;
-
-#[cfg(target_family = "wasm")]
-pub(crate) mod wasm {
+mod wasm {
 
     extern crate alloc;
 
@@ -199,7 +196,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Cannot calculate supermajority of 0")]
-    fn test_supermajority_lower_bount() {
+    fn test_supermajority_lower_bound() {
         let _ = supermajority(0);
     }
 

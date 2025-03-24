@@ -30,10 +30,10 @@ use emt_core::*;
 use emt_tests::network::NetworkSession;
 
 const TOKEN_BYTECODE: &[u8] = include_bytes!(
-    "../../target/wasm64-unknown-unknown/release/emt_token.wasm"
+    "../../../target/wasm64-unknown-unknown/release/emt_token.wasm"
 );
 const GOVERNANCE_BYTECODE: &[u8] = include_bytes!(
-    "../../target/wasm64-unknown-unknown/release/emt_governance.wasm"
+    "../../../target/wasm64-unknown-unknown/release/emt_governance.wasm"
 );
 // const HOLDER_BYTECODE: &[u8] = include_bytes!(
 //     "../../target/wasm64-unknown-unknown/release/emt_holder_contract.wasm"
@@ -43,7 +43,7 @@ const DEPLOYER: [u8; 64] = [0u8; 64];
 
 pub const TOKEN_ID: ContractId = ContractId::from_bytes([1; 32]);
 pub const GOVERNANCE_ID: ContractId = ContractId::from_bytes([2; 32]);
-pub const HOLDER_ID: ContractId = ContractId::from_bytes([3; 32]);
+// pub const HOLDER_ID: ContractId = ContractId::from_bytes([3; 32]);
 
 pub const INITIAL_BALANCE: u64 = 1000;
 
@@ -153,14 +153,16 @@ impl TestSession {
             test_keys.operators_pk.to_vec(),
             // register all operator token-contract calls
             vec![
-                ("block".to_string(), 0),
-                ("freeze".to_string(), 0),
-                ("unblock".to_string(), 0),
-                ("unfreeze".to_string(), 0),
+                // block and freeze need 1 sig
+                ("block".to_string(), 1),
+                ("freeze".to_string(), 1),
+                ("unblock".to_string(), 1),
+                ("unfreeze".to_string(), 1),
+                // everything else needs a supermajority
                 ("mint".to_string(), 0),
                 ("burn".to_string(), 0),
                 ("toggle_pause".to_string(), 0),
-                ("force_transfer".to_string(), 0),
+                ("forced_transfer".to_string(), 0),
             ],
         );
         network_session
@@ -255,6 +257,25 @@ impl TestSession {
     {
         self.session
             .direct_call::<A, R>(GOVERNANCE_ID, fn_name, fn_arg)
+    }
+
+    /// Query the token-contract directly without paying gas.
+    pub fn query_token<A, R>(
+        &mut self,
+        fn_name: &str,
+        fn_arg: &A,
+    ) -> CallReceipt<R>
+    where
+        A: for<'b> Serialize<StandardBufSerializer<'b>>
+            + PartialEq
+            + std::fmt::Debug,
+        A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
+        <A as Archive>::Archived: Deserialize<A, SharedDeserializeMap>,
+        R: Archive,
+        R::Archived: Deserialize<R, Infallible>
+            + for<'b> CheckBytes<DefaultValidator<'b>>,
+    {
+        self.session.direct_call::<A, R>(TOKEN_ID, fn_name, fn_arg)
     }
 
     // pub fn call_holder<A>(
