@@ -16,9 +16,9 @@ use dusk_core::signatures::bls::{
     MultisigPublicKey, MultisigSignature, PublicKey,
 };
 use emt_core::governance::arguments::TransferGovernance;
-use emt_core::Account;
+use emt_core::{error, Account};
 
-use crate::{contains_duplicates, error, supermajority};
+use crate::{contains_duplicates, supermajority};
 
 const EMPTY: ContractId = ContractId::from_bytes([0u8; CONTRACT_ID_BYTES]);
 
@@ -223,7 +223,7 @@ impl Governance {
 
         // this call will panic if the signature is not correct or the threshold
         // is not met
-        self.authorize_owners(threshold, &sig_msg, sig, signers);
+        self.authorize_owners(threshold, sig_msg, sig, signers);
 
         core::mem::replace(&mut self.token_contract, new_token_contract)
     }
@@ -284,7 +284,7 @@ impl Governance {
 
         // this call will panic if the signature is not correct or the threshold
         // is not met
-        self.authorize_owners(threshold, &sig_msg, sig, signers);
+        self.authorize_owners(threshold, sig_msg, sig, signers);
 
         // update the owners to the new set
         self.owners = new_owners;
@@ -341,7 +341,7 @@ impl Governance {
 
         // this call will panic if the signature is not correct or the threshold
         // is not met
-        self.authorize_owners(threshold, &sig_msg, sig, signers);
+        self.authorize_owners(threshold, sig_msg, sig, signers);
 
         // update the operators to the new set
         self.operators = new_operators;
@@ -382,7 +382,7 @@ impl Governance {
         let mut sig_msg = Vec::with_capacity(u64::SIZE + Account::SIZE);
         sig_msg.extend(&self.owner_nonce.to_be_bytes());
         sig_msg.extend(&new_governance.to_bytes());
-        self.authorize_owners(threshold, &sig_msg, sig, signers);
+        self.authorize_owners(threshold, sig_msg, sig, signers);
 
         // transfer the ownership of the token-contract
         let _: () = abi::call(
@@ -420,7 +420,7 @@ impl Governance {
 
         // check the signature
         let sig_msg = self.owner_nonce().to_be_bytes();
-        self.authorize_owners(threshold, &sig_msg, sig, signers);
+        self.authorize_owners(threshold, sig_msg.into(), sig, signers);
 
         // transfer the ownership of the token-contract
         let _: () = abi::call(self.token_contract(), "renounce_ownership", &())
@@ -463,7 +463,7 @@ impl Governance {
         let threshold = self
             .operator_signature_threshold(&call_name)
             .unwrap_or_else(|| panic!("{}", error::TOKEN_CALL_NOT_FOUND));
-        self.authorize_operators(threshold, &sig_msg, sig, signers);
+        self.authorize_operators(threshold, sig_msg, sig, signers);
 
         // call the specified method of the token-contract
         let _ = abi::call_raw(
@@ -519,7 +519,7 @@ impl Governance {
         // this call will panic if the signature is not correct or not signed by
         // a super-majority of operators
         let threshold = supermajority(self.operators.len());
-        self.authorize_operators(threshold, &sig_msg, sig, signers);
+        self.authorize_operators(threshold, sig_msg, sig, signers);
 
         // add the call or update its threshold if it already exists
         self.operator_token_calls
@@ -543,7 +543,7 @@ impl Governance {
     fn authorize_owners(
         &self,
         threshold: u8,
-        sig_msg: impl AsRef<[u8]>,
+        sig_msg: Vec<u8>,
         sig: MultisigSignature,
         signers: impl AsRef<[u8]>,
     ) {
@@ -561,7 +561,7 @@ impl Governance {
     fn authorize_operators(
         &self,
         threshold: u8,
-        sig_msg: impl AsRef<[u8]>,
+        sig_msg: Vec<u8>,
         sig: MultisigSignature,
         signers: impl AsRef<[u8]>,
     ) {
@@ -578,13 +578,12 @@ impl Governance {
     fn authorize(
         &self,
         threshold: u8,
-        sig_msg: impl AsRef<[u8]>,
+        sig_msg: Vec<u8>,
         sig: MultisigSignature,
         signers: impl AsRef<[u8]>,
         is_owner: bool,
     ) {
         let signer_idx = signers.as_ref();
-        let sig_msg = sig_msg.as_ref();
 
         // panic if the signers contain duplicates
         assert!(
@@ -619,13 +618,9 @@ impl Governance {
             .map(|index| public_keys[*index as usize])
             .collect();
 
-        // aggregate the signers keys
-        let multisig_pk = MultisigPublicKey::aggregate(&signers[..])
-            .unwrap_or_else(|_| panic!("{}", error::INVALID_PUBLIC_KEY));
-
         // verify the signature
         assert!(
-            multisig_pk.verify(&sig, sig_msg).is_ok(),
+            abi::verify_bls_multisig(sig_msg, signers, sig),
             "{}",
             error::INVALID_SIGNATURE
         );

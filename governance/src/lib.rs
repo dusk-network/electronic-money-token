@@ -3,7 +3,6 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
-
 //! The governance contract for electronic money tokens.
 
 #![no_std]
@@ -11,8 +10,6 @@
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]
 #![deny(clippy::pedantic)]
-
-pub mod error;
 
 #[cfg(target_family = "wasm")]
 pub(crate) mod state;
