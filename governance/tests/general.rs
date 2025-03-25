@@ -134,3 +134,5 @@ fn init() {
 
 // more test:
 // double-init
+// owners cannot execute operators functions
+// operators cannot execute owners functions

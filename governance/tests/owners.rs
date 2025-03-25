@@ -28,7 +28,7 @@ use emt_core::error;
 
 pub mod common;
 use common::instantiate::{TestKeys, TestSession, TOKEN_ID};
-use common::owner_signature;
+use common::{holder_signature, owner_signature};
 
 const OWNER: usize = 10;
 const OPERATOR: usize = 10;
@@ -82,7 +82,51 @@ fn set_owners() {
     let keys: TestKeys<OWNER, OPERATOR, HOLDER> = TestKeys::new();
     let mut owner_nonce = 0u64;
 
+    //
+    // test empty owner
+    //
+
+    // generate signature
+    let new_owners = Vec::new();
+    let sig_msg = owner_nonce.to_be_bytes();
+    let signers = vec![0u8, 2, 5, 7, 8, 9];
+    let sig = owner_signature(&keys, &sig_msg, &signers);
+
+    // call contract
+    let call_name = "set_owners";
+    let call_args = (new_owners, sig, signers);
+    let receipt = session
+        .execute_governance
+        ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>)>
+        (
+            &keys.holders_sk[0],
+            call_name,
+            &call_args
+        );
+
+    // check contract panic
+    if let Some(ContractError::Panic(panic_msg)) = receipt.data.err() {
+        assert_eq!(panic_msg, error::EMTPY_OWNER);
+    } else {
+        panic!("Expected a panic error");
+    }
+
+    // check owners not updated
+    assert_eq!(
+        session
+            .query_governance::<(), Vec<AccountPublicKey>>("owners", &())
+            .data,
+        keys.owners_pk
+    );
+    // check nonce is not incremented
+    assert_eq!(
+        session.query_governance::<(), u64>("owner_nonce", &()).data,
+        owner_nonce,
+    );
+
+    //
     // test valid owner
+    //
 
     // generate signature
     let new_owners: Vec<AccountPublicKey> = keys.holders_pk.to_vec();
@@ -120,43 +164,114 @@ fn set_owners() {
         owner_nonce,
     );
 
-    // test empty owner
+    //
+    // test old owner keys don't work anymore
+    //
 
-    // generate signature
-    let new_owners = Vec::new();
-    let sig_msg = owner_nonce.to_be_bytes();
+    // sign with old owner keys
+    let new_owners = vec![
+        keys.owners_pk[0],
+        keys.owners_pk[1],
+        keys.owners_pk[2],
+        keys.owners_pk[3],
+    ];
+    let mut sig_msg = Vec::with_capacity(
+        u64::SIZE + new_owners.len() * AccountPublicKey::SIZE,
+    );
+    sig_msg.extend(owner_nonce.to_be_bytes());
+    new_owners
+        .iter()
+        .for_each(|pk| sig_msg.extend(&pk.to_bytes()));
     let signers = vec![0u8, 2, 5, 7, 8, 9];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let old_owner_sig = owner_signature(&keys, &sig_msg, &signers);
 
     // call contract
     let call_name = "set_owners";
-    let call_args = (new_owners, sig, signers);
+    let call_args = (new_owners.clone(), old_owner_sig, signers.clone());
     let receipt = session
         .execute_governance
         ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>)>
-        (
-            &keys.holders_sk[0],
-            call_name,
-            &call_args
-        );
+        (&keys.holders_sk[0], call_name, &call_args);
 
-    match receipt.data.err() {
-        Some(ContractError::Panic(panic_msg)) => {
-            assert_eq!(panic_msg, error::EMTPY_OWNER);
-        }
-        _ => {
-            panic!("Expected a panic error");
-        }
+    // check contract panic
+    if let Some(ContractError::Panic(panic_msg)) = receipt.data.err() {
+        assert_eq!(panic_msg, error::INVALID_SIGNATURE);
+    } else {
+        panic!("Expected a panic error");
     }
 
-    // check owners not updated
+    //
+    // test new keys do work
+    //
+
+    // sign with new owner keys
+    let new_owner_sig = holder_signature(&keys, &sig_msg, &signers);
+    let call_args = (new_owners.clone(), new_owner_sig, signers);
+    let receipt = session
+        .execute_governance
+        ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>)>
+        (&keys.holders_sk[0], call_name, &call_args);
+
+    // check successful execution
+    if let Err(e) = receipt.data {
+        panic!("Updating owner should succeed: {e}");
+    }
+
+    // check updated owners
     assert_eq!(
         session
             .query_governance::<(), Vec<AccountPublicKey>>("owners", &())
             .data,
+        new_owners
+    );
+    // check nonce is incremented
+    owner_nonce += 1;
+    assert_eq!(
+        session.query_governance::<(), u64>("owner_nonce", &()).data,
+        owner_nonce,
+    );
+}
+
+#[test]
+fn set_operators() {
+    let mut session = TestSession::new::<OWNER, OPERATOR, HOLDER>();
+    let keys: TestKeys<OWNER, OPERATOR, HOLDER> = TestKeys::new();
+    let mut owner_nonce = 0u64;
+
+    // generate signature
+    let new_operators: Vec<AccountPublicKey> = keys.holders_pk.to_vec();
+    let mut sig_msg = Vec::with_capacity(
+        u64::SIZE + new_operators.len() * AccountPublicKey::SIZE,
+    );
+    sig_msg.extend(owner_nonce.to_be_bytes());
+    new_operators
+        .iter()
+        .for_each(|pk| sig_msg.extend(&pk.to_bytes()));
+    let signers = vec![0u8, 2, 5, 7, 8, 9];
+    let sig = owner_signature(&keys, &sig_msg, &signers);
+
+    // call contract
+    let call_name = "set_operators";
+    let call_args = (new_operators, sig, signers);
+    session
+        // TODO: change this to a call to execute_governance and fix
+        // serialization error that comes if there are more than 4 new owners
+        // .execute_governance
+        // ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>)>
+        // (&keys.holders_sk[0], call_name, &call_args);
+        .query_governance
+        ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>), ()>
+        (call_name, &call_args);
+
+    // check updated operators
+    assert_eq!(
+        session
+            .query_governance::<(), Vec<AccountPublicKey>>("operators", &())
+            .data,
         keys.holders_pk
     );
-    // check nonce is not incremented
+    // check owner nonce is incremented
+    owner_nonce += 1;
     assert_eq!(
         session.query_governance::<(), u64>("owner_nonce", &()).data,
         owner_nonce,
@@ -165,15 +280,10 @@ fn set_owners() {
 
 /*
 #[test]
-fn set_operators() {
-    let mut session = TestSession::new::<OWNER, OPERATOR, HOLDER>();
-    let keys: TestKeys<OWNER, OPERATOR, HOLDER> = TestKeys::new();
-}
-
-#[test]
 fn transfer_governance() {
     let mut session = TestSession::new::<OWNER, OPERATOR, HOLDER>();
     let keys: TestKeys<OWNER, OPERATOR, HOLDER> = TestKeys::new();
+    let mut owner_nonce = 0u64;
 }
 
 #[test]

@@ -12,9 +12,7 @@ use alloc::vec::Vec;
 
 use dusk_bytes::Serializable;
 use dusk_core::abi::{self, ContractId, CONTRACT_ID_BYTES};
-use dusk_core::signatures::bls::{
-    MultisigPublicKey, MultisigSignature, PublicKey,
-};
+use dusk_core::signatures::bls::{MultisigSignature, PublicKey};
 use emt_core::governance::arguments::TransferGovernance;
 use emt_core::{error, Account};
 

@@ -4,7 +4,10 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use dusk_core::signatures::bls::MultisigSignature;
+use dusk_core::signatures::bls::{
+    MultisigSignature, PublicKey as AccountPublicKey,
+    SecretKey as AccountSecretKey,
+};
 
 pub mod instantiate;
 use instantiate::TestKeys;
@@ -15,7 +18,12 @@ pub fn owner_signature<const O: usize, const P: usize, const H: usize>(
     sig_msg: &[u8],
     signer_idx: &[u8],
 ) -> MultisigSignature {
-    signature(keys, sig_msg, signer_idx, true)
+    signature(
+        &keys.owners_sk[..],
+        &keys.owners_pk[..],
+        sig_msg,
+        signer_idx,
+    )
 }
 
 #[allow(dead_code)]
@@ -24,21 +32,35 @@ pub fn operator_signature<const O: usize, const P: usize, const H: usize>(
     sig_msg: &[u8],
     signer_idx: &[u8],
 ) -> MultisigSignature {
-    signature(keys, sig_msg, signer_idx, false)
+    signature(
+        &keys.operators_sk[..],
+        &keys.operators_pk[..],
+        sig_msg,
+        signer_idx,
+    )
 }
 
 #[allow(dead_code)]
-fn signature<const O: usize, const P: usize, const H: usize>(
+pub fn holder_signature<const O: usize, const P: usize, const H: usize>(
     keys: &TestKeys<O, P, H>,
     sig_msg: &[u8],
     signer_idx: &[u8],
-    is_owner: bool,
 ) -> MultisigSignature {
-    let (sks, pks) = if is_owner {
-        (&keys.owners_sk[..], &keys.owners_pk[..])
-    } else {
-        (&keys.operators_sk[..], &keys.operators_pk[..])
-    };
+    signature(
+        &keys.holders_sk[..],
+        &keys.holders_pk[..],
+        sig_msg,
+        signer_idx,
+    )
+}
+
+#[allow(dead_code)]
+fn signature(
+    sks: &[AccountSecretKey],
+    pks: &[AccountPublicKey],
+    sig_msg: &[u8],
+    signer_idx: &[u8],
+) -> MultisigSignature {
     let sigs: Vec<MultisigSignature> = signer_idx
         .iter()
         .map(|idx| {
