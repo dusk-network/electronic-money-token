@@ -22,6 +22,8 @@
 
 /// Types used for administrative functions.
 pub mod admin_management;
+/// Error messages given by token or governance contract
+pub mod error;
 /// Types used for access control through governance.
 pub mod governance;
 /// Types used for sanctions.
