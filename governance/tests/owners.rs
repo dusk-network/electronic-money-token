@@ -6,12 +6,13 @@
 
 // use dusk_core::abi::ContractError;
 use dusk_bytes::Serializable;
-use dusk_core::abi::{ContractId, CONTRACT_ID_BYTES};
+use dusk_core::abi::{ContractError, ContractId, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::{
     MultisigSignature,
     PublicKey as AccountPublicKey,
     // SecretKey as AccountSecretKey,
 };
+use emt_core::error;
 // use dusk_core::transfer::MoonlightTransactionEvent;
 //
 // use rand::rngs::StdRng;
@@ -84,7 +85,7 @@ fn set_owners() {
     // test valid owner
 
     // generate signature
-    let new_owners = keys.holders_pk.to_vec();
+    let new_owners: Vec<AccountPublicKey> = keys.holders_pk.to_vec();
     let mut sig_msg = Vec::with_capacity(
         u64::SIZE + new_owners.len() * AccountPublicKey::SIZE,
     );
@@ -99,10 +100,11 @@ fn set_owners() {
     let call_name = "set_owners";
     let call_args = (new_owners, sig, signers);
     session
-        .execute_governance
-        ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>)>
-        (&keys.holders_sk[0], call_name, &call_args)
-        .data;
+        // TODO: change this to a call to execute_governance and fix
+        // serialization error
+        .query_governance
+        ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>), ()>
+        (call_name, &call_args);
 
     // check updated owners
     assert_eq!(
@@ -122,16 +124,30 @@ fn set_owners() {
 
     // generate signature
     let new_owners = Vec::new();
-    let mut sig_msg = owner_nonce.to_be_bytes();
+    let sig_msg = owner_nonce.to_be_bytes();
     let signers = vec![0u8, 2, 5, 7, 8, 9];
     let sig = owner_signature(&keys, &sig_msg, &signers);
 
     // call contract
     let call_name = "set_owners";
     let call_args = (new_owners, sig, signers);
-    session
-        .query_governance::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>), ()>(call_name, &call_args)
-        .data;
+    let receipt = session
+        .execute_governance
+        ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>)>
+        (
+            &keys.holders_sk[0],
+            call_name,
+            &call_args
+        );
+
+    match receipt.data.err() {
+        Some(ContractError::Panic(panic_msg)) => {
+            assert_eq!(panic_msg, error::EMTPY_OWNER);
+        }
+        _ => {
+            panic!("Expected a panic error");
+        }
+    }
 
     // check owners not updated
     assert_eq!(

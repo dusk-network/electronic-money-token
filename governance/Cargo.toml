@@ -21,6 +21,5 @@ rkyv = { workspace = true }
 bytecheck = { workspace = true }
 rand = { workspace = true, features = ["std_rng"] }
 
-
 [lib]
 crate-type = ["cdylib"]
