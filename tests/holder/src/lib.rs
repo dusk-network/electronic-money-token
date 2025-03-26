@@ -88,6 +88,10 @@ impl TokenState {
             }
         }
     }
+
+    fn tracked_balance(&self) -> u64 {
+        self.balance
+    }
 }
 
 #[no_mangle]
@@ -107,4 +111,9 @@ unsafe fn token_send(arg_len: u32) -> u32 {
 #[no_mangle]
 unsafe fn token_received(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.token_received(arg))
+}
+
+#[no_mangle]
+unsafe fn tracked_balance(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(): ()| STATE.tracked_balance())
 }
