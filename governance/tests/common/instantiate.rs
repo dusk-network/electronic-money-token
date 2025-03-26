@@ -15,19 +15,16 @@ use dusk_vm::{CallReceipt, ContractData, Error as VMError};
 use bytecheck::CheckBytes;
 
 use rkyv::de::deserializers::SharedDeserializeMap;
-use rkyv::ser::serializers::{
-    BufferScratch, BufferSerializer, CompositeSerializer,
-};
-use rkyv::ser::Serializer;
 use rkyv::validation::validators::DefaultValidator;
 use rkyv::{Archive, Deserialize, Infallible, Serialize};
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use emt_core::*;
+use emt_core::Account;
 
 use emt_tests::network::NetworkSession;
+use emt_tests::utils::rkyv_serialize;
 
 const TOKEN_BYTECODE: &[u8] = include_bytes!(
     "../../../target/wasm64-unknown-unknown/release/emt_token.wasm"
@@ -194,24 +191,6 @@ impl TestSession {
         session
     }
 
-    fn serialize<A>(fn_arg: &A) -> Vec<u8>
-    where
-        A: for<'b> Serialize<StandardBufSerializer<'b>>,
-        A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
-    {
-        let mut sbuf = [0u8; 1024];
-        let scratch = BufferScratch::new(&mut sbuf);
-        let mut buffer = [0u8; 1024];
-        let ser = BufferSerializer::new(&mut buffer[..]);
-        let mut ser = CompositeSerializer::new(ser, scratch, Infallible);
-
-        ser.serialize_value(fn_arg)
-            .expect("Failed to rkyv serialize fn_arg");
-        let pos = ser.pos();
-
-        buffer[..pos].to_vec()
-    }
-
     /// Execute a state-transition of the governance-contract, paying gas with
     /// `tx_sk`.
     pub fn execute_governance<A>(
@@ -221,19 +200,10 @@ impl TestSession {
         fn_arg: &A,
     ) -> CallReceipt<Result<Vec<u8>, ContractError>>
     where
-        A: for<'b> Serialize<StandardBufSerializer<'b>>
-            + PartialEq
-            + std::fmt::Debug,
+        A: for<'b> Serialize<StandardBufSerializer<'b>>,
         A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
-        <A as Archive>::Archived: Deserialize<A, SharedDeserializeMap>,
     {
-        let vec_fn_arg = Self::serialize(fn_arg);
-
-        // deserialize the vec_fn_arg for sanity check
-        let back = rkyv::from_bytes::<A>(&vec_fn_arg)
-            .expect("failed to deserialize previously serialized fn_arg");
-
-        assert_eq!(&back, fn_arg);
+        let vec_fn_arg = rkyv_serialize::<A>(fn_arg);
 
         self.session
             .icc_transaction(tx_sk, GOVERNANCE_ID, fn_name, vec_fn_arg)
