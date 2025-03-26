@@ -455,6 +455,7 @@ impl Governance {
             u64::SIZE + call_name.len() + call_arguments.len(),
         );
         sig_msg.extend(&self.operator_nonce.to_be_bytes());
+        sig_msg.extend(call_name.as_bytes());
         sig_msg.extend(&call_arguments);
 
         // verify the signature
