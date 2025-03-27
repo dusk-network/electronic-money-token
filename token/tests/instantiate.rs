@@ -188,7 +188,10 @@ impl TestSession {
 
     /// Helper function to call a "view" function on the token-contract that
     /// does not take any arguments.
-    pub fn call_getter<R>(&mut self, fn_name: &str) -> CallReceipt<R>
+    pub fn call_getter<R>(
+        &mut self,
+        fn_name: &str,
+    ) -> Result<CallReceipt<R>, VMError>
     where
         R: Archive,
         R::Archived: Deserialize<R, Infallible>
@@ -218,15 +221,16 @@ impl TestSession {
     pub fn account(&mut self, account: impl Into<Account>) -> AccountInfo {
         self.session
             .direct_call(TOKEN_ID, "account", &account.into())
+            .expect("call to pass")
             .data
     }
 
     pub fn governance(&mut self) -> Account {
-        self.call_getter("governance").data
+        self.call_getter("governance").expect("call to pass").data
     }
 
     pub fn total_supply(&mut self) -> u64 {
-        self.call_getter("total_supply").data
+        self.call_getter("total_supply").expect("call to pass").data
     }
 
     pub fn allowance(
@@ -243,6 +247,7 @@ impl TestSession {
                     spender: spender.into(),
                 },
             )
+            .expect("call to pass")
             .data
     }
 }
