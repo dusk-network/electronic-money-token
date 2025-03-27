@@ -34,7 +34,4 @@ pub use token::account::{
     Account, AccountInfo, ACCOUNT_NOT_FOUND, BALANCE_TOO_LOW, INVALID_CALLER,
     SHIELDED_NOT_SUPPORTED,
 };
-pub use token::{
-    Allowance, Approve, ApproveEvent, TransferEvent, TransferFrom,
-    TransferInfo, ZERO_ADDRESS,
-};
+pub use token::{ApproveEvent, TransferEvent, TransferInfo, ZERO_ADDRESS};
