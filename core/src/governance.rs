@@ -16,44 +16,6 @@ pub const GOVERNANCE_NOT_FOUND: &str = "The governance does not exist";
 /// `public_sender` value.
 pub const UNAUTHORIZED_ACCOUNT: &str = "Unauthorized account";
 
-/// Arguments for governance transactions.
-pub mod arguments {
-    use super::{Account, Archive, CheckBytes, Deserialize, Serialize};
-
-    /// Data used to transfer governance of a contract.
-    ///
-    /// The arguments do not need to specify the current governance, as the
-    /// signature will be verified by the contract that has access to the
-    /// current governance
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
-    )]
-    #[archive_attr(derive(CheckBytes))]
-    pub struct TransferGovernance {
-        new_governance: Account,
-    }
-
-    impl TransferGovernance {
-        /// Create a new `TransferGovernance` transaction. This transaction is
-        /// used to change the governance of an account.
-        ///
-        /// # Arguments
-        ///
-        /// * `new_governance` - The new governance of the account.
-        pub fn new(new_governance: impl Into<Account>) -> Self {
-            Self {
-                new_governance: new_governance.into(),
-            }
-        }
-
-        /// Get the new governance specified for this transaction.
-        #[must_use]
-        pub fn new_governance(&self) -> &Account {
-            &self.new_governance
-        }
-    }
-}
-
 /// Events emitted by governance transactions.
 pub mod events {
     use super::{Account, Archive, CheckBytes, Deserialize, Serialize};
