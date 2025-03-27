@@ -71,8 +71,11 @@ pub mod events {
     }
 
     impl GovernanceTransferredEvent {
-        /// Event Topic
-        pub const TOPIC: &'static str = "governance_transferred";
+        /// Event Topic for transferring the governance.
+        pub const GOVERNANCE_TRANSFERRED: &'static str =
+            "governance_transferred";
+        /// Event Topic for renouncing the governance.
+        pub const GOVERNANCE_RENOUNCED: &'static str = "governance_renounced";
     }
 
     /// Event emitted when the governance of a contract is accepted in a two
@@ -91,21 +94,5 @@ pub mod events {
     impl GovernanceAcceptedEvent {
         /// Event Topic
         pub const TOPIC: &'static str = "governance_accepted";
-    }
-
-    /// Event emitted when the governance of a contract is renounced i.e., no
-    /// governance exists anymore.
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
-    )]
-    #[archive_attr(derive(CheckBytes))]
-    pub struct GovernanceRenouncedEvent {
-        /// The previous governance of the contract.
-        pub previous_governance: Account,
-    }
-
-    impl GovernanceRenouncedEvent {
-        /// Event Topic
-        pub const TOPIC: &'static str = "governance_renounced";
     }
 }
