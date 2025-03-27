@@ -48,6 +48,10 @@ pub const INVALID_SIGNATURE: &str = "The signature is invalid";
 pub const THRESHOLD_NOT_MET: &str =
     "The required threshold of signatures has not been met";
 
+/// Error given when the threshold is 0 at the signature authorization.
+pub const THRESHOLD_ZERO: &str =
+    "The threshold shouldn't be 0 at authorization";
+
 /// Error message given when one of the keys used in a signature is not a valid
 /// point.
 pub const INVALID_PUBLIC_KEY: &str = "One of the keys used for";
