@@ -31,38 +31,6 @@ pub struct Allowance {
     pub spender: Account,
 }
 
-/// Data used to transfer tokens from one account to another.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
-)]
-#[archive_attr(derive(CheckBytes))]
-pub struct Transfer {
-    receiver: Account,
-    value: u64,
-}
-
-impl Transfer {
-    /// Create a new transfer with an external account.
-    pub fn new(receiver: impl Into<Account>, value: u64) -> Self {
-        Self {
-            receiver: receiver.into(),
-            value,
-        }
-    }
-
-    /// The account to transfer to.
-    #[must_use]
-    pub fn receiver(&self) -> &Account {
-        &self.receiver
-    }
-
-    /// The value to transfer.
-    #[must_use]
-    pub fn value(&self) -> u64 {
-        self.value
-    }
-}
-
 /// Data used to transfer tokens from an owner (sender) to a receiver, by an
 /// allowed party (spender).
 #[derive(
