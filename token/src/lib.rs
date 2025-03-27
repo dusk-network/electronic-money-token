@@ -29,9 +29,9 @@ use emt_core::sanctions::{BLOCKED, FROZEN};
 use emt_core::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
 use emt_core::supply_management::SUPPLY_OVERFLOW;
 use emt_core::{
-    Account, AccountInfo, Allowance, Approve, ApproveEvent, Transfer,
-    TransferEvent, TransferFrom, TransferInfo, ACCOUNT_NOT_FOUND,
-    BALANCE_TOO_LOW, SHIELDED_NOT_SUPPORTED, ZERO_ADDRESS,
+    Account, AccountInfo, Allowance, Approve, ApproveEvent, TransferEvent,
+    TransferFrom, TransferInfo, ACCOUNT_NOT_FOUND, BALANCE_TOO_LOW,
+    SHIELDED_NOT_SUPPORTED, ZERO_ADDRESS,
 };
 
 /// The state of the token-contract.
@@ -308,15 +308,18 @@ impl TokenState {
 
     /// note: this function will fail if the balance of the obliged sender is
     /// too low. It will **not** default to the maximum available balance.
-    fn force_transfer(&mut self, transfer: Transfer, obliged_sender: Account) {
+    fn force_transfer(
+        &mut self,
+        obliged_sender: Account,
+        receiver: Account,
+        value: u64,
+    ) {
         self.authorize_governance();
 
         let obliged_sender_account = self
             .accounts
             .get_mut(&obliged_sender)
             .expect(ACCOUNT_NOT_FOUND);
-
-        let value = transfer.value();
 
         assert!(
             obliged_sender_account.balance >= value,
@@ -326,7 +329,6 @@ impl TokenState {
 
         obliged_sender_account.balance -= value;
 
-        let receiver = *transfer.receiver();
         let receiver_account =
             self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
 
@@ -390,7 +392,7 @@ impl TokenState {
     /// the sender must not be blocked or frozen.
     /// the receiver must not be blocked but can be frozen.
     #[allow(clippy::large_types_passed_by_value)]
-    fn transfer(&mut self, transfer: Transfer) {
+    fn transfer(&mut self, receiver: Account, value: u64) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
         let sender = sender_account();
@@ -400,13 +402,10 @@ impl TokenState {
         assert!(!sender_account.is_blocked(), "{}", BLOCKED);
         assert!(!sender_account.is_frozen(), "{}", FROZEN);
 
-        let value = transfer.value();
-
         assert!(sender_account.balance >= value, "{}", BALANCE_TOO_LOW);
 
         sender_account.balance -= value;
 
-        let receiver = *transfer.receiver();
         let receiver_account =
             self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
 
@@ -577,7 +576,7 @@ unsafe extern "C" fn allowance(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe extern "C" fn transfer(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.transfer(arg))
+    abi::wrap_call(arg_len, |(receiver, value)| STATE.transfer(receiver, value))
 }
 
 #[no_mangle]
@@ -639,8 +638,8 @@ unsafe extern "C" fn is_paused(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe extern "C" fn force_transfer(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |(transfer, obliged_sender)| {
-        STATE.force_transfer(transfer, obliged_sender);
+    abi::wrap_call(arg_len, |(obliged_sender, receiver, value)| {
+        STATE.force_transfer(obliged_sender, receiver, value);
     })
 }
 
