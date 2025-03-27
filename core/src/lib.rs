@@ -35,6 +35,6 @@ pub use token::account::{
     SHIELDED_NOT_SUPPORTED,
 };
 pub use token::{
-    Allowance, Approve, ApproveEvent, Transfer, TransferEvent, TransferFrom,
+    Allowance, Approve, ApproveEvent, TransferEvent, TransferFrom,
     TransferInfo, ZERO_ADDRESS,
 };
