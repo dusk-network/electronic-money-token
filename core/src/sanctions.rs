@@ -7,67 +7,12 @@
 use bytecheck::CheckBytes;
 use rkyv::{Archive, Deserialize, Serialize};
 
-use crate::{Account, AccountInfo};
+use crate::Account;
 
 /// Error message for when an account is blocked.
 pub const BLOCKED: &str = "Account is blocked";
 /// Error message for when an account is frozen.
 pub const FROZEN: &str = "Account is frozen";
-
-/// Arguments for sanction transactions.
-pub mod arguments {
-    use super::{
-        Account, AccountInfo, Archive, CheckBytes, Deserialize, Serialize,
-    };
-
-    /// Data used to sanction an account.
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
-    )]
-    #[archive_attr(derive(CheckBytes))]
-    pub struct Sanction {
-        account: Account,
-        sanction_type: u64,
-    }
-
-    impl Sanction {
-        /// Create a new `Sanction` transaction for freezing an account.
-        pub fn freeze_account(account: impl Into<Account>) -> Self {
-            Self {
-                account: account.into(),
-                sanction_type: AccountInfo::FROZEN,
-            }
-        }
-
-        /// Create a new `Sanction` transaction for blocking an account.
-        pub fn block_account(account: impl Into<Account>) -> Self {
-            Self {
-                account: account.into(),
-                sanction_type: AccountInfo::BLOCKED,
-            }
-        }
-
-        /// Create a new `Unsanction` transaction for un-sanctioning an account.
-        pub fn unsanction_account(account: impl Into<Account>) -> Self {
-            Self {
-                account: account.into(),
-                sanction_type: AccountInfo::NO_STATUS,
-            }
-        }
-
-        /// Get the account specified for this transaction.
-        #[must_use]
-        pub fn account(&self) -> &Account {
-            &self.account
-        }
-
-        /// Get the sanction type specified for this transaction.
-        #[must_use]
-        pub fn sanction_type(&self) -> u64 {
-            self.sanction_type
-        }
-    }
-}
 
 /// Events for sanction transactions.
 pub mod events {
