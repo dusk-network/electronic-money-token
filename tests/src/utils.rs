@@ -5,11 +5,11 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use bytecheck::CheckBytes;
-use dusk_core::abi::StandardBufSerializer;
+use dusk_core::abi::{ContractError, StandardBufSerializer};
 use dusk_core::signatures::bls::PublicKey as AccountPublicKey;
 use dusk_core::transfer::moonlight::AccountData;
 use dusk_core::transfer::TRANSFER_CONTRACT;
-use dusk_vm::{Error as VMError, Session};
+use dusk_vm::{CallReceipt, Error as VMError, Session};
 use rkyv::ser::serializers::{
     BufferScratch, BufferSerializer, CompositeSerializer,
 };
@@ -19,17 +19,36 @@ use rkyv::{check_archived_root, Archive, Deserialize, Infallible, Serialize};
 
 const GAS_LIMIT: u64 = 0x10_000_000;
 
-/// Desrialize function call arguments using `rkyv`.
+/// Desrialize function return using `rkyv`.
 /// This mimics the deserialization done in piecrust.
-pub fn rkyv_deserialize<A>(fn_arg: &Vec<u8>) -> A
+pub fn rkyv_deserialize<R>(serialized: impl AsRef<[u8]>) -> R
 where
-    A: Archive,
-    A::Archived:
-        Deserialize<A, Infallible> + for<'b> CheckBytes<DefaultValidator<'b>>,
+    R: Archive,
+    R::Archived:
+        Deserialize<R, Infallible> + for<'b> CheckBytes<DefaultValidator<'b>>,
 {
-    let ta = check_archived_root::<A>(fn_arg).unwrap();
-    ta.deserialize(&mut Infallible).unwrap()
+    let ta = check_archived_root::<R>(&serialized.as_ref())
+        .expect("Failed to deserialize data");
+    ta.deserialize(&mut Infallible)
+        .expect("Failed to deserialize using rkyv")
 }
+// pub fn rkyv_deserialize<R>(receipt: CallReceipt<Vec<u8>>) -> CallReceipt<R>
+// where
+//     R: Archive,
+//     R::Archived:
+//         Deserialize<R, Infallible> + for<'b>
+// CheckBytes<DefaultValidator<'b>>, {
+//     let ta = check_archived_root::<R>(&receipt.data[..]).unwrap();
+//     let data = ta.deserialize(&mut Infallible).unwrap();
+//
+//     CallReceipt {
+//         gas_spent: receipt.gas_spent,
+//         gas_limit: receipt.gas_limit,
+//         events: receipt.events,
+//         call_tree: receipt.call_tree,
+//         data,
+//     }
+// }
 
 /// Serialize function call arguments using `rkyv`.
 /// This mimics the serialization done in piecrust.

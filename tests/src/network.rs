@@ -20,7 +20,7 @@ use dusk_vm::{CallReceipt, ContractData, Error as VMError, Session, VM};
 use rkyv::validation::validators::DefaultValidator;
 use rkyv::{Archive, Deserialize, Infallible, Serialize};
 
-use crate::utils::{account, chain_id};
+use crate::utils::{account, chain_id, rkyv_deserialize};
 
 const ZERO_ADDRESS: ContractId = ContractId::from_bytes([0; CONTRACT_ID_BYTES]);
 const GAS_LIMIT: u64 = 0x10000000;
@@ -60,7 +60,7 @@ impl NetworkSession {
         contract: ContractId,
         fn_name: &str,
         fn_arg: &A,
-    ) -> CallReceipt<R>
+    ) -> Result<CallReceipt<R>, VMError>
     where
         A: for<'b> Serialize<StandardBufSerializer<'b>>,
         A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
@@ -68,11 +68,9 @@ impl NetworkSession {
         R::Archived: Deserialize<R, Infallible>
             + for<'b> CheckBytes<DefaultValidator<'b>>,
     {
+        // let receipt =
         self.session
-            .call(contract, fn_name, fn_arg, u64::MAX)
-            .unwrap_or_else(|e| {
-                panic!("Calling the contract should succeed: {:?}", e)
-            })
+            .call::<_, R>(contract, fn_name, fn_arg, u64::MAX)
     }
 
     /// Calls the contract trough the transfer-contract which is the standard
@@ -84,6 +82,7 @@ impl NetworkSession {
         contract: ContractId,
         fn_name: &str,
         fn_arg: Vec<u8>,
+        // ) -> Result<CallReceipt<R>, VMError>
     ) -> CallReceipt<Result<Vec<u8>, ContractError>> {
         let contract_call = ContractCall {
             contract,
