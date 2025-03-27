@@ -29,9 +29,8 @@ use emt_core::sanctions::{BLOCKED, FROZEN};
 use emt_core::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
 use emt_core::supply_management::SUPPLY_OVERFLOW;
 use emt_core::{
-    Account, AccountInfo, Allowance, Approve, ApproveEvent, TransferEvent,
-    TransferFrom, TransferInfo, ACCOUNT_NOT_FOUND, BALANCE_TOO_LOW,
-    SHIELDED_NOT_SUPPORTED, ZERO_ADDRESS,
+    Account, AccountInfo, ApproveEvent, TransferEvent, TransferInfo,
+    ACCOUNT_NOT_FOUND, BALANCE_TOO_LOW, SHIELDED_NOT_SUPPORTED, ZERO_ADDRESS,
 };
 
 /// The state of the token-contract.
@@ -374,11 +373,9 @@ impl TokenState {
     }
 
     #[allow(clippy::large_types_passed_by_value)]
-    fn allowance(&self, allowance: Allowance) -> u64 {
-        match self.allowances.get(&allowance.owner) {
-            Some(allowances) => {
-                allowances.get(&allowance.spender).copied().unwrap_or(0)
-            }
+    fn allowance(&self, owner: Account, spender: Account) -> u64 {
+        match self.allowances.get(&owner) {
+            Some(allowances) => allowances.get(&spender).copied().unwrap_or(0),
             None => 0,
         }
     }
@@ -444,7 +441,7 @@ impl TokenState {
     /// the actual owner of the funds must not be blocked or frozen.
     /// the receiver must not be blocked but can be frozen.
     #[allow(clippy::large_types_passed_by_value)]
-    fn transfer_from(&mut self, transfer: TransferFrom) {
+    fn transfer_from(&mut self, owner: Account, receiver: Account, value: u64) {
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
 
         let spender = sender_account();
@@ -454,8 +451,6 @@ impl TokenState {
         assert!(!spender_account.is_blocked(), "{}", BLOCKED);
         assert!(!spender_account.is_frozen(), "{}", FROZEN);
 
-        let owner = *transfer.sender();
-
         let allowance = self
             .allowances
             .get_mut(&owner)
@@ -463,7 +458,6 @@ impl TokenState {
             .get_mut(&spender)
             .expect("The spender is not allowed to use the account");
 
-        let value = transfer.value();
         assert!(
             value <= *allowance,
             "The spender can't spent the defined amount"
@@ -479,7 +473,6 @@ impl TokenState {
         *allowance -= value;
         owner_account.balance -= value;
 
-        let receiver = *transfer.receiver();
         let receiver_account =
             self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
         assert!(!receiver_account.is_blocked(), "{}", BLOCKED);
@@ -515,15 +508,12 @@ impl TokenState {
         }
     }
 
-    fn approve(&mut self, approve: Approve) {
+    fn approve(&mut self, spender: Account, value: u64) {
         // owner of the funds
         let owner = sender_account();
 
-        let spender = *approve.spender();
-
         let allowances = self.allowances.entry(owner).or_default();
 
-        let value = approve.value();
         allowances.insert(spender, value);
 
         abi::emit(
@@ -571,7 +561,7 @@ unsafe extern "C" fn account(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe extern "C" fn allowance(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.allowance(arg))
+    abi::wrap_call(arg_len, |(owner, spender)| STATE.allowance(owner, spender))
 }
 
 #[no_mangle]
@@ -581,12 +571,14 @@ unsafe extern "C" fn transfer(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe extern "C" fn transfer_from(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.transfer_from(arg))
+    abi::wrap_call(arg_len, |(owner, receiver, value)| {
+        STATE.transfer_from(owner, receiver, value);
+    })
 }
 
 #[no_mangle]
 unsafe extern "C" fn approve(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.approve(arg))
+    abi::wrap_call(arg_len, |(spender, value)| STATE.approve(spender, value))
 }
 
 /*
