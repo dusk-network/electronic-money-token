@@ -22,7 +22,6 @@ use emt_core::admin_management::events::PauseToggled;
 use emt_core::admin_management::PAUSED_MESSAGE;
 use emt_core::governance::events::GovernanceTransferredEvent;
 use emt_core::governance::{GOVERNANCE_NOT_FOUND, UNAUTHORIZED_ACCOUNT};
-use emt_core::sanctions::arguments::Sanction;
 use emt_core::sanctions::events::AccountStatusEvent;
 use emt_core::sanctions::{BLOCKED, FROZEN};
 use emt_core::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
@@ -157,14 +156,9 @@ impl TokenState {
         }
     }
 
-    fn block(&mut self, block_account: Sanction) {
-        assert!(
-            block_account.sanction_type() == AccountInfo::BLOCKED,
-            "Invalid sanction type"
-        );
+    fn block(&mut self, account: Account) {
         self.authorize_governance();
 
-        let account = *block_account.account();
         let account_info =
             self.accounts.get_mut(&account).expect(GOVERNANCE_NOT_FOUND);
 
@@ -176,14 +170,9 @@ impl TokenState {
         );
     }
 
-    fn freeze(&mut self, freeze_account: Sanction) {
-        assert!(
-            freeze_account.sanction_type() == AccountInfo::FROZEN,
-            "Invalid sanction type"
-        );
+    fn freeze(&mut self, account: Account) {
         self.authorize_governance();
 
-        let account = *freeze_account.account();
         let account_info =
             self.accounts.get_mut(&account).expect(GOVERNANCE_NOT_FOUND);
 
@@ -195,10 +184,9 @@ impl TokenState {
         );
     }
 
-    fn unblock(&mut self, unblock_account: Sanction) {
+    fn unblock(&mut self, account: Account) {
         self.authorize_governance();
 
-        let account = *unblock_account.account();
         let account_info =
             self.accounts.get_mut(&account).expect(GOVERNANCE_NOT_FOUND);
 
@@ -212,10 +200,9 @@ impl TokenState {
         );
     }
 
-    fn unfreeze(&mut self, unfreeze_account: Sanction) {
+    fn unfreeze(&mut self, account: Account) {
         self.authorize_governance();
 
-        let account = *unfreeze_account.account();
         let account_info =
             self.accounts.get_mut(&account).expect(GOVERNANCE_NOT_FOUND);
 
@@ -641,27 +628,27 @@ unsafe extern "C" fn force_transfer(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe extern "C" fn block(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.block(arg))
+    abi::wrap_call(arg_len, |acc| STATE.block(acc))
 }
 
 #[no_mangle]
 unsafe extern "C" fn freeze(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.freeze(arg))
+    abi::wrap_call(arg_len, |acc| STATE.freeze(acc))
 }
 
 #[no_mangle]
 unsafe extern "C" fn unblock(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.unblock(arg))
+    abi::wrap_call(arg_len, |acc| STATE.unblock(acc))
 }
 
 #[no_mangle]
 unsafe extern "C" fn unfreeze(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.unfreeze(arg))
+    abi::wrap_call(arg_len, |acc| STATE.unfreeze(acc))
 }
 
 #[no_mangle]
 unsafe extern "C" fn blocked(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.blocked(arg))
+    abi::wrap_call(arg_len, |acc| STATE.blocked(acc))
 }
 
 #[no_mangle]
