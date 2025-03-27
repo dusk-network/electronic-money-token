@@ -158,32 +158,41 @@ impl TestSession {
     }
 
     // TODO: Find a way to return CallReceipt<R>
-    pub fn call_token<A>(
+    pub fn call_token<A, R>(
         &mut self,
         tx_sk: &AccountSecretKey,
         fn_name: &str,
         fn_arg: &A,
-    ) -> CallReceipt<Result<Vec<u8>, ContractError>>
+    ) -> Result<CallReceipt<R>, ContractError>
     where
-        A: for<'b> Serialize<StandardBufSerializer<'b>>
-            + PartialEq
-            + std::fmt::Debug,
+        A: for<'b> Serialize<StandardBufSerializer<'b>>,
         A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
-        <A as Archive>::Archived: Deserialize<A, SharedDeserializeMap>,
+        R: Archive,
+        R::Archived: Deserialize<R, Infallible>
+            + for<'b> CheckBytes<DefaultValidator<'b>>,
     {
-        let vec_fn_arg;
-        {
-            vec_fn_arg = Self::serialize(fn_arg);
-
-            // deserialize the vec_fn_arg for sanity check
-            let back = rkyv::from_bytes::<A>(&vec_fn_arg)
-                .expect("failed to deserialize previously serialized fn_arg");
-
-            assert_eq!(&back, fn_arg);
-        }
+        // ) -> CallReceipt<Result<Vec<u8>, ContractError>>
+        // where
+        //     A: for<'b> Serialize<StandardBufSerializer<'b>>
+        //         + PartialEq
+        //         + std::fmt::Debug,
+        //     A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
+        //     <A as Archive>::Archived: Deserialize<A, SharedDeserializeMap>,
+        // {
+        // let vec_fn_arg;
+        // {
+        //     vec_fn_arg = Self::serialize(fn_arg);
+        //
+        //     // deserialize the vec_fn_arg for sanity check
+        //     let back = rkyv::from_bytes::<A>(&vec_fn_arg)
+        //         .expect("failed to deserialize previously serialized
+        // fn_arg");
+        //
+        //     assert_eq!(&back, fn_arg);
+        // }
 
         self.session
-            .icc_transaction(tx_sk, TOKEN_ID, fn_name, vec_fn_arg)
+            .icc_transaction(tx_sk, TOKEN_ID, fn_name, fn_arg)
     }
 
     /// Helper function to call a "view" function on the token-contract that
@@ -191,7 +200,7 @@ impl TestSession {
     pub fn call_getter<R>(
         &mut self,
         fn_name: &str,
-    ) -> Result<CallReceipt<R>, VMError>
+    ) -> Result<CallReceipt<R>, ContractError>
     where
         R: Archive,
         R::Archived: Deserialize<R, Infallible>
@@ -202,17 +211,25 @@ impl TestSession {
         self.session.direct_call::<(), R>(TOKEN_ID, fn_name, &())
     }
 
-    pub fn call_holder<A>(
+    pub fn call_holder<A, R>(
         &mut self,
         tx_sk: &AccountSecretKey,
         fn_name: &str,
         fn_arg: &A,
-    ) -> CallReceipt<Result<Vec<u8>, ContractError>>
+    ) -> Result<CallReceipt<R>, ContractError>
     where
         A: for<'b> Serialize<StandardBufSerializer<'b>>,
         A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
+        R: Archive,
+        R::Archived: Deserialize<R, Infallible>
+            + for<'b> CheckBytes<DefaultValidator<'b>>,
     {
-        let fn_arg = Self::serialize(fn_arg);
+        // ) -> CallReceipt<Result<Vec<u8>, ContractError>>
+        // where
+        //     A: for<'b> Serialize<StandardBufSerializer<'b>>,
+        //     A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
+        // {
+        // let fn_arg = Self::serialize(fn_arg);
 
         self.session
             .icc_transaction(tx_sk, HOLDER_ID, fn_name, fn_arg)
