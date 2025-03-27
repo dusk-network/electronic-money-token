@@ -37,37 +37,6 @@ pub enum Account {
     Contract(ContractId),
 }
 
-impl Account {
-    /// The size of the serialized account: 1 + `PublicKey::RAW_SIZE`
-    pub const SIZE: usize = 194;
-
-    /// Convert the account to bytes.
-    #[must_use]
-    pub fn to_bytes(&self) -> [u8; Self::SIZE] {
-        match self {
-            Account::External(pk) => {
-                let mut bytes = [0u8; Self::SIZE];
-                let pk_bytes = pk.to_raw_bytes();
-
-                bytes[0] = 0;
-                bytes[1..].copy_from_slice(&pk_bytes);
-
-                bytes
-            }
-            Account::Contract(contract) => {
-                let mut bytes = [0u8; Self::SIZE];
-                let contract_bytes = contract.to_bytes();
-
-                bytes[0] = 1;
-                bytes[1..=contract_bytes.len()]
-                    .copy_from_slice(&contract_bytes);
-
-                bytes
-            }
-        }
-    }
-}
-
 impl From<PublicKey> for Account {
     fn from(pk: PublicKey) -> Self {
         Self::External(pk)
