@@ -20,7 +20,6 @@ use alloc::vec::Vec;
 use dusk_core::abi;
 use emt_core::admin_management::events::PauseToggled;
 use emt_core::admin_management::PAUSED_MESSAGE;
-use emt_core::governance::arguments::TransferGovernance;
 use emt_core::governance::events::GovernanceTransferredEvent;
 use emt_core::governance::{GOVERNANCE_NOT_FOUND, UNAUTHORIZED_ACCOUNT};
 use emt_core::sanctions::arguments::Sanction;
@@ -105,11 +104,10 @@ impl TokenState {
         );
     }
 
-    fn transfer_governance(&mut self, transfer_governance: TransferGovernance) {
+    fn transfer_governance(&mut self, new_governance: Account) {
         self.authorize_governance();
 
         let previous_governance = self.governance;
-        let new_governance = *transfer_governance.new_governance();
 
         self.governance = new_governance;
         // Always insert governance
@@ -587,7 +585,9 @@ unsafe extern "C" fn approve(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe extern "C" fn transfer_governance(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.transfer_governance(arg))
+    abi::wrap_call(arg_len, |new_governance| {
+        STATE.transfer_governance(new_governance);
+    })
 }
 
 #[no_mangle]
