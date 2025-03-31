@@ -15,9 +15,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use emt_core::admin_management::PAUSED_MESSAGE;
-use emt_core::governance::arguments::TransferGovernance;
 use emt_core::governance::UNAUTHORIZED_ACCOUNT;
-use emt_core::sanctions::arguments::Sanction;
 use emt_core::sanctions::{BLOCKED, FROZEN};
 use emt_core::supply_management::SUPPLY_OVERFLOW;
 use emt_core::*;
@@ -56,7 +54,7 @@ fn transfer() {
 
     let mut session = TestSession::new();
 
-    let receiver_pk = *TestSession::PK_2;
+    let receiver_account = Account::from(*TestSession::PK_2);
 
     assert_eq!(
         session.account(*TestSession::PK_1).balance,
@@ -65,15 +63,17 @@ fn transfer() {
     );
 
     assert_eq!(
-        session.account(receiver_pk).balance,
+        session.account(receiver_account).balance,
         0,
         "The account to transfer to should have no balance"
     );
 
-    let transfer = Transfer::new(receiver_pk, TRANSFERRED_AMOUNT);
-
     session
-        .call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer)
+        .call_token::<_, ()>(
+            &*TestSession::SK_1,
+            "transfer",
+            &(receiver_account, TRANSFERRED_AMOUNT),
+        )
         .expect("Call should pass");
 
     assert_eq!(
@@ -82,7 +82,7 @@ fn transfer() {
         "The deployed account should have the transferred amount subtracted"
     );
     assert_eq!(
-        session.account(receiver_pk).balance,
+        session.account(receiver_account).balance,
         TRANSFERRED_AMOUNT,
         "The account transferred to should have the transferred amount"
     );
@@ -106,10 +106,14 @@ fn transfer_to_contract() {
         "The contract to transfer to should have its initial balance"
     );
 
-    let transfer = Transfer::new(HOLDER_ID, TRANSFERRED_AMOUNT);
+    let contract_account = Account::from(HOLDER_ID);
 
     session
-        .call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer)
+        .call_token::<_, ()>(
+            &*TestSession::SK_1,
+            "transfer",
+            &(contract_account, TRANSFERRED_AMOUNT),
+        )
         .expect("Call should pass");
 
     assert_eq!(
@@ -132,9 +136,10 @@ fn transfer_from_contract() {
     const TRANSFERRED_AMOUNT: u64 = INITIAL_BALANCE - 1;
 
     let mut session = TestSession::new();
+    let account_1 = Account::from(*TestSession::PK_1);
 
     assert_eq!(
-        session.account(*TestSession::PK_1).balance,
+        session.account(account_1).balance,
         INITIAL_BALANCE,
         "The deployed account should have the initial balance"
     );
@@ -144,10 +149,12 @@ fn transfer_from_contract() {
         "The contract to transfer to should have its initial balance"
     );
 
-    let transfer = Transfer::new(*TestSession::PK_1, TRANSFERRED_AMOUNT);
-
     let receipt = session
-        .call_holder::<_, ()>(&*TestSession::SK_1, "token_send", &transfer)
+        .call_holder::<_, ()>(
+            &*TestSession::SK_1,
+            "token_send",
+            &(account_1, TRANSFERRED_AMOUNT),
+        )
         .expect("Call should pass");
 
     receipt.events.iter().for_each(|event| {
@@ -169,7 +176,7 @@ fn transfer_from_contract() {
                 "The sender should be the contract"
             );
             assert!(
-                transfer_event.receiver == (*TestSession::PK_1).into(),
+                transfer_event.receiver == (account_1).into(),
                 "The receiver should be the deploy account"
             );
             assert_eq!(
@@ -206,9 +213,12 @@ fn approve() {
         "The account should not be allowed to spend tokens from the deployed account"
     );
 
-    let approve = Approve::new(test_account, APPROVED_AMOUNT);
     session
-        .call_token::<_, ()>(&*TestSession::SK_1, "approve", &approve)
+        .call_token::<_, ()>(
+            &*TestSession::SK_1,
+            "approve",
+            &(test_account, APPROVED_AMOUNT),
+        )
         .expect("Call should pass");
 
     assert_eq!(
@@ -229,11 +239,12 @@ fn transfer_from() {
 
     let mut session = TestSession::new();
     let spender_account = Account::from(*TestSession::PK_2);
+    let owner_account = Account::from(*TestSession::PK_1);
 
     assert_eq!(
-        session.account(*TestSession::PK_1).balance,
+        session.account(owner_account).balance,
         INITIAL_BALANCE,
-        "The deployed account should have the initial balance"
+        "The owner account should have the initial balance"
     );
     assert_eq!(
         session.account(spender_account).balance,
@@ -241,33 +252,30 @@ fn transfer_from() {
         "The account to transfer to should have no balance"
     );
     assert_eq!(
-        session.allowance(*TestSession::PK_1, spender_account),
+        session.allowance(owner_account, spender_account),
         0,
-        "The account should not be allowed to spend tokens from the deployed account"
+        "The spender account should not be allowed to spend tokens from the owner account"
     );
 
-    let approve = Approve::new(spender_account, APPROVED_AMOUNT);
-
     session
-        .call_token::<_, ()>(&*TestSession::SK_1, "approve", &approve)
+        .call_token::<_, ()>(
+            &*TestSession::SK_1,
+            "approve",
+            &(spender_account, APPROVED_AMOUNT),
+        )
         .expect("Call should pass");
 
     assert_eq!(
-        session.allowance(*TestSession::PK_1, spender_account),
+        session.allowance(owner_account, spender_account),
         APPROVED_AMOUNT,
         "The account should be allowed to spend tokens from the deployed account"
     );
 
-    let transfer_from = TransferFrom::new(
-        *TestSession::PK_1,
-        spender_account,
-        TRANSFERRED_AMOUNT,
-    );
     session
         .call_token::<_, ()>(
             &*TestSession::SK_2,
             "transfer_from",
-            &transfer_from,
+            &(owner_account, spender_account, TRANSFERRED_AMOUNT),
         )
         .expect("Call should pass");
 
@@ -294,12 +302,11 @@ fn transfer_governance() {
     let mut session = TestSession::new();
     let new_governance = Account::from(*TestSession::PK_2);
 
-    let transfer_governance = TransferGovernance::new(new_governance);
     session
         .call_token::<_, ()>(
             &*TestSession::SK_0,
             "transfer_governance",
-            &transfer_governance,
+            &new_governance,
         )
         .expect("Call should pass");
 
@@ -318,11 +325,10 @@ fn governance_fails() {
     let wrong_governance_sk = &*TestSession::SK_2;
     let new_governance = Account::from(*TestSession::PK_2);
 
-    let transfer_governance = TransferGovernance::new(new_governance);
     let receipt = session.call_token::<_, ()>(
         &wrong_governance_sk,
         "transfer_governance",
-        &transfer_governance,
+        &new_governance,
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
@@ -488,6 +494,7 @@ fn test_pause() {
     const VALUE: u64 = INITIAL_BALANCE - 1;
 
     let mut session = TestSession::new();
+    let account_2 = Account::from(*TestSession::PK_2);
 
     session
         .call_token::<_, ()>(&*TestSession::SK_0, "toggle_pause", &())
@@ -501,9 +508,11 @@ fn test_pause() {
         true
     );
 
-    let transfer = Transfer::new(*TestSession::PK_2, VALUE);
-    let receipt =
-        session.call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer);
+    let receipt = session.call_token::<_, ()>(
+        &*TestSession::SK_1,
+        "transfer",
+        &(account_2, VALUE),
+    );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
         assert_eq!(panic_msg, PAUSED_MESSAGE);
@@ -518,7 +527,7 @@ fn test_pause() {
     );
 
     assert_eq!(
-        session.account(*TestSession::PK_2).balance,
+        session.account(account_2).balance,
         0,
         "The account to transfer to should have no balance"
     );
@@ -536,7 +545,11 @@ fn test_pause() {
     );
 
     session
-        .call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer)
+        .call_token::<_, ()>(
+            &*TestSession::SK_1,
+            "transfer",
+            &(account_2, VALUE),
+        )
         .expect("Call should pass");
 
     // unauthorized account
@@ -558,55 +571,58 @@ fn test_pause() {
 fn test_force_transfer() {
     const VALUE: u64 = INITIAL_BALANCE - 1;
     let mut session = TestSession::new();
+    let account_1 = Account::from(*TestSession::PK_1);
+    let account_2 = Account::from(*TestSession::PK_2);
+    let governance_account = Account::from(*TestSession::PK_0);
 
     // Make a normal transfer from deploy account to the test account
-    let transfer = Transfer::new(*TestSession::PK_2, VALUE);
     session
-        .call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer)
+        .call_token::<_, ()>(
+            &*TestSession::SK_1,
+            "transfer",
+            &(account_2, VALUE),
+        )
         .expect("Call should pass");
 
     assert_eq!(
-        session.account(*TestSession::PK_1).balance,
+        session.account(account_1).balance,
         INITIAL_BALANCE - VALUE,
         "The deployed account should have the transferred amount subtracted"
     );
     assert_eq!(
-        session.account(*TestSession::PK_2).balance,
+        session.account(account_2).balance,
         VALUE,
         "The test account should have the transferred amount"
     );
 
     // Force transfer from test account to governance account
-    let force_transfer = Transfer::new(*TestSession::PK_0, VALUE);
-    let obliged_sender = Account::from(*TestSession::PK_2);
+    let obliged_sender = account_2;
     session
         .call_token::<_, ()>(
             &*TestSession::SK_0,
             "force_transfer",
-            &(force_transfer, obliged_sender),
+            &(obliged_sender, governance_account, VALUE),
         )
         .expect("Call should pass");
 
     assert_eq!(
-        session.account(*TestSession::PK_2).balance,
+        session.account(account_2).balance,
         0,
         "The test account should have the transferred amount subtracted"
     );
 
     assert_eq!(
-        session.account(*TestSession::PK_0).balance,
+        session.account(governance_account).balance,
         INITIAL_BALANCE + VALUE,
         "The governance account should have the transferred amount added"
     );
 
     // Force transfer from test account to governance account again (balance
     // will be too low)
-    let force_transfer = Transfer::new(*TestSession::PK_0, VALUE);
-
     let receipt = session.call_token::<_, ()>(
         &*TestSession::SK_0,
         "force_transfer",
-        &(force_transfer, obliged_sender),
+        &(obliged_sender, governance_account, VALUE),
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
@@ -616,12 +632,11 @@ fn test_force_transfer() {
     }
 
     // unauthorized account
-    let force_transfer = Transfer::new(*TestSession::PK_2, VALUE);
-    let obliged_sender = Account::from(*TestSession::PK_0);
+    let obliged_sender = Account::from(governance_account);
     let receipt = session.call_token::<_, ()>(
         &*TestSession::SK_2,
         "force_transfer",
-        &(force_transfer, obliged_sender),
+        &(obliged_sender, account_2, VALUE),
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
@@ -649,19 +664,22 @@ fn test_sanctions() {
 
     const VALUE: u64 = INITIAL_BALANCE / 3;
     let mut session = TestSession::new();
+    let account_1 = Account::from(*TestSession::PK_1);
     let blocked_account = Account::from(*TestSession::PK_2);
 
     // Transfer VALUE to test account
-    let transfer = Transfer::new(blocked_account, VALUE);
     session
-        .call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer)
+        .call_token::<_, ()>(
+            &*TestSession::SK_1,
+            "transfer",
+            &(blocked_account, VALUE),
+        )
         .expect("Call should pass")
         .data;
 
     // Block test account
-    let sanction = Sanction::block_account(blocked_account);
     session
-        .call_token::<_, ()>(&*TestSession::SK_0, "block", &sanction)
+        .call_token::<_, ()>(&*TestSession::SK_0, "block", &blocked_account)
         .expect("Call should pass");
 
     assert_eq!(
@@ -676,12 +694,11 @@ fn test_sanctions() {
         true
     );
 
-    // Unfreeze test account
-    let unsanction = Sanction::unsanction_account(blocked_account);
+    // Unfreeze blocked test account
     let receipt = session.call_token::<_, ()>(
         &*TestSession::SK_0,
         "unfreeze",
-        &unsanction,
+        &blocked_account,
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
@@ -691,9 +708,11 @@ fn test_sanctions() {
     }
 
     // Transfer VALUE to test account
-    let transfer = Transfer::new(blocked_account, VALUE);
-    let receipt =
-        session.call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer);
+    let receipt = session.call_token::<_, ()>(
+        &*TestSession::SK_1,
+        "transfer",
+        &(blocked_account, VALUE),
+    );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
         assert_eq!(panic_msg, BLOCKED);
@@ -702,9 +721,11 @@ fn test_sanctions() {
     }
 
     // Transfer VALUE from test account
-    let transfer = Transfer::new(*TestSession::PK_1, VALUE);
-    let receipt =
-        session.call_token::<_, ()>(&*TestSession::SK_2, "transfer", &transfer);
+    let receipt = session.call_token::<_, ()>(
+        &*TestSession::SK_2,
+        "transfer",
+        &(account_1, VALUE),
+    );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
         assert_eq!(panic_msg, BLOCKED);
@@ -714,9 +735,8 @@ fn test_sanctions() {
 
     // Freeze test account
     let frozen_account = blocked_account;
-    let sanction = Sanction::freeze_account(frozen_account);
     session
-        .call_token::<_, ()>(&*TestSession::SK_0, "freeze", &sanction)
+        .call_token::<_, ()>(&*TestSession::SK_0, "freeze", &frozen_account)
         .expect("Call should pass");
 
     assert_eq!(
@@ -732,15 +752,20 @@ fn test_sanctions() {
     );
 
     // Transfer VALUE to test account
-    let transfer = Transfer::new(frozen_account, VALUE);
     session
-        .call_token::<_, ()>(&*TestSession::SK_1, "transfer", &transfer)
+        .call_token::<_, ()>(
+            &*TestSession::SK_1,
+            "transfer",
+            &(frozen_account, VALUE),
+        )
         .expect("Transfer to frozen account should succeed");
 
     // Transfer VALUE from test account
-    let transfer = Transfer::new(*TestSession::PK_1, VALUE);
-    let receipt =
-        session.call_token::<_, ()>(&*TestSession::SK_2, "transfer", &transfer);
+    let receipt = session.call_token::<_, ()>(
+        &*TestSession::SK_2,
+        "transfer",
+        &(account_1, VALUE),
+    );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
         assert_eq!(panic_msg, FROZEN);
@@ -748,12 +773,11 @@ fn test_sanctions() {
         panic!("Expected a panic error");
     }
 
-    // Unblock test account
-    let unsanction = Sanction::unsanction_account(frozen_account);
+    // Unblock frozen test account
     let receipt = session.call_token::<_, ()>(
         &*TestSession::SK_0,
         "unblock",
-        &unsanction,
+        &frozen_account,
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
@@ -763,11 +787,10 @@ fn test_sanctions() {
     }
 
     // Unauthorized account
-    let unsanction = Sanction::unsanction_account(frozen_account);
     let receipt = session.call_token::<_, ()>(
         &*TestSession::SK_2,
         "unblock",
-        &unsanction,
+        &frozen_account,
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
@@ -779,7 +802,7 @@ fn test_sanctions() {
     let receipt = session.call_token::<_, ()>(
         &*TestSession::SK_2,
         "unfreeze",
-        &unsanction,
+        &frozen_account,
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
@@ -789,14 +812,16 @@ fn test_sanctions() {
     }
 
     // Unfreeze test account
-    let unsanction = Sanction::unsanction_account(frozen_account);
     session
-        .call_token::<_, ()>(&*TestSession::SK_0, "unfreeze", &unsanction)
+        .call_token::<_, ()>(&*TestSession::SK_0, "unfreeze", &frozen_account)
         .expect("Unfreezing should succeed");
 
     // Transfer VALUE from test account
-    let transfer = Transfer::new(*TestSession::PK_1, VALUE);
     session
-        .call_token::<_, ()>(&*TestSession::SK_2, "transfer", &transfer)
+        .call_token::<_, ()>(
+            &*TestSession::SK_2,
+            "transfer",
+            &(account_1, VALUE),
+        )
         .expect("Transfer should succeed again");
 }
