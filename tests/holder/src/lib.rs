@@ -46,14 +46,14 @@ static mut STATE: TokenState = TokenState {
 impl TokenState {
     /// Can be called by anyone to make this contract send tokens to another
     /// account
-    fn token_send(&mut self, transfer: Transfer) {
+    fn token_send(&mut self, receiver: Account, value: u64) {
         if let Err(err) =
-            abi::call::<_, ()>(self.token_contract, "transfer", &transfer)
+            abi::call::<_, ()>(self.token_contract, "transfer", &(receiver, value))
         {
             panic!("Failed sending tokens: {err}");
         }
 
-        self.balance -= transfer.value();
+        self.balance -= value
     }
 
     /// Handles incoming token transfers from the token-contract.
@@ -79,7 +79,7 @@ unsafe fn init(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe fn token_send(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.token_send(arg))
+    abi::wrap_call(arg_len, |(receiver, value)| STATE.token_send(receiver, value))
 }
 
 #[no_mangle]
