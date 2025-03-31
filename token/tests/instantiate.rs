@@ -16,11 +16,6 @@ use dusk_vm::{CallReceipt, ContractData, Error as VMError};
 
 use bytecheck::CheckBytes;
 
-use rkyv::de::deserializers::SharedDeserializeMap;
-use rkyv::ser::serializers::{
-    BufferScratch, BufferSerializer, CompositeSerializer,
-};
-use rkyv::ser::Serializer;
 use rkyv::validation::validators::DefaultValidator;
 use rkyv::{Archive, Deserialize, Infallible, Serialize};
 
@@ -139,81 +134,50 @@ impl TestSession {
         session
     }
 
-    fn serialize<A>(fn_arg: &A) -> Vec<u8>
-    where
-        A: for<'b> Serialize<StandardBufSerializer<'b>>,
-        A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
-    {
-        let mut sbuf = [0u8; 1024];
-        let scratch = BufferScratch::new(&mut sbuf);
-        let mut buffer = [0u8; 1024];
-        let ser = BufferSerializer::new(&mut buffer[..]);
-        let mut ser = CompositeSerializer::new(ser, scratch, Infallible);
-
-        ser.serialize_value(fn_arg)
-            .expect("Failed to rkyv serialize fn_arg");
-        let pos = ser.pos();
-
-        buffer[..pos].to_vec()
-    }
-
-    // TODO: Find a way to return CallReceipt<R>
-    pub fn call_token<A>(
+    pub fn call_token<A, R>(
         &mut self,
         tx_sk: &AccountSecretKey,
         fn_name: &str,
         fn_arg: &A,
-    ) -> CallReceipt<Result<Vec<u8>, ContractError>>
+    ) -> Result<CallReceipt<R>, ContractError>
     where
-        A: for<'b> Serialize<StandardBufSerializer<'b>>
-            + PartialEq
-            + std::fmt::Debug,
+        A: for<'b> Serialize<StandardBufSerializer<'b>>,
         A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
-        <A as Archive>::Archived: Deserialize<A, SharedDeserializeMap>,
-        //R: Archive,
-        //R::Archived: Deserialize<R, Infallible> + for<'b>
-        // CheckBytes<DefaultValidator<'b>>,
+        R: Archive,
+        R::Archived: Deserialize<R, Infallible>
+            + for<'b> CheckBytes<DefaultValidator<'b>>,
     {
-        let vec_fn_arg;
-        {
-            vec_fn_arg = Self::serialize(fn_arg);
-
-            // deserialize the vec_fn_arg for sanity check
-            let back = rkyv::from_bytes::<A>(&vec_fn_arg)
-                .expect("failed to deserialize previously serialized fn_arg");
-
-            assert_eq!(&back, fn_arg);
-        }
-
         self.session
-            .icc_transaction(tx_sk, TOKEN_ID, fn_name, vec_fn_arg)
+            .icc_transaction(tx_sk, TOKEN_ID, fn_name, fn_arg)
     }
 
     /// Helper function to call a "view" function on the token-contract that
     /// does not take any arguments.
-    pub fn call_getter<R>(&mut self, fn_name: &str) -> Result<CallReceipt<R>>
+    pub fn call_getter<R>(
+        &mut self,
+        fn_name: &str,
+    ) -> Result<CallReceipt<R>, ContractError>
     where
         R: Archive,
         R::Archived: Deserialize<R, Infallible>
             + for<'b> CheckBytes<DefaultValidator<'b>>,
     {
-        // TODO: find out if there is another way to do that instead of passing
-        // &() as fn_arg
         self.session.direct_call::<(), R>(TOKEN_ID, fn_name, &())
     }
 
-    pub fn call_holder<A>(
+    pub fn call_holder<A, R>(
         &mut self,
         tx_sk: &AccountSecretKey,
         fn_name: &str,
         fn_arg: &A,
-    ) -> CallReceipt<Result<Vec<u8>, ContractError>>
+    ) -> Result<CallReceipt<R>, ContractError>
     where
         A: for<'b> Serialize<StandardBufSerializer<'b>>,
         A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
+        R: Archive,
+        R::Archived: Deserialize<R, Infallible>
+            + for<'b> CheckBytes<DefaultValidator<'b>>,
     {
-        let fn_arg = Self::serialize(fn_arg);
-
         self.session
             .icc_transaction(tx_sk, HOLDER_ID, fn_name, fn_arg)
     }
@@ -221,20 +185,16 @@ impl TestSession {
     pub fn account(&mut self, account: impl Into<Account>) -> AccountInfo {
         self.session
             .direct_call(TOKEN_ID, "account", &account.into())
-            .expect("Querying an account should succeed")
+            .expect("call to pass")
             .data
     }
 
     pub fn governance(&mut self) -> Account {
-        self.call_getter("governance")
-            .expect("Querying governance should succeed")
-            .data
+        self.call_getter("governance").expect("call to pass").data
     }
 
     pub fn total_supply(&mut self) -> u64 {
-        self.call_getter("total_supply")
-            .expect("Querying the supply should succeed")
-            .data
+        self.call_getter("total_supply").expect("call to pass").data
     }
 
     pub fn allowance(
@@ -251,7 +211,7 @@ impl TestSession {
                     spender: spender.into(),
                 },
             )
-            .expect("Querying an allowance should succeed")
+            .expect("call to pass")
             .data
     }
 }

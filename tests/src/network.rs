@@ -20,7 +20,7 @@ use dusk_vm::{CallReceipt, ContractData, Error as VMError, Session, VM};
 use rkyv::validation::validators::DefaultValidator;
 use rkyv::{Archive, Deserialize, Infallible, Serialize};
 
-use crate::utils::{account, chain_id};
+use crate::utils::{account, chain_id, rkyv_deserialize, rkyv_serialize};
 
 const ZERO_ADDRESS: ContractId = ContractId::from_bytes([0; CONTRACT_ID_BYTES]);
 const GAS_LIMIT: u64 = 0x10000000;
@@ -60,7 +60,7 @@ impl NetworkSession {
         contract: ContractId,
         fn_name: &str,
         fn_arg: &A,
-    ) -> Result<CallReceipt<R>>
+    ) -> Result<CallReceipt<R>, ContractError>
     where
         A: for<'b> Serialize<StandardBufSerializer<'b>>,
         A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
@@ -68,23 +68,36 @@ impl NetworkSession {
         R::Archived: Deserialize<R, Infallible>
             + for<'b> CheckBytes<DefaultValidator<'b>>,
     {
-        self.session.call(contract, fn_name, fn_arg, u64::MAX)
+        self.session
+            .call::<_, R>(contract, fn_name, fn_arg, u64::MAX)
+            .map_err(|e| match e {
+                VMError::Panic(panic_msg) => ContractError::Panic(panic_msg),
+                VMError::OutOfGas => ContractError::OutOfGas,
+                _ => panic!("Unknown error: {e}"),
+            })
     }
 
     /// Calls the contract trough the transfer-contract which is the standard
     /// way any contract is called on the network. The gas is paid using funds
     /// owned by the `moonlight_sk`.
-    pub fn icc_transaction(
+    pub fn icc_transaction<A, R>(
         &mut self,
         moonlight_sk: &AccountSecretKey,
         contract: ContractId,
         fn_name: &str,
-        fn_arg: Vec<u8>,
-    ) -> CallReceipt<Result<Vec<u8>, ContractError>> {
+        fn_arg: &A,
+    ) -> Result<CallReceipt<R>, ContractError>
+    where
+        A: for<'b> Serialize<StandardBufSerializer<'b>>,
+        A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
+        R: Archive,
+        R::Archived: Deserialize<R, Infallible>
+            + for<'b> CheckBytes<DefaultValidator<'b>>,
+    {
         let contract_call = ContractCall {
             contract,
             fn_name: String::from(fn_name),
-            fn_args: fn_arg,
+            fn_args: rkyv_serialize(fn_arg),
         };
 
         let moonlight_pk = AccountPublicKey::from(moonlight_sk);
@@ -106,12 +119,21 @@ impl NetworkSession {
         )
         .expect("Creating moonlight transaction should succeed");
 
-        // TODO: this function could return the generic R type of the call
-        // function used in it.
-        execute(&mut self.session, &transaction, &self.config).unwrap_or_else(
-            |e| panic!("Executing the transaction should succeed: {:?}", e),
-        )
-        // TODO: Return CallReceipt<R>?
+        let receipt = execute(&mut self.session, &transaction, &self.config)
+            .unwrap_or_else(|e| {
+                panic!("Executing the transaction should succeed: {:?}", e)
+            });
+
+        match receipt.data {
+            Ok(serialized) => Ok(CallReceipt {
+                gas_limit: receipt.gas_limit,
+                gas_spent: receipt.gas_spent,
+                events: receipt.events,
+                call_tree: receipt.call_tree,
+                data: rkyv_deserialize(&serialized),
+            }),
+            Err(e) => Err(e),
+        }
     }
 }
 
