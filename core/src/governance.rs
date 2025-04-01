@@ -9,6 +9,8 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use crate::Account;
 
+pub mod signature_messages;
+
 /// Error message for when the admin account is not found in the contract.
 pub const GOVERNANCE_NOT_FOUND: &str = "The governance does not exist";
 
