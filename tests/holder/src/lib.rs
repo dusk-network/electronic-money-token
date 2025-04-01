@@ -16,6 +16,7 @@
 extern crate alloc;
 
 use dusk_core::abi::{self, ContractId};
+use dusk_core::transfer::TRANSFER_CONTRACT;
 
 use emt_core::*;
 
@@ -62,10 +63,54 @@ impl TokenState {
     ///
     /// This function is called automatically by the token-contract's transfer
     /// function when this contract is the receiver of a transfer.
-    fn token_received(&mut self, transfer: TransferInfo) {
+    fn token_received(&mut self, sender: Account, value: u64) {
         // Only accept transfers from the specific token-contract we're tracking
         if abi::caller().expect("Expected a contract as caller") == TOKEN_ID {
-            self.balance += transfer.value;
+            let resolved_sender = token_sender();
+            // make sure the given sender is the same as the one we resolved
+            assert_eq!(resolved_sender, sender, "Sender mismatch");
+
+            /*
+             * Additional explanatory assertions. The logic in token_sender()
+             * is enough to know who the sender is.
+             */
+
+            let call_stack = abi::callstack();
+            // get the TOKEN_ID caller in the callstack
+            let emt_caller = *call_stack
+                .iter()
+                .nth(1)
+                .expect("Expected a caller in the callstack");
+
+            match resolved_sender {
+                Account::External(sender) => {
+                    // the sender is an external account, so we assert:
+                    // - the caller of the EMT has to be the TRANSFER_CONTRACT
+                    // - the call stack length has to be 2
+                    // - the sender of the transaction has to be the public
+                    //   sender
+                    assert_eq!(sender, abi::public_sender().unwrap());
+                    assert_eq!(
+                        emt_caller, TRANSFER_CONTRACT,
+                        "Expected the caller to be the transfer contract"
+                    );
+                    assert_eq!(call_stack.len(), 2);
+                }
+                Account::Contract(sender) => {
+                    // The sender is a contract, so the sender is the contract
+                    // that called the EMT contract. We assert:
+                    // - the sender has to tbe the second last caller in the
+                    //   call stack
+                    // - the call stack length is variable, but has to be > 2
+                    assert_eq!(
+                        sender, emt_caller,
+                        "Expected the sender to be the caller"
+                    );
+                    assert!(call_stack.len() > 2);
+                }
+            }
+
+            self.balance += value;
 
             // Check if self.balance now corresponds to the balance in the
             // token-contract
@@ -110,10 +155,50 @@ unsafe fn token_send(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe fn token_received(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.token_received(arg))
+    abi::wrap_call(arg_len, |(sender, value)| {
+        STATE.token_received(sender, value)
+    })
 }
 
 #[no_mangle]
 unsafe fn tracked_balance(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |(): ()| STATE.tracked_balance())
+}
+
+/// Determines and returns the sender of the current token transfer.
+///
+/// If the sender is an external account, return the transaction origin.
+/// If the sender is a contract, return the contract that called the token
+/// contract.
+///
+/// # Returns
+///
+/// An `Account` representing the token sender.
+///
+/// # Panics
+///
+/// - If no public sender is available in the case of an external account.
+/// - If no caller can be determined (impossible case)
+fn token_sender() -> Account {
+    // get the last actual caller in the callstack
+    // abi::caller() would return the token contract itself, since
+    // transfer_and_call calls the contract.
+    let emt_caller = *abi::callstack()
+        .iter()
+        .nth(1)
+        .expect("Expected a caller behind the EMT caller in the callstack");
+
+    // Identifies the sender by checking the call stack and transaction origin:
+    // - For direct external account transactions (call stack length = 2),
+    //   returns the transaction origin
+    // - For non-protocol contracts that call the token (call stack length > 2),
+    //   returns the immediate calling contract "behind" the EMT contract
+    if abi::callstack().len() == 2 {
+        // This also implies, that the call directly originates via the protocol
+        // transfer contract i.e., the caller of the EMT is the transfer
+        // contract
+        Account::External(abi::public_sender().expect(SHIELDED_NOT_SUPPORTED))
+    } else {
+        Account::Contract(emt_caller)
+    }
 }
