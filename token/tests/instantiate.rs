@@ -73,6 +73,8 @@ impl TestSession {
         AccountSecretKey::random(&mut rng)
     });
 
+    /// Test session public key for the second account. Does not have any
+    /// tokens.
     pub const PK_2: LazyLock<AccountPublicKey> =
         LazyLock::new(|| AccountPublicKey::from(&*Self::SK_2));
 }
@@ -203,14 +205,7 @@ impl TestSession {
         spender: impl Into<Account>,
     ) -> u64 {
         self.session
-            .direct_call(
-                TOKEN_ID,
-                "allowance",
-                &Allowance {
-                    owner: owner.into(),
-                    spender: spender.into(),
-                },
-            )
+            .direct_call(TOKEN_ID, "allowance", &(owner.into(), spender.into()))
             .expect("call to pass")
             .data
     }
