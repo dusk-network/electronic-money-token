@@ -153,18 +153,31 @@ impl TestSession {
             .icc_transaction(tx_sk, TOKEN_ID, fn_name, fn_arg)
     }
 
-    /// Helper function to call a "view" function on the token-contract that
-    /// does not take any arguments.
-    pub fn call_getter<R>(
-        &mut self,
-        fn_name: &str,
-    ) -> Result<CallReceipt<R>, ContractError>
+    fn call_token_getter<R>(&mut self, fn_name: &str) -> CallReceipt<R>
     where
         R: Archive,
         R::Archived: Deserialize<R, Infallible>
             + for<'b> CheckBytes<DefaultValidator<'b>>,
     {
-        self.session.direct_call::<(), R>(TOKEN_ID, fn_name, &())
+        self.session.direct_call::<(), R>(TOKEN_ID, fn_name, &()).expect(
+            format!(
+                "Calling the getter function {} on the token-contract should succeed",
+                fn_name
+            )
+            .as_str(),
+        )
+    }
+
+    fn call_holder_getter<R>(&mut self, fn_name: &str) -> CallReceipt<R>
+    where
+        R: Archive,
+        R::Archived: Deserialize<R, Infallible>
+            + for<'b> CheckBytes<DefaultValidator<'b>>,
+    {
+        self.session.direct_call::<(), R>(HOLDER_ID, fn_name, &()).expect(format!(
+            "Calling the getter function {} on the holder-contract should succeed",
+            fn_name
+        ).as_str())
     }
 
     pub fn call_holder<A, R>(
@@ -192,11 +205,22 @@ impl TestSession {
     }
 
     pub fn governance(&mut self) -> Account {
-        self.call_getter("governance").expect("call to pass").data
+        self.call_token_getter("governance").data
     }
 
     pub fn total_supply(&mut self) -> u64 {
-        self.call_getter("total_supply").expect("call to pass").data
+        self.call_token_getter("total_supply").data
+    }
+
+    /// Query the paused status of the EMT token contract.
+    pub fn is_paused(&mut self) -> bool {
+        self.call_token_getter("is_paused").data
+    }
+
+    /// Query the balance the holder contract is tracking and therefore aware
+    /// of.
+    pub fn holder_tracked_balance(&mut self) -> u64 {
+        self.call_holder_getter::<u64>("tracked_balance").data
     }
 
     pub fn allowance(
