@@ -54,15 +54,3 @@ pub struct ApproveEvent {
     /// The value `spender` is allowed to spend.
     pub value: u64,
 }
-
-/// Used to inform a contract of the source of funds they're receiving.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
-)]
-#[archive_attr(derive(CheckBytes))]
-pub struct TransferInfo {
-    /// The originating account of the funds transferred to the contract.
-    pub sender: Account,
-    /// The number of tokens transferred.
-    pub value: u64,
-}
