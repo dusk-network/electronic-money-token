@@ -15,7 +15,10 @@
 
 extern crate alloc;
 
-use dusk_core::abi::{self, ContractId};
+use dusk_core::{
+    abi::{self, ContractId},
+    transfer::TRANSFER_CONTRACT,
+};
 
 use emt_core::*;
 
@@ -62,13 +65,71 @@ impl TokenState {
     ///
     /// This function is called automatically by the token-contract's transfer
     /// function when this contract is the receiver of a transfer.
-    fn token_received(&mut self, transfer: TransferInfo) {
+    fn token_received(&mut self, sender: Account, value: u64) {
         // Only accept transfers from the specific token-contract we're tracking
         if abi::caller().expect("Expected a contract as caller") == TOKEN_ID {
-            self.balance += transfer.value;
-        } else {
-            panic!("Only the {TOKEN_ID} contract can call this function");
+            let public_sender =
+                abi::public_sender().expect("Expected a public sender");
+
+            let call_stack = abi::callstack();
+            // get the last caller in the callstack
+            let emt_caller = *call_stack
+                .iter()
+                .rev()
+                .next()
+                .expect("Expected a caller in the callstack");
+
+            match sender {
+                Account::External(sender) => {
+                    // the sender is the tx origin, because of that we also
+                    // check the call stack and emt_caller to
+                    // prevent any other contract from calling this function,
+                    // trying to act on behalf of the tx origin
+                    //
+                    // Any other sender could not be verified with this function
+                    // without additional arguments (signatures) provided.
+                    assert_eq!(sender, public_sender);
+                    assert_eq!(emt_caller, TRANSFER_CONTRACT);
+                    assert_eq!(call_stack.len(), 2);
+                }
+                Account::Contract(sender) => {
+                    // The sender is a contract. The sender is the contract that
+                    // called the EMT contract
+                    //
+                    // Any other specified sender could not be verified without
+                    // additional arguments provided.
+                    if sender != emt_caller {
+                        panic!("Unexpected sender: {sender}");
+                    }
+                }
+            }
+
+            self.balance += value;
+
+            // Check if self.balance now corresponds to the balance in the
+            // token-contract
+            match abi::call::<_, AccountInfo>(
+                TOKEN_ID,
+                "account",
+                &Account::Contract(self.this_contract),
+            ) {
+                Ok(acc_info) => {
+                    assert!(
+                        self.balance == acc_info.balance,
+                        "Balance mismatch: {0} != {1}",
+                        self.balance,
+                        acc_info.balance
+                    );
+                }
+                Err(err) => panic!(
+                    "Failed to get account info from token-contract: {err}"
+                ),
+            }
         }
+    }
+
+    fn tracked_balance(&self) -> u64 {
+        self.balance
     }
 }
 
@@ -88,5 +149,12 @@ unsafe fn token_send(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe fn token_received(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |arg| STATE.token_received(arg))
+    abi::wrap_call(arg_len, |(sender, value)| {
+        STATE.token_received(sender, value)
+    })
+}
+
+#[no_mangle]
+unsafe fn tracked_balance(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(): ()| STATE.tracked_balance())
 }
