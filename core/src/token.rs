@@ -6,11 +6,15 @@
 
 /// Module for the account implementation.
 pub(crate) mod account;
-use account::Account;
 
+use core::cell::Cell;
+
+use account::{Account, AccountInfo};
 use bytecheck::CheckBytes;
 use dusk_core::abi::{ContractId, CONTRACT_ID_BYTES};
 use rkyv::{Archive, Deserialize, Serialize};
+
+use crate::BALANCE_TOO_LOW;
 
 /// Zero address.
 /// TODO: Consider having this in core & make it a reserved address so that no
@@ -65,4 +69,27 @@ pub struct TransferInfo {
     pub sender: Account,
     /// The number of tokens transferred.
     pub value: u64,
+}
+
+/// Trait defining transfer conditions that can be applied to a transfer.
+/// This is used to enforce rules on the transfer of tokens.
+pub trait Condition {
+    /// Precondition that is executed before the transfer.
+    #[allow(unused_variables)]
+    fn precondition(
+        &self,
+        sender: &Cell<AccountInfo>,
+        receiver: &Cell<AccountInfo>,
+        value: u64,
+    ) {
+        assert!(sender.get().balance >= value, "{}", BALANCE_TOO_LOW);
+    }
+
+    /// Optional postcondition that may be executed after the transfer.
+    fn postcondition(
+        &self,
+        sender: &Cell<AccountInfo>,
+        receiver: &Cell<AccountInfo>,
+        value: u64,
+    );
 }
