@@ -29,7 +29,7 @@ use emt_core::sanctions::{BLOCKED, FROZEN};
 use emt_core::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
 use emt_core::supply_management::SUPPLY_OVERFLOW;
 use emt_core::{
-    Account, AccountInfo, ApproveEvent, TransferEvent, TransferInfo,
+    Account, AccountInfo, ApproveEvent, Condition, TransferEvent, TransferInfo,
     ACCOUNT_NOT_FOUND, BALANCE_TOO_LOW, SHIELDED_NOT_SUPPORTED, ZERO_ADDRESS,
 };
 
@@ -44,6 +44,31 @@ struct TokenState {
     governance: Account,
 
     is_paused: bool,
+}
+
+impl Condition for TokenState {
+    fn precondition(
+        &self,
+        sender: &Cell<AccountInfo>,
+        receiver: &Cell<AccountInfo>,
+        value: u64,
+    ) {
+        assert!(sender.get().balance >= value, "{}", BALANCE_TOO_LOW);
+        assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
+        assert!(!sender.get().is_blocked(), "{}", BLOCKED);
+        assert!(!sender.get().is_frozen(), "{}", FROZEN);
+        assert!(!receiver.get().is_blocked(), "{}", BLOCKED);
+    }
+
+    #[allow(unused_variables)]
+    fn postcondition(
+        &self,
+        sender: &Cell<AccountInfo>,
+        receiver: &Cell<AccountInfo>,
+        value: u64,
+    ) {
+        unimplemented!("postcondition not needed");
+    }
 }
 
 impl TokenState {
@@ -384,7 +409,9 @@ impl TokenState {
         receiver: &Cell<AccountInfo>,
         value: u64,
     ) {
-        assert!(sender.get().balance >= value, "{}", BALANCE_TOO_LOW);
+        // EMT specific precondition checks for the transfer
+        self.precondition(sender, receiver, value);
+
         sender.set(sender.get().decrease_balance(value));
 
         // this can never overflow as value + balance is never higher than total
@@ -402,23 +429,15 @@ impl TokenState {
     /// the receiver must not be blocked but can be frozen.
     #[allow(clippy::large_types_passed_by_value)]
     fn transfer(&mut self, receiver: Account, value: u64) {
-        assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
-
         let sender = sender_account();
-
         self.accounts
             .entry(receiver)
             .or_insert(Cell::new(AccountInfo::EMPTY)); // note: find a way how to avoid this
 
         let sender_account =
             self.accounts.get(&sender).expect(ACCOUNT_NOT_FOUND);
-        assert!(!sender_account.get().is_blocked(), "{}", BLOCKED);
-        assert!(!sender_account.get().is_frozen(), "{}", FROZEN);
-
         let receiver_account =
             self.accounts.get(&receiver).expect(ACCOUNT_NOT_FOUND);
-
-        assert!(!receiver_account.get().is_blocked(), "{}", BLOCKED);
 
         self.transfer_tokens(sender_account, receiver_account, value);
 
@@ -439,10 +458,7 @@ impl TokenState {
             if let Err(err) = abi::call::<_, ()>(
                 contract,
                 "token_received",
-                &TransferInfo {
-                    sender,
-                    value,
-                },
+                &TransferInfo { sender, value },
             ) {
                 panic!("Failed calling `token_received` on the receiving contract: {err}");
             }
@@ -482,12 +498,9 @@ impl TokenState {
         *allowance -= value;
 
         let owner_account = self.accounts.get(&owner).expect(ACCOUNT_NOT_FOUND);
-        assert!(!owner_account.get().is_blocked(), "{}", BLOCKED);
-        assert!(!owner_account.get().is_frozen(), "{}", FROZEN);
 
         let receiver_account =
-        self.accounts.get(&receiver).expect(ACCOUNT_NOT_FOUND);
-        assert!(!receiver_account.get().is_blocked(), "{}", BLOCKED);
+            self.accounts.get(&receiver).expect(ACCOUNT_NOT_FOUND);
 
         self.transfer_tokens(owner_account, receiver_account, value);
 
