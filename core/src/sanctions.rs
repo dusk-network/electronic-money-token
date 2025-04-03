@@ -72,4 +72,24 @@ pub mod events {
             }
         }
     }
+
+    /// Event emitted when tokens are frozen or unfrozen.
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
+    )]
+    #[archive_attr(derive(CheckBytes))]
+    pub struct TokenSanctionEvent {
+        // note: rename to TokenStatusEvent?
+        /// The affected account.
+        pub account: Account,
+        /// The amount of tokens frozen.
+        pub amount: u64,
+    }
+
+    impl TokenSanctionEvent {
+        /// The topic of the partial freeze event.
+        pub const TOKENS_FROZEN: &'static str = "tokens_frozen";
+        /// The topic of the partial unfreeze event.
+        pub const TOKENS_UNFROZEN: &'static str = "tokens_unfrozen"; // TODO: do we wanna use snake case here?
+    }
 }
