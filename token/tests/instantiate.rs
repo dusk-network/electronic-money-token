@@ -57,6 +57,8 @@ impl TestSession {
         AccountSecretKey::random(&mut rng)
     });
 
+    /// Test session public key for the governance account. Has
+    /// `INITIAL_GOVERNANCE_BALANCE`.
     pub const PK_0: LazyLock<AccountPublicKey> =
         LazyLock::new(|| AccountPublicKey::from(&*Self::SK_0));
 
@@ -65,6 +67,7 @@ impl TestSession {
         AccountSecretKey::random(&mut rng)
     });
 
+    /// Test session public key for the first account. Has `INITIAL_BALANCE`.
     pub const PK_1: LazyLock<AccountPublicKey> =
         LazyLock::new(|| AccountPublicKey::from(&*Self::SK_1));
 
