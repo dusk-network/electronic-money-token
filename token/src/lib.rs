@@ -22,7 +22,7 @@ use emt_core::admin_management::events::PauseToggled;
 use emt_core::admin_management::PAUSED_MESSAGE;
 use emt_core::governance::events::GovernanceTransferredEvent;
 use emt_core::governance::{GOVERNANCE_NOT_FOUND, UNAUTHORIZED_ACCOUNT};
-use emt_core::sanctions::events::AccountStatusEvent;
+use emt_core::sanctions::events::{AccountStatusEvent, TokenSanctionEvent};
 use emt_core::sanctions::{BLOCKED, FROZEN};
 use emt_core::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
 use emt_core::supply_management::SUPPLY_OVERFLOW;
@@ -215,6 +215,51 @@ impl TokenState {
             AccountStatusEvent::unfrozen(account),
         );
     }
+
+    fn freeze_tokens(&mut self, account: Account, amount: u64) {
+        self.authorize_governance();
+
+        let account_info =
+            self.accounts.get_mut(&account).expect(GOVERNANCE_NOT_FOUND);
+
+        assert!(
+            account_info.balance >= amount,
+            "The account has not enough balance"
+        );
+
+        account_info.frozen += amount;
+
+        abi::emit(
+            TokenSanctionEvent::TOKENS_FROZEN,
+            TokenSanctionEvent { account, amount },
+        );
+    }
+
+    fn unfreeze_tokens(&mut self, account: Account, amount: u64) {
+        self.authorize_governance();
+
+        let account_info =
+            self.accounts.get_mut(&account).expect(GOVERNANCE_NOT_FOUND);
+
+        assert!(
+            account_info.frozen >= amount,
+            "The account has not enough frozen tokens"
+        );
+
+        account_info.frozen -= amount;
+
+        abi::emit(
+            TokenSanctionEvent::TOKENS_UNFROZEN,
+            TokenSanctionEvent { account, amount },
+        );
+    }
+
+    fn frozen_tokens(&self, account: Account) -> u64 {
+        let account_info =
+            self.accounts.get(&account).expect(GOVERNANCE_NOT_FOUND);
+
+        account_info.frozen
+    }
 }
 
 /// Supply management implementation.
@@ -384,7 +429,12 @@ impl TokenState {
         assert!(!sender_account.is_blocked(), "{}", BLOCKED);
         assert!(!sender_account.is_frozen(), "{}", FROZEN);
 
-        assert!(sender_account.balance >= value, "{}", BALANCE_TOO_LOW);
+        assert!(
+            // frozen can never be higher than balance
+            sender_account.balance - sender_account.frozen >= value,
+            "{}",
+            BALANCE_TOO_LOW
+        );
 
         sender_account.balance -= value;
 
@@ -453,7 +503,12 @@ impl TokenState {
         assert!(!owner_account.is_blocked(), "{}", BLOCKED);
         assert!(!owner_account.is_frozen(), "{}", FROZEN);
 
-        assert!(owner_account.balance >= value, "{}", BALANCE_TOO_LOW);
+        assert!(
+            // frozen can never be higher than balance
+            owner_account.balance - owner_account.frozen >= value,
+            "{}",
+            BALANCE_TOO_LOW
+        );
 
         *allowance -= value;
         owner_account.balance -= value;
@@ -654,6 +709,25 @@ unsafe extern "C" fn blocked(arg_len: u32) -> u32 {
 #[no_mangle]
 unsafe extern "C" fn frozen(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.frozen(arg))
+}
+
+#[no_mangle]
+unsafe extern "C" fn freeze_tokens(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(account, amount)| {
+        STATE.freeze_tokens(account, amount);
+    })
+}
+
+#[no_mangle]
+unsafe extern "C" fn unfreeze_tokens(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(account, amount)| {
+        STATE.unfreeze_tokens(account, amount);
+    })
+}
+
+#[no_mangle]
+unsafe extern "C" fn frozen_tokens(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |account| STATE.frozen_tokens(account))
 }
 
 /*
