@@ -144,4 +144,26 @@ impl AccountInfo {
     pub fn unblock(&mut self) {
         self.status = 0;
     }
+
+    /// Returns an account with balance decreased by `amount`.
+    ///
+    /// Does not check for overflow.
+    #[must_use]
+    pub fn increase_balance(&self, amount: u64) -> Self {
+        Self {
+            balance: self.balance + amount,
+            status: self.status,
+        }
+    }
+
+    /// Returns an account with balance decreased by `amount`.
+    ///
+    /// Does not check for underflow.
+    #[must_use]
+    pub fn decrease_balance(&self, amount: u64) -> Self {
+        Self {
+            balance: self.balance - amount,
+            status: self.status,
+        }
+    }
 }
