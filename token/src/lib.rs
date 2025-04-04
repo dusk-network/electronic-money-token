@@ -390,6 +390,14 @@ impl TokenState {
         value: u64,
     ) {
         {
+            // Issue here is that `receiver_precondition` requires self
+            self.receiver_precondition(
+                self.accounts
+                    .get(&receiver_account)
+                    .unwrap_or(&AccountInfo::EMPTY),
+                value,
+            );
+
             let receiver = self
                 .accounts
                 .entry(receiver_account)
@@ -399,9 +407,16 @@ impl TokenState {
 
             // this can never overflow as value + balance is never higher than
             // total supply
-            receiver.balance.checked_add(value).expect("balance");
+            receiver.balance =
+                receiver.balance.checked_add(value).expect("balance");
         };
         {
+            // Issue here is that `sender_precondition` requires self
+            self.sender_precondition(
+                self.accounts.get(&sender_account).expect(ACCOUNT_NOT_FOUND),
+                value,
+            );
+
             let sender = self
                 .accounts
                 .get_mut(&sender_account)
@@ -410,7 +425,8 @@ impl TokenState {
             // EMT specific precondition checks for the transfer
             // self.sender_precondition(&sender, value);
 
-            sender.balance.checked_sub(value).expect("balance");
+            sender.balance =
+                sender.balance.checked_sub(value).expect("balance");
         }
     }
 
