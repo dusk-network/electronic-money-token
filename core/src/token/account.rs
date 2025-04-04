@@ -94,9 +94,9 @@ pub struct AccountInfo {
     /// 0: No Status
     /// 1: Frozen
     /// 2: Blocked
-    // TODO: We want to have this as a `Role` enum soon, but for serialization
-    // we use u64 temporarily.
     pub status: u64,
+    /// The number of tokens that are partially frozen in the account.
+    pub frozen: u64,
 }
 
 impl AccountInfo {
@@ -111,6 +111,7 @@ impl AccountInfo {
     pub const EMPTY: Self = Self {
         balance: 0,
         status: 0,
+        frozen: 0,
     };
 
     /// Check if the account is blocked.
