@@ -17,8 +17,8 @@ emt-tests = { path = "./tests/" }
 
 dusk-bytes = "0.1"
 
-dusk-core = { version = "1.1.0", default-features = false }
-dusk-vm = { version = "1.1.0", default-features = false }
+dusk-core = { version = "1.2.0", default-features = false }
+dusk-vm = { version = "1.2.0", default-features = false }
 
 bytecheck = { version = "0.6.12", default-features = false }
 rkyv = { version = "0.7.39", default-features = false, features = [
