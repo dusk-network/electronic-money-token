@@ -7,8 +7,6 @@
 /// Module for the account implementation.
 pub(crate) mod account;
 
-use core::cell::Cell;
-
 use account::{Account, AccountInfo};
 use bytecheck::CheckBytes;
 use dusk_core::abi::{ContractId, CONTRACT_ID_BYTES};
@@ -76,20 +74,19 @@ pub struct TransferInfo {
 pub trait Condition {
     /// Precondition that is executed before the transfer.
     #[allow(unused_variables)]
-    fn precondition(
-        &self,
-        sender: &Cell<AccountInfo>,
-        receiver: &Cell<AccountInfo>,
-        value: u64,
-    ) {
-        assert!(sender.get().balance >= value, "{}", BALANCE_TOO_LOW);
+    fn sender_precondition(&self, sender: &AccountInfo, value: u64) {
+        assert!(sender.balance >= value, "{}", BALANCE_TOO_LOW);
     }
+
+    /// Precondition that is executed before the transfer.
+    #[allow(unused_variables)]
+    fn receiver_precondition(&self, receiver: &AccountInfo, value: u64) {}
 
     /// Optional postcondition that may be executed after the transfer.
     fn postcondition(
         &self,
-        sender: &Cell<AccountInfo>,
-        receiver: &Cell<AccountInfo>,
+        sender: &AccountInfo,
+        receiver: &AccountInfo,
         value: u64,
     );
 }
