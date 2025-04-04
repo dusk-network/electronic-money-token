@@ -74,13 +74,14 @@ pub struct TransferInfo {
 pub trait Condition {
     /// Precondition that is executed before the transfer.
     #[allow(unused_variables)]
-    fn sender_precondition(&self, sender: &AccountInfo, value: u64) {
+    fn precondition(
+        &self,
+        sender: &AccountInfo,
+        receiver: &AccountInfo,
+        value: u64,
+    ) {
         assert!(sender.balance >= value, "{}", BALANCE_TOO_LOW);
     }
-
-    /// Precondition that is executed before the transfer.
-    #[allow(unused_variables)]
-    fn receiver_precondition(&self, receiver: &AccountInfo, value: u64) {}
 
     /// Optional postcondition that may be executed after the transfer.
     fn postcondition(

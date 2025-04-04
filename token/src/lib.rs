@@ -45,14 +45,16 @@ struct TokenState {
 }
 
 impl Condition for TokenState {
-    fn sender_precondition(&self, sender: &AccountInfo, value: u64) {
+    fn precondition(
+        &self,
+        sender: &AccountInfo,
+        receiver: &AccountInfo,
+        value: u64,
+    ) {
         assert!(sender.balance >= value, "{}", BALANCE_TOO_LOW);
         assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
         assert!(!sender.is_blocked(), "{}", BLOCKED);
         assert!(!sender.is_frozen(), "{}", FROZEN);
-    }
-
-    fn receiver_precondition(&self, receiver: &AccountInfo, _value: u64) {
         assert!(!receiver.is_blocked(), "{}", BLOCKED);
     }
 
@@ -385,25 +387,23 @@ impl TokenState {
     /// This function does not check anything.
     fn transfer_tokens(
         &mut self,
-        sender_account: Account,
-        receiver_account: Account,
+        sender: Account,
+        receiver: Account,
         value: u64,
     ) {
+        // Issue here is that `precondition` requires self, so we need to do an
+        // extra lookup here due to borrow checker
+
+        // EMT specific precondition checks for the transfer
+        self.precondition(
+            self.accounts.get(&sender).expect(ACCOUNT_NOT_FOUND),
+            self.accounts.get(&receiver).unwrap_or(&AccountInfo::EMPTY),
+            value,
+        );
+
         {
-            // Issue here is that `receiver_precondition` requires self
-            self.receiver_precondition(
-                self.accounts
-                    .get(&receiver_account)
-                    .unwrap_or(&AccountInfo::EMPTY),
-                value,
-            );
-
-            let receiver = self
-                .accounts
-                .entry(receiver_account)
-                .or_insert(AccountInfo::EMPTY);
-
-            // self.receiver_precondition(&*receiver, value);
+            let receiver =
+                self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
 
             // this can never overflow as value + balance is never higher than
             // total supply
@@ -411,19 +411,8 @@ impl TokenState {
                 receiver.balance.checked_add(value).expect("balance");
         };
         {
-            // Issue here is that `sender_precondition` requires self
-            self.sender_precondition(
-                self.accounts.get(&sender_account).expect(ACCOUNT_NOT_FOUND),
-                value,
-            );
-
-            let sender = self
-                .accounts
-                .get_mut(&sender_account)
-                .expect(ACCOUNT_NOT_FOUND);
-
-            // EMT specific precondition checks for the transfer
-            // self.sender_precondition(&sender, value);
+            let sender =
+                self.accounts.get_mut(&sender).expect(ACCOUNT_NOT_FOUND);
 
             sender.balance =
                 sender.balance.checked_sub(value).expect("balance");
