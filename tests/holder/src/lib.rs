@@ -16,6 +16,7 @@
 extern crate alloc;
 
 use dusk_core::abi::{self, ContractId};
+use dusk_core::transfer::data::ContractCall;
 use dusk_core::transfer::TRANSFER_CONTRACT;
 
 use emt_core::*;
@@ -48,6 +49,8 @@ impl TokenState {
     /// Can be called by anyone to make this contract send tokens to another
     /// account
     fn token_send(&mut self, receiver: Account, value: u64) {
+        self.balance -= value;
+
         if let Err(err) = abi::call::<_, ()>(
             self.token_contract,
             "transfer",
@@ -55,8 +58,28 @@ impl TokenState {
         ) {
             panic!("Failed sending tokens: {err}");
         }
+    }
 
-        self.balance -= value
+    /// Can be called by anyone to make this contract send tokens to a
+    /// contract & call a specific function on that contract.
+    fn token_send_and_call(&mut self, value: u64, contract_call: ContractCall) {
+        // Note: Subtract the balance before calling the function.
+
+        // Otherwise, we’d need to add checks for self-transfers, to not update
+        // the balance. Without any of this, a self-transfer would
+        // incorrectly increase the perceived balance, causing the
+        // `token_received` function to (luckily) fail due to a balance
+        // mismatch.
+
+        self.balance -= value;
+
+        if let Err(err) = abi::call::<_, ()>(
+            self.token_contract,
+            "transfer_and_call",
+            &(value, contract_call),
+        ) {
+            panic!("Failed sending tokens: {err}");
+        }
     }
 
     /// Handles incoming token transfers from the token-contract.
@@ -70,10 +93,8 @@ impl TokenState {
             // make sure the given sender is the same as the one we resolved
             assert_eq!(resolved_sender, sender, "Sender mismatch");
 
-            /*
-             * Additional explanatory assertions. The logic in token_sender()
-             * is enough to know who the sender is.
-             */
+            // Additional explanatory assertions. The logic in token_sender()
+            // is enough to know who the sender is.
 
             let call_stack = abi::callstack();
             // get the TOKEN_ID caller in the callstack
@@ -150,6 +171,13 @@ unsafe fn init(arg_len: u32) -> u32 {
 unsafe fn token_send(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |(receiver, value)| {
         STATE.token_send(receiver, value)
+    })
+}
+
+#[no_mangle]
+unsafe fn token_send_and_call(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(value, contract_call)| {
+        STATE.token_send_and_call(value, contract_call)
     })
 }
 
