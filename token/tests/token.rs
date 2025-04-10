@@ -198,6 +198,8 @@ fn transfer_and_call_to_contract() {
         "The receiver contract should have its initial balance"
     );
 
+    // external transfer
+
     session
         .call_token::<_, ()>(
             &*TestSession::SK_1,
@@ -212,6 +214,66 @@ fn transfer_and_call_to_contract() {
         "The deployed account should have the transferred amount subtracted"
     );
 
+    assert_eq!(
+        session.account(HOLDER_ID).balance,
+        INITIAL_HOLDER_BALANCE + TRANSFERRED_AMOUNT,
+        "The contract transferred to should have the transferred amount added"
+    );
+
+    assert_eq!(
+        session.holder_tracked_balance(),
+        INITIAL_HOLDER_BALANCE + TRANSFERRED_AMOUNT,
+        "The contract should have knowledge of the transfer"
+    );
+
+    // contract transfer
+
+    // token_send to itself with token_send_and_call
+    let contract_call = ContractCall::new(
+        HOLDER_ID,
+        "token_received",
+        &(Account::Contract(HOLDER_ID), TRANSFERRED_AMOUNT),
+    )
+    .expect("Creating contract call should succeed");
+
+    let receipt = session
+        .call_holder::<_, ()>(
+            &*TestSession::SK_1,
+            "token_send_and_call",
+            &(TRANSFERRED_AMOUNT, contract_call),
+        )
+        .expect("Call should pass");
+
+    receipt.events.iter().for_each(|event| {
+        if event.topic == "moonlight" {
+            let transfer_info =
+                rkyv::from_bytes::<MoonlightTransactionEvent>(&event.data)
+                    .unwrap();
+
+            assert!(
+                transfer_info.sender == *TestSession::PK_1,
+                "The tx origin should be the deploy pk"
+            )
+        } else if event.topic == "transfer" {
+            let transfer_event =
+                rkyv::from_bytes::<TransferEvent>(&event.data).unwrap();
+
+            assert!(
+                transfer_event.sender == HOLDER_ID.into(),
+                "The sender should be the contract"
+            );
+            assert!(
+                transfer_event.receiver == HOLDER_ID.into(),
+                "The receiver should be the deploy account"
+            );
+            assert_eq!(
+                transfer_event.value, TRANSFERRED_AMOUNT,
+                "The transferred amount should be the same"
+            );
+        }
+    });
+
+    // balance should be the same as before
     assert_eq!(
         session.account(HOLDER_ID).balance,
         INITIAL_HOLDER_BALANCE + TRANSFERRED_AMOUNT,
