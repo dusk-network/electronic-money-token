@@ -191,6 +191,13 @@ impl TestSession {
             .data
     }
 
+    pub fn balance_of(&mut self, account: impl Into<Account>) -> u64 {
+        self.session
+            .direct_call(TOKEN_ID, "balance_of", &account.into())
+            .expect("call to pass")
+            .data
+    }
+
     pub fn governance(&mut self) -> Account {
         self.call_getter("governance").expect("call to pass").data
     }

@@ -357,6 +357,13 @@ impl TokenState {
             .unwrap_or(AccountInfo::EMPTY)
     }
 
+    fn balance_of(&self, account: Account) -> u64 {
+        match self.accounts.get(&account) {
+            Some(account_info) => account_info.balance,
+            None => 0,
+        }
+    }
+
     #[allow(clippy::large_types_passed_by_value)]
     fn allowance(&self, owner: Account, spender: Account) -> u64 {
         match self.allowances.get(&owner) {
@@ -542,6 +549,11 @@ unsafe extern "C" fn total_supply(arg_len: u32) -> u32 {
 #[no_mangle]
 unsafe extern "C" fn account(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |arg| STATE.account(arg))
+}
+
+#[no_mangle]
+unsafe extern "C" fn balance_of(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |account| STATE.balance_of(account))
 }
 
 #[no_mangle]
