@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-//! Types used to inteact with the `emt-contract`.
+//! Types used to interact with the `emt-contract`.
 
 #![no_std]
 #![warn(missing_debug_implementations, unreachable_pub, rustdoc::all)]
@@ -22,20 +22,21 @@
 
 extern crate alloc;
 
-/// Types used for administrative functions.
-pub mod admin_management;
 /// Error messages given by token or governance contract
 pub mod error;
-/// Types used for access control through governance.
-pub mod governance;
-/// Types used for sanctions.
-pub mod sanctions;
-/// Types used for supply management.
-pub mod supply_management;
-/// Implementation of the base token.
-pub(crate) mod token;
+
+/// Types to interact with the token-contract.
+pub mod token;
 pub use token::account::{
-    Account, AccountInfo, ACCOUNT_NOT_FOUND, BALANCE_TOO_LOW, INVALID_CALLER,
+    Account,
+    AccountInfo,
+    // error types
+    ACCOUNT_NOT_FOUND,
+    BALANCE_TOO_LOW,
+    INVALID_CALLER,
     SHIELDED_NOT_SUPPORTED,
 };
 pub use token::{ApproveEvent, TransferEvent, ZERO_ADDRESS};
+
+/// Additional types used to interact with the governance-contract.
+pub mod governance;

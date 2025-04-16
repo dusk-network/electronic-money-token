@@ -8,6 +8,15 @@
 pub(crate) mod account;
 use account::Account;
 
+/// Types used for administrative functions.
+pub mod admin_management;
+/// Types used for access control through governance.
+pub mod governance;
+/// Types used for sanctions.
+pub mod sanctions;
+/// Types used for supply management.
+pub mod supply_management;
+
 use bytecheck::CheckBytes;
 use dusk_core::abi::{ContractId, CONTRACT_ID_BYTES};
 use rkyv::{Archive, Deserialize, Serialize};
