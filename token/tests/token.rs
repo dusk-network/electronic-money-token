@@ -15,10 +15,10 @@ use dusk_core::transfer::MoonlightTransactionEvent;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use emt_core::admin_management::PAUSED_MESSAGE;
-use emt_core::governance::UNAUTHORIZED_ACCOUNT;
-use emt_core::sanctions::{BLOCKED, FROZEN};
-use emt_core::supply_management::SUPPLY_OVERFLOW;
+use emt_core::token::admin_management::PAUSED_MESSAGE;
+use emt_core::token::governance::UNAUTHORIZED_ACCOUNT;
+use emt_core::token::sanctions::{BLOCKED, FROZEN};
+use emt_core::token::supply_management::SUPPLY_OVERFLOW;
 use emt_core::*;
 
 pub mod instantiate;

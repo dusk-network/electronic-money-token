@@ -19,14 +19,14 @@ use alloc::vec::Vec;
 
 use dusk_core::abi;
 use dusk_core::transfer::data::ContractCall;
-use emt_core::admin_management::events::PauseToggled;
-use emt_core::admin_management::PAUSED_MESSAGE;
-use emt_core::governance::events::GovernanceTransferredEvent;
-use emt_core::governance::{GOVERNANCE_NOT_FOUND, UNAUTHORIZED_ACCOUNT};
-use emt_core::sanctions::events::AccountStatusEvent;
-use emt_core::sanctions::{BLOCKED, FROZEN};
-use emt_core::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
-use emt_core::supply_management::SUPPLY_OVERFLOW;
+use emt_core::token::admin_management::events::PauseToggled;
+use emt_core::token::admin_management::PAUSED_MESSAGE;
+use emt_core::token::governance::events::GovernanceTransferredEvent;
+use emt_core::token::governance::{GOVERNANCE_NOT_FOUND, UNAUTHORIZED_ACCOUNT};
+use emt_core::token::sanctions::events::AccountStatusEvent;
+use emt_core::token::sanctions::{BLOCKED, FROZEN};
+use emt_core::token::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
+use emt_core::token::supply_management::SUPPLY_OVERFLOW;
 use emt_core::{
     Account, AccountInfo, ApproveEvent, TransferEvent, ACCOUNT_NOT_FOUND,
     BALANCE_TOO_LOW, SHIELDED_NOT_SUPPORTED, ZERO_ADDRESS,
