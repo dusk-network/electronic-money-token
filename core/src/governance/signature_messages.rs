@@ -4,8 +4,6 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-//! The signature messages for the respective governance contract functions.
-
 use alloc::vec::Vec;
 use core::mem::size_of;
 

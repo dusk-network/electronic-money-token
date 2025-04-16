@@ -10,6 +10,8 @@ use account::Account;
 
 /// Types used for administrative functions.
 pub mod admin_management;
+/// Error messages given by token-contract panics.
+pub mod error;
 /// Types used for access control through governance.
 pub mod governance;
 /// Types used for sanctions.

@@ -9,11 +9,6 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use crate::Account;
 
-/// Error message for when an account is blocked.
-pub const BLOCKED: &str = "Account is blocked";
-/// Error message for when an account is frozen.
-pub const FROZEN: &str = "Account is frozen";
-
 /// Events for sanction transactions.
 pub mod events {
     use super::{Account, Archive, CheckBytes, Deserialize, Serialize};

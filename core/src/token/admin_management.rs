@@ -7,9 +7,6 @@
 use bytecheck::CheckBytes;
 use rkyv::{Archive, Deserialize, Serialize};
 
-/// Error message for when the contract is paused.
-pub const PAUSED_MESSAGE: &str = "Contract is paused";
-
 /// Events emitted by admin management transactions.
 pub mod events {
     use super::{Archive, CheckBytes, Deserialize, Serialize};

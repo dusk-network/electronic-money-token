@@ -22,20 +22,9 @@
 
 extern crate alloc;
 
-/// Error messages given by token or governance contract
-pub mod error;
-
 /// Types to interact with the token-contract.
 pub mod token;
-pub use token::account::{
-    Account,
-    AccountInfo,
-    // error types
-    ACCOUNT_NOT_FOUND,
-    BALANCE_TOO_LOW,
-    INVALID_CALLER,
-    SHIELDED_NOT_SUPPORTED,
-};
+pub use token::account::{Account, AccountInfo};
 pub use token::{ApproveEvent, TransferEvent, ZERO_ADDRESS};
 
 /// Additional types used to interact with the governance-contract.

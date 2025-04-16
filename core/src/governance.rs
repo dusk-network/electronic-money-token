@@ -4,4 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+/// Error messages given by governance-contract.
+pub mod error;
+/// The signature messages for the respective governance contract functions.
 pub mod signature_messages;
