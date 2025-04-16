@@ -28,3 +28,4 @@ rkyv = { version = "0.7.39", default-features = false, features = [
 	"validation",
 ] }
 rand = { version = "0.8.5", default-features = false }
+dusk-forge = { version = "0.1.0", default-features = false }
