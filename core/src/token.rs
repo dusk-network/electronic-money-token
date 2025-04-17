@@ -8,65 +8,15 @@
 pub(crate) mod account;
 use account::Account;
 
-/// Types used for administrative functions.
-pub mod admin_management;
 /// Error messages given by token-contract panics.
 pub mod error;
-/// Types used for access control through governance.
-pub mod governance;
-/// Types used for sanctions.
-pub mod sanctions;
-/// Types used for supply management.
-pub mod supply_management;
+/// Events emitted by the token-contract.
+pub mod events;
 
-use bytecheck::CheckBytes;
 use dusk_core::abi::{ContractId, CONTRACT_ID_BYTES};
-use rkyv::{Archive, Deserialize, Serialize};
 
 /// Zero address.
 /// TODO: Consider having this in core & make it a reserved address so that no
 /// one can ever use it.
 pub const ZERO_ADDRESS: Account =
     Account::Contract(ContractId::from_bytes([0; CONTRACT_ID_BYTES]));
-
-/// Event emitted when tokens are transferred from one account to another.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
-)]
-#[archive_attr(derive(CheckBytes))]
-pub struct TransferEvent {
-    /// The account tokens are transferred from.
-    pub sender: Account,
-    /// The account spending the tokens, set if `transfer_from` is used.
-    pub spender: Option<Account>,
-    /// The account receiving the tokens.
-    pub receiver: Account,
-    /// The value transferred.
-    pub value: u64,
-}
-
-impl TransferEvent {
-    /// Event topic used when a normal transfer is made.
-    pub const TRANSFER_TOPIC: &'static str = "transfer";
-    /// Event topic used when a forced transfer is made.
-    pub const FORCE_TRANSFER_TOPIC: &'static str = "force_transfer";
-}
-
-/// Event emitted when a spender is approved on an account.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
-)]
-#[archive_attr(derive(CheckBytes))]
-pub struct ApproveEvent {
-    /// The account allowing the transfer.
-    pub sender: Account,
-    /// The allowed spender.
-    pub spender: Account,
-    /// The value `spender` is allowed to spend.
-    pub value: u64,
-}
-
-impl ApproveEvent {
-    /// Event topic used when a spender is approved.
-    pub const APPROVE_TOPIC: &'static str = "approve";
-}

@@ -25,7 +25,7 @@ extern crate alloc;
 /// Types to interact with the token-contract.
 pub mod token;
 pub use token::account::{Account, AccountInfo};
-pub use token::{ApproveEvent, TransferEvent, ZERO_ADDRESS};
+pub use token::ZERO_ADDRESS;
 
 /// Additional types used to interact with the governance-contract.
 pub mod governance;
