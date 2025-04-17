@@ -19,14 +19,9 @@ use alloc::vec::Vec;
 
 use dusk_core::abi;
 use dusk_core::transfer::data::ContractCall;
-use emt_core::token::admin_management::events::PauseToggled;
 use emt_core::token::error;
-use emt_core::token::governance::GovernanceTransferredEvent;
-use emt_core::token::sanctions::events::AccountStatusEvent;
-use emt_core::token::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
-use emt_core::{
-    Account, AccountInfo, ApproveEvent, TransferEvent, ZERO_ADDRESS,
-};
+use emt_core::token::events;
+use emt_core::{Account, AccountInfo, ZERO_ADDRESS};
 
 /// The state of the token-contract.
 struct TokenState {
@@ -48,8 +43,8 @@ impl TokenState {
             self.supply += balance;
 
             abi::emit(
-                MINT_TOPIC,
-                TransferEvent {
+                events::Transfer::MINT_TOPIC,
+                events::Transfer {
                     sender: ZERO_ADDRESS,
                     spender: None,
                     receiver: account,
@@ -67,8 +62,8 @@ impl TokenState {
             .or_insert(AccountInfo::EMPTY);
 
         abi::emit(
-            GovernanceTransferredEvent::GOVERNANCE_TRANSFERRED,
-            GovernanceTransferredEvent {
+            events::GovernanceTransferred::GOVERNANCE_TRANSFERRED,
+            events::GovernanceTransferred {
                 previous_governance: ZERO_ADDRESS,
                 new_governance: governance,
             },
@@ -112,8 +107,8 @@ impl TokenState {
             .or_insert(AccountInfo::EMPTY);
 
         abi::emit(
-            GovernanceTransferredEvent::GOVERNANCE_TRANSFERRED,
-            GovernanceTransferredEvent {
+            events::GovernanceTransferred::GOVERNANCE_TRANSFERRED,
+            events::GovernanceTransferred {
                 previous_governance,
                 new_governance,
             },
@@ -127,8 +122,8 @@ impl TokenState {
         self.governance = ZERO_ADDRESS;
 
         abi::emit(
-            GovernanceTransferredEvent::GOVERNANCE_RENOUNCED,
-            GovernanceTransferredEvent {
+            events::GovernanceTransferred::GOVERNANCE_RENOUNCED,
+            events::GovernanceTransferred {
                 previous_governance,
                 new_governance: ZERO_ADDRESS,
             },
@@ -164,8 +159,8 @@ impl TokenState {
         account_info.block();
 
         abi::emit(
-            AccountStatusEvent::BLOCKED_TOPIC,
-            AccountStatusEvent::blocked(account),
+            events::AccountStatus::BLOCKED_TOPIC,
+            events::AccountStatus::blocked(account),
         );
     }
 
@@ -180,8 +175,8 @@ impl TokenState {
         account_info.freeze();
 
         abi::emit(
-            AccountStatusEvent::FROZEN_TOPIC,
-            AccountStatusEvent::frozen(account),
+            events::AccountStatus::FROZEN_TOPIC,
+            events::AccountStatus::frozen(account),
         );
     }
 
@@ -198,8 +193,8 @@ impl TokenState {
         account_info.unblock();
 
         abi::emit(
-            AccountStatusEvent::UNBLOCKED_TOPIC,
-            AccountStatusEvent::unblocked(account),
+            events::AccountStatus::UNBLOCKED_TOPIC,
+            events::AccountStatus::unblocked(account),
         );
     }
 
@@ -216,8 +211,8 @@ impl TokenState {
         account_info.unfreeze();
 
         abi::emit(
-            AccountStatusEvent::UNFROZEN_TOPIC,
-            AccountStatusEvent::unfrozen(account),
+            events::AccountStatus::UNFROZEN_TOPIC,
+            events::AccountStatus::unfrozen(account),
         );
     }
 }
@@ -240,8 +235,8 @@ impl TokenState {
         receiver_account.balance += amount;
 
         abi::emit(
-            MINT_TOPIC,
-            TransferEvent {
+            events::Transfer::MINT_TOPIC,
+            events::Transfer {
                 sender: ZERO_ADDRESS,
                 spender: None,
                 receiver,
@@ -265,8 +260,8 @@ impl TokenState {
         self.supply -= amount;
 
         abi::emit(
-            BURN_TOPIC,
-            TransferEvent {
+            events::Transfer::BURN_TOPIC,
+            events::Transfer {
                 sender: self.governance,
                 spender: None,
                 receiver: ZERO_ADDRESS,
@@ -288,8 +283,8 @@ impl TokenState {
         self.is_paused = !self.is_paused;
 
         abi::emit(
-            PauseToggled::TOPIC,
-            PauseToggled {
+            events::PauseToggled::TOPIC,
+            events::PauseToggled {
                 paused: self.is_paused,
             },
         );
@@ -326,8 +321,8 @@ impl TokenState {
         receiver_account.balance += value;
 
         abi::emit(
-            TransferEvent::FORCE_TRANSFER_TOPIC,
-            TransferEvent {
+            events::Transfer::FORCE_TRANSFER_TOPIC,
+            events::Transfer {
                 sender: obliged_sender,
                 spender: None,
                 receiver,
@@ -409,8 +404,8 @@ impl TokenState {
         receiver_account.balance += value;
 
         abi::emit(
-            TransferEvent::TRANSFER_TOPIC,
-            TransferEvent {
+            events::Transfer::TRANSFER_TOPIC,
+            events::Transfer {
                 sender,
                 spender: None,
                 receiver,
@@ -510,8 +505,8 @@ impl TokenState {
         receiver_account.balance += value;
 
         abi::emit(
-            TransferEvent::TRANSFER_TOPIC,
-            TransferEvent {
+            events::Transfer::TRANSFER_TOPIC,
+            events::Transfer {
                 sender: owner,
                 spender: Some(spender),
                 receiver,
@@ -529,8 +524,8 @@ impl TokenState {
         allowances.insert(spender, value);
 
         abi::emit(
-            ApproveEvent::APPROVE_TOPIC,
-            ApproveEvent {
+            events::Approve::APPROVE_TOPIC,
+            events::Approve {
                 sender: owner,
                 spender,
                 value,

@@ -16,7 +16,8 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use emt_core::token::error;
-use emt_core::*;
+use emt_core::token::events;
+use emt_core::{Account, AccountInfo, ZERO_ADDRESS};
 
 pub mod instantiate;
 use instantiate::{
@@ -253,7 +254,7 @@ fn transfer_and_call_to_contract() {
             )
         } else if event.topic == "transfer" {
             let transfer_event =
-                rkyv::from_bytes::<TransferEvent>(&event.data).unwrap();
+                rkyv::from_bytes::<events::Transfer>(&event.data).unwrap();
 
             assert!(
                 transfer_event.sender == HOLDER_ID.into(),
@@ -324,7 +325,7 @@ fn transfer_from_contract() {
             )
         } else if event.topic == "transfer" {
             let transfer_event =
-                rkyv::from_bytes::<TransferEvent>(&event.data).unwrap();
+                rkyv::from_bytes::<events::Transfer>(&event.data).unwrap();
 
             assert!(
                 transfer_event.sender == HOLDER_ID.into(),
@@ -552,7 +553,7 @@ fn test_mint() {
     receipt.events.iter().any(|event| {
         if event.topic == "mint" {
             let transfer_event =
-                rkyv::from_bytes::<TransferEvent>(&event.data).unwrap();
+                rkyv::from_bytes::<events::Transfer>(&event.data).unwrap();
 
             assert!(
                 transfer_event.sender == ZERO_ADDRESS,
@@ -924,7 +925,6 @@ fn test_sanctions() {
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        // TODO: Test against added error message
         assert_eq!(panic_msg, "The account is not blocked");
     } else {
         panic!("Expected a panic error");
