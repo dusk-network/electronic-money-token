@@ -9,8 +9,8 @@ use dusk_core::signatures::bls::{
     MultisigSignature, PublicKey as AccountPublicKey,
 };
 
-use emt_core::{error, Account, AccountInfo};
-
+use emt_core::governance::error;
+use emt_core::{Account, AccountInfo};
 mod common;
 use common::instantiate::{TestKeys, TestSession, INITIAL_BALANCE, TOKEN_ID};
 use common::{operator_signature, owner_signature, test_keys_signature};

@@ -8,8 +8,7 @@ use dusk_core::abi::{ContractError, ContractId, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::{
     MultisigSignature, PublicKey as AccountPublicKey,
 };
-use emt_core::error;
-use emt_core::governance::signature_messages;
+use emt_core::governance::{error, signature_messages};
 use emt_core::{Account, AccountInfo, ZERO_ADDRESS};
 use emt_tests::utils::rkyv_serialize;
 
