@@ -18,6 +18,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use dusk_core::abi;
+use dusk_core::transfer::data::ContractCall;
 use emt_core::admin_management::events::PauseToggled;
 use emt_core::admin_management::PAUSED_MESSAGE;
 use emt_core::governance::events::GovernanceTransferredEvent;
@@ -27,8 +28,8 @@ use emt_core::sanctions::{BLOCKED, FROZEN};
 use emt_core::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
 use emt_core::supply_management::SUPPLY_OVERFLOW;
 use emt_core::{
-    Account, AccountInfo, ApproveEvent, TransferEvent, TransferInfo,
-    ACCOUNT_NOT_FOUND, BALANCE_TOO_LOW, SHIELDED_NOT_SUPPORTED, ZERO_ADDRESS,
+    Account, AccountInfo, ApproveEvent, TransferEvent, ACCOUNT_NOT_FOUND,
+    BALANCE_TOO_LOW, SHIELDED_NOT_SUPPORTED, ZERO_ADDRESS,
 };
 
 /// The state of the token-contract.
@@ -406,18 +407,48 @@ impl TokenState {
                 value,
             },
         );
+    }
 
-        // if the transfer is to a contract, the acceptance function of said
-        // contract is called. if it fails (panic or OoG) the transfer
+    /// Transfers tokens to a contract receiver and call a specified function on
+    /// that contract.
+    ///
+    /// # Behavior
+    ///
+    /// This function transfers the given `value` of tokens to the contract
+    /// indicated by `contract_call.contract` and then calls the function
+    /// specified by `contract_call.fn_name` with the provided
+    /// `contract_call.fn_args`.
+    ///
+    /// If the contract function expects parameters, it is possible to pass
+    /// incorrect arguments intentionally. The receiving contract is
+    /// responsible for validating such arguments, as this token is unaware
+    /// of arbitrary contract logic.
+    ///
+    ///
+    /// # Notes
+    ///
+    /// - This function cannot be used if you need to transfer tokens to an
+    ///   arbitrary account while calling a function on a contract. For
+    ///   scenarios requiring multiple operations at once, consider implementing
+    ///   a multicall solution.
+    /// - `transfer_and_call` is atomic: if the function call on the receiving
+    ///   contract fails (due to a panic or out of gas error), the token
+    ///   transfer also fails and reverts.
+    fn transfer_and_call(&mut self, value: u64, contract_call: &ContractCall) {
+        let receiver = Account::from(contract_call.contract);
+        self.transfer(receiver, value);
+
+        // If the call to the contract fails (panic or OoG) the transfer
         // also fails.
-        if let Account::Contract(contract) = receiver {
-            if let Err(err) = abi::call::<_, ()>(
-                contract,
-                "token_received",
-                &TransferInfo { sender, value },
-            ) {
-                panic!("Failed calling `token_received` on the receiving contract: {err}");
-            }
+        if let Err(err) = abi::call_raw(
+            contract_call.contract,
+            &contract_call.fn_name,
+            &contract_call.fn_args,
+        ) {
+            panic!(
+                "Failed calling `{}` on the contract: {err}",
+                contract_call.fn_name
+            );
         }
     }
 
@@ -475,22 +506,6 @@ impl TokenState {
                 value,
             },
         );
-
-        // if the transfer is to a contract, the acceptance function of said
-        // contract is called. if it fails (panic or OoG) the transfer
-        // also fails.
-        if let Account::Contract(contract) = receiver {
-            if let Err(err) = abi::call::<_, ()>(
-                contract,
-                "token_received",
-                &TransferInfo {
-                    sender: owner,
-                    value,
-                },
-            ) {
-                panic!("Failed calling `token_received` on the receiving contract: {err}");
-            }
-        }
     }
 
     fn approve(&mut self, spender: Account, value: u64) {
@@ -552,6 +567,13 @@ unsafe extern "C" fn allowance(arg_len: u32) -> u32 {
 #[no_mangle]
 unsafe extern "C" fn transfer(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |(receiver, value)| STATE.transfer(receiver, value))
+}
+
+#[no_mangle]
+unsafe extern "C" fn transfer_and_call(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(transfer, contract_call)| {
+        STATE.transfer_and_call(transfer, &contract_call);
+    })
 }
 
 #[no_mangle]
