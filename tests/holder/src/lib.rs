@@ -225,7 +225,9 @@ fn token_sender() -> Account {
         // This also implies, that the call directly originates via the protocol
         // transfer contract i.e., the caller of the EMT is the transfer
         // contract
-        Account::External(abi::public_sender().expect(SHIELDED_NOT_SUPPORTED))
+        Account::External(
+            abi::public_sender().expect(token::error::SHIELDED_NOT_SUPPORTED),
+        )
     } else {
         Account::Contract(emt_caller)
     }
