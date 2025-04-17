@@ -89,6 +89,10 @@ static mut STATE: TokenState = TokenState {
 
 /// Access control implementation.
 impl TokenState {
+    fn governance(&self) -> Account {
+        self.governance
+    }
+
     fn governance_info_mut(&mut self) -> &mut AccountInfo {
         self.accounts
             .get_mut(&self.governance)
@@ -596,7 +600,7 @@ unsafe extern "C" fn renounce_governance(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe extern "C" fn governance(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |(): ()| STATE.governance)
+    abi::wrap_call(arg_len, |(): ()| STATE.governance())
 }
 
 /*
