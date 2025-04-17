@@ -971,3 +971,128 @@ fn test_sanctions() {
         )
         .expect("Transfer should succeed again");
 }
+
+#[test]
+fn test_partial_freeze() {
+    const VALUE: u64 = INITIAL_BALANCE / 2;
+    let mut session = TestSession::new();
+    let frozen_tokens_acc = Account::from(*TestSession::PK_1);
+    let account_2 = Account::from(*TestSession::PK_2);
+
+    // freeze test account tokens
+    session
+        .call_token::<_, ()>(
+            &*TestSession::SK_0,
+            "freeze_tokens",
+            &(frozen_tokens_acc, 500),
+        )
+        .expect("Call should pass");
+
+    assert_eq!(
+        session
+            .call_token::<_, u64>(
+                &*TestSession::SK_0,
+                "frozen_tokens",
+                &frozen_tokens_acc
+            )
+            .expect("Querying the state should succeed")
+            .data,
+        500,
+    );
+
+    // Transfer VALUE from frozen tokens account
+    session
+        .call_token::<_, ()>(
+            &*TestSession::SK_1,
+            "transfer",
+            &(account_2, VALUE),
+        )
+        .expect("Call should pass");
+
+    assert_eq!(
+        session.account(frozen_tokens_acc).balance,
+        VALUE,
+        "The account transferred to should have the transferred amount"
+    );
+
+    // Transfer 1 token from frozen tokens account
+    let receipt = session.call_token::<_, ()>(
+        &*TestSession::SK_1,
+        "transfer",
+        &(account_2, 1),
+    );
+
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, BALANCE_TOO_LOW);
+    } else {
+        panic!("Expected a panic error");
+    }
+
+    // unfreeze test account tokens
+    session
+        .call_token::<_, ()>(
+            &*TestSession::SK_0,
+            "unfreeze_tokens",
+            &(frozen_tokens_acc, 500),
+        )
+        .expect("Call should pass");
+
+    assert_eq!(
+        session
+            .call_token::<_, u64>(
+                &*TestSession::SK_0,
+                "frozen_tokens",
+                &frozen_tokens_acc
+            )
+            .expect("Querying the state should succeed")
+            .data,
+        0,
+    );
+
+    // Transfer 1 token from frozen tokens account
+    session
+        .call_token::<_, ()>(
+            &*TestSession::SK_1,
+            "transfer",
+            &(account_2, VALUE),
+        )
+        .expect("Call should pass");
+
+    assert_eq!(
+        session.account(frozen_tokens_acc).balance,
+        0,
+        "The account transferred to should have the transferred amount"
+    );
+
+    assert_eq!(
+        session.account(account_2).balance,
+        INITIAL_BALANCE,
+        "The account transferred to should have the transferred amount"
+    );
+
+    // freeze test account tokens
+    let receipt = session.call_token::<_, ()>(
+        &*TestSession::SK_0,
+        "freeze_tokens",
+        &(frozen_tokens_acc, 1),
+    );
+
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, "The account has not enough balance");
+    } else {
+        panic!("Expected a panic error");
+    }
+
+    // unfreeze test account tokens
+    let receipt = session.call_token::<_, ()>(
+        &*TestSession::SK_0,
+        "unfreeze_tokens",
+        &(frozen_tokens_acc, 1),
+    );
+
+    if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
+        assert_eq!(panic_msg, "The account has not enough frozen tokens");
+    } else {
+        panic!("Expected a panic error");
+    }
+}
