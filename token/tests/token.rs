@@ -178,12 +178,9 @@ fn transfer_and_call_to_contract() {
 
     let mut session = TestSession::new();
     let account_1 = Account::from(*TestSession::PK_1);
-    let contract_call = ContractCall::new(
-        HOLDER_ID,
-        "token_received",
-        &(account_1, TRANSFERRED_AMOUNT),
-    )
-    .expect("Creating contract call should succeed");
+    let contract_call = ContractCall::new(HOLDER_ID, "token_received")
+        .with_args(&(account_1, TRANSFERRED_AMOUNT))
+        .expect("Creating contract call should succeed");
 
     assert_eq!(
         session.account(*TestSession::PK_1).balance,
@@ -227,12 +224,9 @@ fn transfer_and_call_to_contract() {
     // contract transfer
 
     // token_send to itself with token_send_and_call
-    let contract_call = ContractCall::new(
-        HOLDER_ID,
-        "token_received",
-        &(Account::Contract(HOLDER_ID), TRANSFERRED_AMOUNT),
-    )
-    .expect("Creating contract call should succeed");
+    let contract_call = ContractCall::new(HOLDER_ID, "token_received")
+        .with_args(&(Account::Contract(HOLDER_ID), TRANSFERRED_AMOUNT))
+        .expect("Creating contract call should succeed");
 
     let receipt = session
         .call_holder::<_, ()>(
