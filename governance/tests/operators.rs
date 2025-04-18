@@ -5,8 +5,7 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_core::abi::ContractError;
-use emt_core::error;
-use emt_core::governance::signature_messages;
+use emt_core::governance::{error, signature_messages};
 use emt_core::{Account, AccountInfo};
 use emt_tests::utils::rkyv_serialize;
 

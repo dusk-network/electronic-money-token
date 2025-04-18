@@ -12,8 +12,8 @@ use alloc::vec::Vec;
 
 use dusk_core::abi::{self, ContractId, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::{MultisigSignature, PublicKey};
-use emt_core::governance::signature_messages;
-use emt_core::{error, Account};
+use emt_core::governance::{error, signature_messages};
+use emt_core::Account;
 
 use crate::{contains_duplicates, supermajority};
 

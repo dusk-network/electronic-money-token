@@ -19,18 +19,9 @@ use alloc::vec::Vec;
 
 use dusk_core::abi;
 use dusk_core::transfer::data::ContractCall;
-use emt_core::admin_management::events::PauseToggled;
-use emt_core::admin_management::PAUSED_MESSAGE;
-use emt_core::governance::events::GovernanceTransferredEvent;
-use emt_core::governance::{GOVERNANCE_NOT_FOUND, UNAUTHORIZED_ACCOUNT};
-use emt_core::sanctions::events::AccountStatusEvent;
-use emt_core::sanctions::{BLOCKED, FROZEN};
-use emt_core::supply_management::events::{BURN_TOPIC, MINT_TOPIC};
-use emt_core::supply_management::SUPPLY_OVERFLOW;
-use emt_core::{
-    Account, AccountInfo, ApproveEvent, TransferEvent, ACCOUNT_NOT_FOUND,
-    BALANCE_TOO_LOW, SHIELDED_NOT_SUPPORTED, ZERO_ADDRESS,
-};
+use emt_core::token::error;
+use emt_core::token::events;
+use emt_core::{Account, AccountInfo, ZERO_ADDRESS};
 
 /// The state of the token-contract.
 struct TokenState {
@@ -52,8 +43,8 @@ impl TokenState {
             self.supply += balance;
 
             abi::emit(
-                MINT_TOPIC,
-                TransferEvent {
+                events::Transfer::MINT_TOPIC,
+                events::Transfer {
                     sender: ZERO_ADDRESS,
                     spender: None,
                     receiver: account,
@@ -71,8 +62,8 @@ impl TokenState {
             .or_insert(AccountInfo::EMPTY);
 
         abi::emit(
-            GovernanceTransferredEvent::GOVERNANCE_TRANSFERRED,
-            GovernanceTransferredEvent {
+            events::GovernanceTransferred::GOVERNANCE_TRANSFERRED,
+            events::GovernanceTransferred {
                 previous_governance: ZERO_ADDRESS,
                 new_governance: governance,
             },
@@ -93,14 +84,14 @@ impl TokenState {
     fn governance_info_mut(&mut self) -> &mut AccountInfo {
         self.accounts
             .get_mut(&self.governance)
-            .expect(GOVERNANCE_NOT_FOUND)
+            .expect(error::GOVERNANCE_NOT_FOUND)
     }
 
     fn authorize_governance(&self) {
         assert!(
             sender_account() == self.governance,
             "{}",
-            UNAUTHORIZED_ACCOUNT
+            error::UNAUTHORIZED_ACCOUNT
         );
     }
 
@@ -116,8 +107,8 @@ impl TokenState {
             .or_insert(AccountInfo::EMPTY);
 
         abi::emit(
-            GovernanceTransferredEvent::GOVERNANCE_TRANSFERRED,
-            GovernanceTransferredEvent {
+            events::GovernanceTransferred::GOVERNANCE_TRANSFERRED,
+            events::GovernanceTransferred {
                 previous_governance,
                 new_governance,
             },
@@ -131,8 +122,8 @@ impl TokenState {
         self.governance = ZERO_ADDRESS;
 
         abi::emit(
-            GovernanceTransferredEvent::GOVERNANCE_RENOUNCED,
-            GovernanceTransferredEvent {
+            events::GovernanceTransferred::GOVERNANCE_RENOUNCED,
+            events::GovernanceTransferred {
                 previous_governance,
                 new_governance: ZERO_ADDRESS,
             },
@@ -160,60 +151,68 @@ impl TokenState {
     fn block(&mut self, account: Account) {
         self.authorize_governance();
 
-        let account_info =
-            self.accounts.get_mut(&account).expect(GOVERNANCE_NOT_FOUND);
+        let account_info = self
+            .accounts
+            .get_mut(&account)
+            .expect(error::GOVERNANCE_NOT_FOUND);
 
         account_info.block();
 
         abi::emit(
-            AccountStatusEvent::BLOCKED_TOPIC,
-            AccountStatusEvent::blocked(account),
+            events::AccountStatus::BLOCKED_TOPIC,
+            events::AccountStatus::blocked(account),
         );
     }
 
     fn freeze(&mut self, account: Account) {
         self.authorize_governance();
 
-        let account_info =
-            self.accounts.get_mut(&account).expect(GOVERNANCE_NOT_FOUND);
+        let account_info = self
+            .accounts
+            .get_mut(&account)
+            .expect(error::GOVERNANCE_NOT_FOUND);
 
         account_info.freeze();
 
         abi::emit(
-            AccountStatusEvent::FROZEN_TOPIC,
-            AccountStatusEvent::frozen(account),
+            events::AccountStatus::FROZEN_TOPIC,
+            events::AccountStatus::frozen(account),
         );
     }
 
     fn unblock(&mut self, account: Account) {
         self.authorize_governance();
 
-        let account_info =
-            self.accounts.get_mut(&account).expect(GOVERNANCE_NOT_FOUND);
+        let account_info = self
+            .accounts
+            .get_mut(&account)
+            .expect(error::GOVERNANCE_NOT_FOUND);
 
         assert!(account_info.is_blocked(), "The account is not blocked");
 
         account_info.unblock();
 
         abi::emit(
-            AccountStatusEvent::UNBLOCKED_TOPIC,
-            AccountStatusEvent::unblocked(account),
+            events::AccountStatus::UNBLOCKED_TOPIC,
+            events::AccountStatus::unblocked(account),
         );
     }
 
     fn unfreeze(&mut self, account: Account) {
         self.authorize_governance();
 
-        let account_info =
-            self.accounts.get_mut(&account).expect(GOVERNANCE_NOT_FOUND);
+        let account_info = self
+            .accounts
+            .get_mut(&account)
+            .expect(error::GOVERNANCE_NOT_FOUND);
 
         assert!(account_info.is_frozen(), "The account is not frozen");
 
         account_info.unfreeze();
 
         abi::emit(
-            AccountStatusEvent::UNFROZEN_TOPIC,
-            AccountStatusEvent::unfrozen(account),
+            events::AccountStatus::UNFROZEN_TOPIC,
+            events::AccountStatus::unfrozen(account),
         );
     }
 }
@@ -230,14 +229,14 @@ impl TokenState {
         self.supply = if let Some(supply) = self.supply.checked_add(amount) {
             supply
         } else {
-            panic!("{}", SUPPLY_OVERFLOW)
+            panic!("{}", error::SUPPLY_OVERFLOW)
         };
 
         receiver_account.balance += amount;
 
         abi::emit(
-            MINT_TOPIC,
-            TransferEvent {
+            events::Transfer::MINT_TOPIC,
+            events::Transfer {
                 sender: ZERO_ADDRESS,
                 spender: None,
                 receiver,
@@ -252,7 +251,7 @@ impl TokenState {
         let burn_account = self.governance_info_mut();
 
         if burn_account.balance < amount {
-            panic!("{}", BALANCE_TOO_LOW);
+            panic!("{}", error::BALANCE_TOO_LOW);
         } else {
             burn_account.balance -= amount;
         }
@@ -261,8 +260,8 @@ impl TokenState {
         self.supply -= amount;
 
         abi::emit(
-            BURN_TOPIC,
-            TransferEvent {
+            events::Transfer::BURN_TOPIC,
+            events::Transfer {
                 sender: self.governance,
                 spender: None,
                 receiver: ZERO_ADDRESS,
@@ -284,8 +283,8 @@ impl TokenState {
         self.is_paused = !self.is_paused;
 
         abi::emit(
-            PauseToggled::TOPIC,
-            PauseToggled {
+            events::PauseToggled::TOPIC,
+            events::PauseToggled {
                 paused: self.is_paused,
             },
         );
@@ -304,12 +303,12 @@ impl TokenState {
         let obliged_sender_account = self
             .accounts
             .get_mut(&obliged_sender)
-            .expect(ACCOUNT_NOT_FOUND);
+            .expect(error::ACCOUNT_NOT_FOUND);
 
         assert!(
             obliged_sender_account.balance >= value,
             "{}",
-            BALANCE_TOO_LOW
+            error::BALANCE_TOO_LOW
         );
 
         obliged_sender_account.balance -= value;
@@ -322,8 +321,8 @@ impl TokenState {
         receiver_account.balance += value;
 
         abi::emit(
-            TransferEvent::FORCE_TRANSFER_TOPIC,
-            TransferEvent {
+            events::Transfer::FORCE_TRANSFER_TOPIC,
+            events::Transfer {
                 sender: obliged_sender,
                 spender: None,
                 receiver,
@@ -376,31 +375,37 @@ impl TokenState {
     /// the receiver must not be blocked but can be frozen.
     #[allow(clippy::large_types_passed_by_value)]
     fn transfer(&mut self, receiver: Account, value: u64) {
-        assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
+        assert!(!self.is_paused, "{}", error::PAUSED_MESSAGE);
 
         let sender = sender_account();
 
-        let sender_account =
-            self.accounts.get_mut(&sender).expect(ACCOUNT_NOT_FOUND);
-        assert!(!sender_account.is_blocked(), "{}", BLOCKED);
-        assert!(!sender_account.is_frozen(), "{}", FROZEN);
+        let sender_account = self
+            .accounts
+            .get_mut(&sender)
+            .expect(error::ACCOUNT_NOT_FOUND);
+        assert!(!sender_account.is_blocked(), "{}", error::BLOCKED);
+        assert!(!sender_account.is_frozen(), "{}", error::FROZEN);
 
-        assert!(sender_account.balance >= value, "{}", BALANCE_TOO_LOW);
+        assert!(
+            sender_account.balance >= value,
+            "{}",
+            error::BALANCE_TOO_LOW
+        );
 
         sender_account.balance -= value;
 
         let receiver_account =
             self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
 
-        assert!(!receiver_account.is_blocked(), "{}", BLOCKED);
+        assert!(!receiver_account.is_blocked(), "{}", error::BLOCKED);
 
         // this can never overflow as value + balance is never higher than total
         // supply
         receiver_account.balance += value;
 
         abi::emit(
-            TransferEvent::TRANSFER_TOPIC,
-            TransferEvent {
+            events::Transfer::TRANSFER_TOPIC,
+            events::Transfer {
                 sender,
                 spender: None,
                 receiver,
@@ -458,14 +463,14 @@ impl TokenState {
     /// the receiver must not be blocked but can be frozen.
     #[allow(clippy::large_types_passed_by_value)]
     fn transfer_from(&mut self, owner: Account, receiver: Account, value: u64) {
-        assert!(!self.is_paused, "{}", PAUSED_MESSAGE);
+        assert!(!self.is_paused, "{}", error::PAUSED_MESSAGE);
 
         let spender = sender_account();
 
         let spender_account =
             self.accounts.entry(spender).or_insert(AccountInfo::EMPTY);
-        assert!(!spender_account.is_blocked(), "{}", BLOCKED);
-        assert!(!spender_account.is_frozen(), "{}", FROZEN);
+        assert!(!spender_account.is_blocked(), "{}", error::BLOCKED);
+        assert!(!spender_account.is_frozen(), "{}", error::FROZEN);
 
         let allowance = self
             .allowances
@@ -479,27 +484,29 @@ impl TokenState {
             "The spender can't spent the defined amount"
         );
 
-        let owner_account =
-            self.accounts.get_mut(&owner).expect(ACCOUNT_NOT_FOUND);
-        assert!(!owner_account.is_blocked(), "{}", BLOCKED);
-        assert!(!owner_account.is_frozen(), "{}", FROZEN);
+        let owner_account = self
+            .accounts
+            .get_mut(&owner)
+            .expect(error::ACCOUNT_NOT_FOUND);
+        assert!(!owner_account.is_blocked(), "{}", error::BLOCKED);
+        assert!(!owner_account.is_frozen(), "{}", error::FROZEN);
 
-        assert!(owner_account.balance >= value, "{}", BALANCE_TOO_LOW);
+        assert!(owner_account.balance >= value, "{}", error::BALANCE_TOO_LOW);
 
         *allowance -= value;
         owner_account.balance -= value;
 
         let receiver_account =
             self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
-        assert!(!receiver_account.is_blocked(), "{}", BLOCKED);
+        assert!(!receiver_account.is_blocked(), "{}", error::BLOCKED);
 
         // this can never overflow as value + balance is never higher than total
         // supply
         receiver_account.balance += value;
 
         abi::emit(
-            TransferEvent::TRANSFER_TOPIC,
-            TransferEvent {
+            events::Transfer::TRANSFER_TOPIC,
+            events::Transfer {
                 sender: owner,
                 spender: Some(spender),
                 receiver,
@@ -517,8 +524,8 @@ impl TokenState {
         allowances.insert(spender, value);
 
         abi::emit(
-            ApproveEvent::APPROVE_TOPIC,
-            ApproveEvent {
+            events::Approve::APPROVE_TOPIC,
+            events::Approve {
                 sender: owner,
                 spender,
                 value,
@@ -696,7 +703,7 @@ unsafe extern "C" fn frozen(arg_len: u32) -> u32 {
 /// - If no public sender is available (shielded transactions are not supported)
 /// - If no caller can be determined (impossible case)
 fn sender_account() -> Account {
-    let tx_origin = abi::public_sender().expect(SHIELDED_NOT_SUPPORTED);
+    let tx_origin = abi::public_sender().expect(error::SHIELDED_NOT_SUPPORTED);
 
     let caller = abi::caller().expect("ICC expects a caller");
 

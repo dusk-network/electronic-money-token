@@ -15,11 +15,9 @@ use dusk_core::transfer::MoonlightTransactionEvent;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use emt_core::admin_management::PAUSED_MESSAGE;
-use emt_core::governance::UNAUTHORIZED_ACCOUNT;
-use emt_core::sanctions::{BLOCKED, FROZEN};
-use emt_core::supply_management::SUPPLY_OVERFLOW;
-use emt_core::*;
+use emt_core::token::error;
+use emt_core::token::events;
+use emt_core::{Account, AccountInfo, ZERO_ADDRESS};
 
 pub mod instantiate;
 use instantiate::{
@@ -180,12 +178,9 @@ fn transfer_and_call_to_contract() {
 
     let mut session = TestSession::new();
     let account_1 = Account::from(*TestSession::PK_1);
-    let contract_call = ContractCall::new(
-        HOLDER_ID,
-        "token_received",
-        &(account_1, TRANSFERRED_AMOUNT),
-    )
-    .expect("Creating contract call should succeed");
+    let contract_call = ContractCall::new(HOLDER_ID, "token_received")
+        .with_args(&(account_1, TRANSFERRED_AMOUNT))
+        .expect("Creating contract call should succeed");
 
     assert_eq!(
         session.account(*TestSession::PK_1).balance,
@@ -229,12 +224,9 @@ fn transfer_and_call_to_contract() {
     // contract transfer
 
     // token_send to itself with token_send_and_call
-    let contract_call = ContractCall::new(
-        HOLDER_ID,
-        "token_received",
-        &(Account::Contract(HOLDER_ID), TRANSFERRED_AMOUNT),
-    )
-    .expect("Creating contract call should succeed");
+    let contract_call = ContractCall::new(HOLDER_ID, "token_received")
+        .with_args(&(Account::Contract(HOLDER_ID), TRANSFERRED_AMOUNT))
+        .expect("Creating contract call should succeed");
 
     let receipt = session
         .call_holder::<_, ()>(
@@ -256,7 +248,7 @@ fn transfer_and_call_to_contract() {
             )
         } else if event.topic == "transfer" {
             let transfer_event =
-                rkyv::from_bytes::<TransferEvent>(&event.data).unwrap();
+                rkyv::from_bytes::<events::Transfer>(&event.data).unwrap();
 
             assert!(
                 transfer_event.sender == HOLDER_ID.into(),
@@ -327,7 +319,7 @@ fn transfer_from_contract() {
             )
         } else if event.topic == "transfer" {
             let transfer_event =
-                rkyv::from_bytes::<TransferEvent>(&event.data).unwrap();
+                rkyv::from_bytes::<events::Transfer>(&event.data).unwrap();
 
             assert!(
                 transfer_event.sender == HOLDER_ID.into(),
@@ -490,7 +482,7 @@ fn governance_fails() {
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+        assert_eq!(panic_msg, error::UNAUTHORIZED_ACCOUNT);
     } else {
         panic!("Expected a panic error");
     }
@@ -502,7 +494,7 @@ fn governance_fails() {
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+        assert_eq!(panic_msg, error::UNAUTHORIZED_ACCOUNT);
     } else {
         panic!("Expected a panic error");
     }
@@ -555,7 +547,7 @@ fn test_mint() {
     receipt.events.iter().any(|event| {
         if event.topic == "mint" {
             let transfer_event =
-                rkyv::from_bytes::<TransferEvent>(&event.data).unwrap();
+                rkyv::from_bytes::<events::Transfer>(&event.data).unwrap();
 
             assert!(
                 transfer_event.sender == ZERO_ADDRESS,
@@ -587,7 +579,7 @@ fn test_mint() {
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, SUPPLY_OVERFLOW);
+        assert_eq!(panic_msg, error::SUPPLY_OVERFLOW);
     } else {
         panic!("Expected a panic error");
     }
@@ -599,7 +591,7 @@ fn test_mint() {
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+        assert_eq!(panic_msg, error::UNAUTHORIZED_ACCOUNT);
     } else {
         panic!("Expected a panic error");
     }
@@ -626,7 +618,7 @@ fn test_burn() {
         session.call_token::<_, ()>(&*TestSession::SK_0, "burn", &burn_amount);
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, BALANCE_TOO_LOW);
+        assert_eq!(panic_msg, error::BALANCE_TOO_LOW);
     } else {
         panic!("Expected a panic error");
     }
@@ -636,7 +628,7 @@ fn test_burn() {
         session.call_token::<_, ()>(&*TestSession::SK_2, "burn", &burn_amount);
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+        assert_eq!(panic_msg, error::UNAUTHORIZED_ACCOUNT);
     } else {
         panic!("Expected a panic error");
     }
@@ -667,7 +659,7 @@ fn test_pause() {
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, PAUSED_MESSAGE);
+        assert_eq!(panic_msg, error::PAUSED_MESSAGE);
     } else {
         panic!("Expected a panic error");
     }
@@ -703,7 +695,7 @@ fn test_pause() {
         session.call_token::<_, ()>(&*TestSession::SK_2, "toggle_pause", &());
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+        assert_eq!(panic_msg, error::UNAUTHORIZED_ACCOUNT);
     } else {
         panic!("Expected a panic error");
     }
@@ -772,7 +764,7 @@ fn test_force_transfer() {
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, BALANCE_TOO_LOW);
+        assert_eq!(panic_msg, error::BALANCE_TOO_LOW);
     } else {
         panic!("Expected a panic error");
     }
@@ -786,7 +778,7 @@ fn test_force_transfer() {
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+        assert_eq!(panic_msg, error::UNAUTHORIZED_ACCOUNT);
     } else {
         panic!("Expected a panic error");
     }
@@ -861,7 +853,7 @@ fn test_sanctions() {
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, BLOCKED);
+        assert_eq!(panic_msg, error::BLOCKED);
     } else {
         panic!("Expected a panic error");
     }
@@ -874,7 +866,7 @@ fn test_sanctions() {
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, BLOCKED);
+        assert_eq!(panic_msg, error::BLOCKED);
     } else {
         panic!("Expected a panic error");
     }
@@ -914,7 +906,7 @@ fn test_sanctions() {
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, FROZEN);
+        assert_eq!(panic_msg, error::FROZEN);
     } else {
         panic!("Expected a panic error");
     }
@@ -940,7 +932,7 @@ fn test_sanctions() {
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+        assert_eq!(panic_msg, error::UNAUTHORIZED_ACCOUNT);
     } else {
         panic!("Expected a panic error");
     }
@@ -952,7 +944,7 @@ fn test_sanctions() {
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
-        assert_eq!(panic_msg, UNAUTHORIZED_ACCOUNT);
+        assert_eq!(panic_msg, error::UNAUTHORIZED_ACCOUNT);
     } else {
         panic!("Expected a panic error");
     }
