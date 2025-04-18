@@ -440,6 +440,11 @@ fn transfer_from() {
         "The account transferred to should have the transferred amount"
     );
     assert_eq!(
+        session.balance_of(spender_account),
+        TRANSFERRED_AMOUNT,
+        "The account transferred to should have the transferred amount"
+    );
+    assert_eq!(
         session.allowance(*TestSession::PK_1, spender_account),
         APPROVED_AMOUNT - TRANSFERRED_AMOUNT,
         "The account should have the transferred amount subtracted from its allowance"
