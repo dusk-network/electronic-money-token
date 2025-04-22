@@ -12,7 +12,7 @@ use alloc::vec::Vec;
 
 use dusk_core::abi::{self, ContractId, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::{MultisigSignature, PublicKey};
-use emt_core::governance::{error, signature_messages};
+use emt_core::governance::{error, events, signature_messages};
 use emt_core::Account;
 
 use crate::{contains_duplicates, supermajority};
@@ -225,7 +225,19 @@ impl Governance {
         self.owner_nonce += 1;
 
         // replace the token-contract
-        core::mem::replace(&mut self.token_contract, new_token_contract)
+        let old_token_contract =
+            core::mem::replace(&mut self.token_contract, new_token_contract);
+
+        // alert network of the changes to the governance state
+        abi::emit(
+            events::UpdateToken::TOPIC,
+            events::UpdateToken {
+                contract: new_token_contract,
+            },
+        );
+
+        // return the old token-contract id
+        old_token_contract
     }
 
     /// Update the owner public-keys in the governance-contract.
@@ -273,10 +285,16 @@ impl Governance {
         self.authorize_owners(threshold, sig_msg, sig, signers);
 
         // update the owners to the new set
-        self.owners = new_owners;
+        self.owners = new_owners.clone();
 
         // increment the owners nonce
         self.owner_nonce += 1;
+
+        // alert network of the changes to the governance state
+        abi::emit(
+            events::UpdatePublicKeys::NEW_OWNERS,
+            events::UpdatePublicKeys { pks: new_owners },
+        );
     }
 
     /// Update the operator public-keys in the governance-contract.
@@ -321,10 +339,16 @@ impl Governance {
         self.authorize_owners(threshold, sig_msg, sig, signers);
 
         // update the operators to the new set
-        self.operators = new_operators;
+        self.operators = new_operators.clone();
 
         // increment the owners nonce
         self.owner_nonce += 1;
+
+        // alert network of the changes to the governance state
+        abi::emit(
+            events::UpdatePublicKeys::NEW_OPERATORS,
+            events::UpdatePublicKeys { pks: new_operators },
+        );
     }
 
     /// Authorize the transfer of the governance stored in the state of the
@@ -492,10 +516,19 @@ impl Governance {
 
         // add the call or update its threshold if it already exists
         self.operator_token_calls
-            .insert(call_name, operator_signature_threshold);
+            .insert(call_name.clone(), operator_signature_threshold);
 
         // increment the operator nonce
         self.operator_nonce += 1;
+
+        // alert network of the changes to the governance state
+        abi::emit(
+            events::UpdateTokenCall::TOPIC,
+            events::UpdateTokenCall {
+                call_name,
+                operator_signature_threshold,
+            },
+        );
     }
 }
 

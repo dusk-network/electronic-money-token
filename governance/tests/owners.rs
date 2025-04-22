@@ -8,12 +8,14 @@ use dusk_core::abi::{ContractError, ContractId, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::{
     MultisigSignature, PublicKey as AccountPublicKey,
 };
-use emt_core::governance::{error, signature_messages};
+use emt_core::governance::{error, events, signature_messages};
 use emt_core::{Account, AccountInfo, ZERO_ADDRESS};
 use emt_tests::utils::rkyv_serialize;
 
 pub mod common;
-use common::instantiate::{TestKeys, TestSession, INITIAL_BALANCE, TOKEN_ID};
+use common::instantiate::{
+    TestKeys, TestSession, GOVERNANCE_ID, INITIAL_BALANCE, TOKEN_ID,
+};
 use common::{owner_signature, test_keys_signature};
 
 const OWNER: usize = 10;
@@ -38,17 +40,24 @@ fn set_token_contract() -> Result<(), ContractError> {
     // call contract
     let call_name = "set_token_contract";
     let call_args = (new_token_contract, sig, signers);
-    let old_token_contract = session
+    let receipt = session
         .execute_governance::<(ContractId, MultisigSignature, Vec<u8>), ContractId>(
             &keys.test_sk[0],
             call_name,
             &call_args,
         )
-        ?
-        .data;
+        ?;
 
+    // check that the correct event has been emitted
+    let governance_events: Vec<_> = receipt
+        .events
+        .iter()
+        .filter(|event| event.source == GOVERNANCE_ID)
+        .collect();
+    assert_eq!(governance_events.len(), 1);
+    assert_eq!(governance_events[0].topic, events::UpdateToken::TOPIC);
     // check that the old contract-ID is returned
-    assert_eq!(old_token_contract, TOKEN_ID);
+    assert_eq!(receipt.data, TOKEN_ID);
     // check that the token-contract on the governance-contract updated
     assert_eq!(
         session
@@ -131,7 +140,7 @@ fn set_owners() -> Result<(), ContractError> {
     // call contract
     let call_name = "set_owners";
     let call_args = (new_owners, sig, signers);
-    session
+    let receipt = session
         .execute_governance
         ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>), ()>
         (
@@ -141,6 +150,17 @@ fn set_owners() -> Result<(), ContractError> {
         )
         ?;
 
+    // check that the correct event has been emitted
+    let governance_events: Vec<_> = receipt
+        .events
+        .iter()
+        .filter(|event| event.source == GOVERNANCE_ID)
+        .collect();
+    assert_eq!(governance_events.len(), 1);
+    assert_eq!(
+        governance_events[0].topic,
+        events::UpdatePublicKeys::NEW_OWNERS
+    );
     // check updated owners
     assert_eq!(
         session
@@ -244,12 +264,23 @@ fn set_operators() -> Result<(), ContractError> {
     // call contract
     let call_name = "set_operators";
     let call_args = (new_operators, sig, signers);
-    session.execute_governance::<_, ()>(
+    let receipt = session.execute_governance::<_, ()>(
         &keys.test_sk[0],
         call_name,
         &call_args,
     )?;
 
+    // check that the correct event has been emitted
+    let governance_events: Vec<_> = receipt
+        .events
+        .iter()
+        .filter(|event| event.source == GOVERNANCE_ID)
+        .collect();
+    assert_eq!(governance_events.len(), 1);
+    assert_eq!(
+        governance_events[0].topic,
+        events::UpdatePublicKeys::NEW_OPERATORS
+    );
     // check updated operators
     assert_eq!(
         session
