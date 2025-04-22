@@ -81,6 +81,10 @@ static mut STATE: TokenState = TokenState {
 
 /// Access control implementation.
 impl TokenState {
+    fn governance(&self) -> Account {
+        self.governance
+    }
+
     fn governance_info_mut(&mut self) -> &mut AccountInfo {
         self.accounts
             .get_mut(&self.governance)
@@ -357,6 +361,13 @@ impl TokenState {
             .unwrap_or(AccountInfo::EMPTY)
     }
 
+    fn balance_of(&self, account: Account) -> u64 {
+        match self.accounts.get(&account) {
+            Some(account_info) => account_info.balance,
+            None => 0,
+        }
+    }
+
     #[allow(clippy::large_types_passed_by_value)]
     fn allowance(&self, owner: Account, spender: Account) -> u64 {
         match self.allowances.get(&owner) {
@@ -567,6 +578,11 @@ unsafe extern "C" fn account(arg_len: u32) -> u32 {
 }
 
 #[no_mangle]
+unsafe extern "C" fn balance_of(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |account| STATE.balance_of(account))
+}
+
+#[no_mangle]
 unsafe extern "C" fn allowance(arg_len: u32) -> u32 {
     abi::wrap_call(arg_len, |(owner, spender)| STATE.allowance(owner, spender))
 }
@@ -613,7 +629,7 @@ unsafe extern "C" fn renounce_governance(arg_len: u32) -> u32 {
 
 #[no_mangle]
 unsafe extern "C" fn governance(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |(): ()| STATE.governance)
+    abi::wrap_call(arg_len, |(): ()| STATE.governance())
 }
 
 /*
