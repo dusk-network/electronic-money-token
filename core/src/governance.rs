@@ -6,5 +6,7 @@
 
 /// Error messages given by governance-contract.
 pub mod error;
+/// Events emitted by the governance-contract.
+pub mod events;
 /// The signature messages for the respective governance contract functions.
 pub mod signature_messages;
