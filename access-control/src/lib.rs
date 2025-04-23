@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-//! The governance contract for electronic money tokens.
+//! The access-control-contract for electronic money tokens.
 
 #![no_std]
 #![deny(unused_extern_crates)]

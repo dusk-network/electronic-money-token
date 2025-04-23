@@ -9,7 +9,7 @@ use dusk_core::signatures::bls::{
     MultisigSignature, PublicKey as AccountPublicKey,
 };
 
-use emt_core::governance::error;
+use emt_core::access_control::error;
 use emt_core::{Account, AccountInfo};
 mod common;
 use common::instantiate::{TestKeys, TestSession, INITIAL_BALANCE, TOKEN_ID};
@@ -27,7 +27,7 @@ fn init() -> Result<(), ContractError> {
     // check correct initialization of token-contract
     assert_eq!(
         session
-            .query_governance::<(), ContractId>("token_contract", &())?
+            .query_access_control::<(), ContractId>("token_contract", &())?
             .data,
         TOKEN_ID,
     );
@@ -35,25 +35,28 @@ fn init() -> Result<(), ContractError> {
     // check correct initialization of owners and operators
     assert_eq!(
         session
-            .query_governance::<(), Vec<AccountPublicKey>>("owners", &())?
+            .query_access_control::<(), Vec<AccountPublicKey>>("owners", &())?
             .data,
         keys.owners_pk
     );
     assert_eq!(
         session
-            .query_governance::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("owner_nonce", &())?
             .data,
         0
     );
     assert_eq!(
         session
-            .query_governance::<(), Vec<AccountPublicKey>>("operators", &())?
+            .query_access_control::<(), Vec<AccountPublicKey>>(
+                "operators",
+                &()
+            )?
             .data,
         keys.operators_pk
     );
     assert_eq!(
         session
-            .query_governance::<(), u64>("operator_nonce", &())?
+            .query_access_control::<(), u64>("operator_nonce", &())?
             .data,
         0
     );
@@ -62,7 +65,7 @@ fn init() -> Result<(), ContractError> {
     // thresholds
     assert_eq!(
         session
-            .query_governance::<String, Option<u8>>(
+            .query_access_control::<String, Option<u8>>(
                 "operator_signature_threshold",
                 &"block".to_string(),
             )?
@@ -71,7 +74,7 @@ fn init() -> Result<(), ContractError> {
     );
     assert_eq!(
         session
-            .query_governance::<String, Option<u8>>(
+            .query_access_control::<String, Option<u8>>(
                 "operator_signature_threshold",
                 &"mint".to_string(),
             )?
@@ -80,7 +83,7 @@ fn init() -> Result<(), ContractError> {
     );
     assert_eq!(
         session
-            .query_governance::<String, Option<u8>>(
+            .query_access_control::<String, Option<u8>>(
                 "operator_signature_threshold",
                 &"force_transfer".to_string(),
             )?
@@ -132,7 +135,7 @@ fn double_init_fails() -> Result<(), ContractError> {
     let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
 
     // create new init arguments with different owner and operator keys
-    let governance_init_args = (
+    let access_control_init_args = (
         TOKEN_ID,
         keys.test_pk[..5].to_vec(),
         keys.test_pk[5..].to_vec(),
@@ -141,18 +144,18 @@ fn double_init_fails() -> Result<(), ContractError> {
 
     // double init should return an error
     session
-        .execute_governance::<(
+        .execute_access_control::<(
             ContractId,
             Vec<AccountPublicKey>,
             Vec<AccountPublicKey>,
             Vec<(String, u8)>,
-        ), ()>(&keys.test_sk[0], "init", &governance_init_args)
+        ), ()>(&keys.test_sk[0], "init", &access_control_init_args)
         .expect_err("Call should not pass");
 
     // check that owner didn't change
     assert_eq!(
         session
-            .query_governance::<(), Vec<AccountPublicKey>>("owners", &())?
+            .query_access_control::<(), Vec<AccountPublicKey>>("owners", &())?
             .data,
         keys.owners_pk,
     );
@@ -160,7 +163,10 @@ fn double_init_fails() -> Result<(), ContractError> {
     // check that operator didn't change
     assert_eq!(
         session
-            .query_governance::<(), Vec<AccountPublicKey>>("operators", &())?
+            .query_access_control::<(), Vec<AccountPublicKey>>(
+                "operators",
+                &()
+            )?
             .data,
         keys.operators_pk,
     );
@@ -180,7 +186,7 @@ fn authorize_owners_passes() -> Result<(), ContractError> {
     let sig = owner_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
-            .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+            .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
                 "authorize_owners",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
@@ -194,7 +200,7 @@ fn authorize_owners_passes() -> Result<(), ContractError> {
     let sig = owner_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
-            .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+            .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
                 "authorize_owners",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
@@ -208,7 +214,7 @@ fn authorize_owners_passes() -> Result<(), ContractError> {
     let sig = owner_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
-            .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+            .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
                 "authorize_owners",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
@@ -222,7 +228,7 @@ fn authorize_owners_passes() -> Result<(), ContractError> {
     let sig = owner_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
-            .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+            .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
                 "authorize_owners",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
@@ -236,7 +242,7 @@ fn authorize_owners_passes() -> Result<(), ContractError> {
     let sig = owner_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
-            .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+            .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
                 "authorize_owners",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
@@ -259,7 +265,7 @@ fn authorize_owners_fails() -> Result<(), ContractError> {
     let signers = vec![0u8, 1, 2, 3, 4];
     let sig = owner_signature(&keys, &sig_msg, &signers);
     let contract_err = session
-        .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+        .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
             "authorize_owners",
             &(threshold, sig_msg.clone(), sig, signers),
         )
@@ -275,7 +281,7 @@ fn authorize_owners_fails() -> Result<(), ContractError> {
     let signers = vec![0u8, 0];
     let sig = owner_signature(&keys, &sig_msg, &signers);
     let contract_err = session
-        .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+        .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
             "authorize_owners",
             &(threshold, sig_msg.clone(), sig, signers),
         )
@@ -293,7 +299,7 @@ fn authorize_owners_fails() -> Result<(), ContractError> {
     println!("here");
     let sig = owner_signature(&keys, &sig_msg, &signers);
     let contract_err = session
-        .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+        .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
             "authorize_owners",
             &(threshold, sig_msg.clone(), sig, signers),
         )
@@ -309,7 +315,7 @@ fn authorize_owners_fails() -> Result<(), ContractError> {
     let signers = vec![0u8, 1, 2, 3, 4];
     let sig = owner_signature(&keys, &sig_msg, &signers);
     let contract_err = session
-        .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+        .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
             "authorize_owners",
             &(threshold, sig_msg.clone(), sig, signers),
         )
@@ -325,7 +331,7 @@ fn authorize_owners_fails() -> Result<(), ContractError> {
     let signers = vec![0u8, 1, 3, 4, 6, 7];
     let sig = operator_signature(&keys, &sig_msg, &signers);
     let contract_err = session
-        .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+        .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
             "authorize_owners",
             &(threshold, sig_msg.clone(), sig, signers),
         )
@@ -341,7 +347,7 @@ fn authorize_owners_fails() -> Result<(), ContractError> {
     let signers = vec![3u8];
     let sig = test_keys_signature(&keys, &sig_msg, &signers);
     let contract_err = session
-        .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+        .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
             "authorize_owners",
             &(threshold, sig_msg.clone(), sig, signers),
         )
@@ -367,7 +373,7 @@ fn authorize_operators_passes() -> Result<(), ContractError> {
     let sig = operator_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
-            .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+            .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
                 "authorize_operators",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
@@ -381,7 +387,7 @@ fn authorize_operators_passes() -> Result<(), ContractError> {
     let sig = operator_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
-            .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+            .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
                 "authorize_operators",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
@@ -395,7 +401,7 @@ fn authorize_operators_passes() -> Result<(), ContractError> {
     let sig = operator_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
-            .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+            .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
                 "authorize_operators",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
@@ -409,7 +415,7 @@ fn authorize_operators_passes() -> Result<(), ContractError> {
     let sig = operator_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
-            .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+            .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
                 "authorize_operators",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
@@ -423,7 +429,7 @@ fn authorize_operators_passes() -> Result<(), ContractError> {
     let sig = operator_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
-            .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+            .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
                 "authorize_operators",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
@@ -446,7 +452,7 @@ fn authorize_operators_fails() -> Result<(), ContractError> {
     let signers = vec![0u8];
     let sig = operator_signature(&keys, &sig_msg, &signers);
     let contract_err = session
-        .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+        .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
             "authorize_operators",
             &(threshold, sig_msg.clone(), sig, signers),
         )
@@ -462,7 +468,7 @@ fn authorize_operators_fails() -> Result<(), ContractError> {
     let signers = vec![3u8, 4, 5, 6, 5];
     let sig = operator_signature(&keys, &sig_msg, &signers);
     let contract_err = session
-        .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+        .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
             "authorize_operators",
             &(threshold, sig_msg.clone(), sig, signers),
         )
@@ -480,7 +486,7 @@ fn authorize_operators_fails() -> Result<(), ContractError> {
     println!("here");
     let sig = operator_signature(&keys, &sig_msg, &signers);
     let contract_err = session
-        .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+        .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
             "authorize_operators",
             &(threshold, sig_msg.clone(), sig, signers),
         )
@@ -496,7 +502,7 @@ fn authorize_operators_fails() -> Result<(), ContractError> {
     let signers = vec![0u8, 1, 2, 3, 4];
     let sig = operator_signature(&keys, &sig_msg, &signers);
     let contract_err = session
-        .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+        .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
             "authorize_operators",
             &(threshold, sig_msg.clone(), sig, signers),
         )
@@ -512,7 +518,7 @@ fn authorize_operators_fails() -> Result<(), ContractError> {
     let signers = vec![0u8, 3, 4, 7];
     let sig = owner_signature(&keys, &sig_msg, &signers);
     let contract_err = session
-        .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+        .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
             "authorize_operators",
             &(threshold, sig_msg.clone(), sig, signers),
         )
@@ -528,7 +534,7 @@ fn authorize_operators_fails() -> Result<(), ContractError> {
     let signers = vec![3u8];
     let sig = test_keys_signature(&keys, &sig_msg, &signers);
     let contract_err = session
-        .query_governance::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
+        .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
             "authorize_operators",
             &(threshold, sig_msg.clone(), sig, signers),
         )

@@ -1,5 +1,5 @@
 [package]
-name = "emt-governance"
+name = "emt-access-control"
 version.workspace = true
 edition.workspace = true
 

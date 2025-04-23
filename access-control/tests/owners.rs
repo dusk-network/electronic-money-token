@@ -8,13 +8,13 @@ use dusk_core::abi::{ContractError, ContractId, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::{
     MultisigSignature, PublicKey as AccountPublicKey,
 };
-use emt_core::governance::{error, events, signature_messages};
+use emt_core::access_control::{error, events, signature_messages};
 use emt_core::{Account, AccountInfo, ZERO_ADDRESS};
 use emt_tests::utils::rkyv_serialize;
 
 pub mod common;
 use common::instantiate::{
-    TestKeys, TestSession, GOVERNANCE_ID, INITIAL_BALANCE, TOKEN_ID,
+    TestKeys, TestSession, ACCESS_CONTROL_ID, INITIAL_BALANCE, TOKEN_ID,
 };
 use common::{owner_signature, test_keys_signature};
 
@@ -41,7 +41,7 @@ fn set_token_contract() -> Result<(), ContractError> {
     let call_name = "set_token_contract";
     let call_args = (new_token_contract, sig, signers);
     let receipt = session
-        .execute_governance::<(ContractId, MultisigSignature, Vec<u8>), ContractId>(
+        .execute_access_control::<(ContractId, MultisigSignature, Vec<u8>), ContractId>(
             &keys.test_sk[0],
             call_name,
             &call_args,
@@ -49,19 +49,19 @@ fn set_token_contract() -> Result<(), ContractError> {
         ?;
 
     // check that the correct event has been emitted
-    let governance_events: Vec<_> = receipt
+    let access_control_events: Vec<_> = receipt
         .events
         .iter()
-        .filter(|event| event.source == GOVERNANCE_ID)
+        .filter(|event| event.source == ACCESS_CONTROL_ID)
         .collect();
-    assert_eq!(governance_events.len(), 1);
-    assert_eq!(governance_events[0].topic, events::UpdateToken::TOPIC);
+    assert_eq!(access_control_events.len(), 1);
+    assert_eq!(access_control_events[0].topic, events::UpdateToken::TOPIC);
     // check that the old contract-ID is returned
     assert_eq!(receipt.data, TOKEN_ID);
-    // check that the token-contract on the governance-contract updated
+    // check that the token-contract on the access-control-contract updated
     assert_eq!(
         session
-            .query_governance::<(), ContractId>("token_contract", &())?
+            .query_access_control::<(), ContractId>("token_contract", &())?
             .data,
         new_token_contract,
     );
@@ -69,7 +69,7 @@ fn set_token_contract() -> Result<(), ContractError> {
     owner_nonce += 1;
     assert_eq!(
         session
-            .query_governance::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("owner_nonce", &())?
             .data,
         owner_nonce,
     );
@@ -97,7 +97,7 @@ fn set_owners() -> Result<(), ContractError> {
     let call_name = "set_owners";
     let call_args = (new_owners, sig, signers);
     let contract_err = session
-        .execute_governance
+        .execute_access_control
         ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>), ()>
         (
             &keys.test_sk[0],
@@ -115,14 +115,14 @@ fn set_owners() -> Result<(), ContractError> {
     // check owners not updated
     assert_eq!(
         session
-            .query_governance::<(), Vec<AccountPublicKey>>("owners", &())?
+            .query_access_control::<(), Vec<AccountPublicKey>>("owners", &())?
             .data,
         keys.owners_pk
     );
     // check nonce is not incremented
     assert_eq!(
         session
-            .query_governance::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("owner_nonce", &())?
             .data,
         owner_nonce,
     );
@@ -141,7 +141,7 @@ fn set_owners() -> Result<(), ContractError> {
     let call_name = "set_owners";
     let call_args = (new_owners, sig, signers);
     let receipt = session
-        .execute_governance
+        .execute_access_control
         ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>), ()>
         (
             &keys.test_sk[0],
@@ -151,20 +151,20 @@ fn set_owners() -> Result<(), ContractError> {
         ?;
 
     // check that the correct event has been emitted
-    let governance_events: Vec<_> = receipt
+    let access_control_events: Vec<_> = receipt
         .events
         .iter()
-        .filter(|event| event.source == GOVERNANCE_ID)
+        .filter(|event| event.source == ACCESS_CONTROL_ID)
         .collect();
-    assert_eq!(governance_events.len(), 1);
+    assert_eq!(access_control_events.len(), 1);
     assert_eq!(
-        governance_events[0].topic,
+        access_control_events[0].topic,
         events::UpdatePublicKeys::NEW_OWNERS
     );
     // check updated owners
     assert_eq!(
         session
-            .query_governance::<(), Vec<AccountPublicKey>>("owners", &())?
+            .query_access_control::<(), Vec<AccountPublicKey>>("owners", &())?
             .data,
         keys.test_pk
     );
@@ -172,7 +172,7 @@ fn set_owners() -> Result<(), ContractError> {
     owner_nonce += 1;
     assert_eq!(
         session
-            .query_governance::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("owner_nonce", &())?
             .data,
         owner_nonce,
     );
@@ -196,7 +196,7 @@ fn set_owners() -> Result<(), ContractError> {
     let call_name = "set_owners";
     let call_args = (new_owners.clone(), old_owner_sig, signers.clone());
     let contract_err = session
-        .execute_governance
+        .execute_access_control
         ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>), ()>
         (
             &keys.test_sk[0],
@@ -220,7 +220,7 @@ fn set_owners() -> Result<(), ContractError> {
     let new_owner_sig = test_keys_signature(&keys, &sig_msg, &signers);
     let call_args = (new_owners.clone(), new_owner_sig, signers);
     session
-        .execute_governance
+        .execute_access_control
         ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>), ()>
         (&keys.test_sk[0], call_name, &call_args)
         ?;
@@ -228,7 +228,7 @@ fn set_owners() -> Result<(), ContractError> {
     // check updated owners
     assert_eq!(
         session
-            .query_governance::<(), Vec<AccountPublicKey>>("owners", &())?
+            .query_access_control::<(), Vec<AccountPublicKey>>("owners", &())?
             .data,
         new_owners
     );
@@ -236,7 +236,7 @@ fn set_owners() -> Result<(), ContractError> {
     owner_nonce += 1;
     assert_eq!(
         session
-            .query_governance::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("owner_nonce", &())?
             .data,
         owner_nonce,
     );
@@ -264,27 +264,30 @@ fn set_operators() -> Result<(), ContractError> {
     // call contract
     let call_name = "set_operators";
     let call_args = (new_operators, sig, signers);
-    let receipt = session.execute_governance::<_, ()>(
+    let receipt = session.execute_access_control::<_, ()>(
         &keys.test_sk[0],
         call_name,
         &call_args,
     )?;
 
     // check that the correct event has been emitted
-    let governance_events: Vec<_> = receipt
+    let access_control_events: Vec<_> = receipt
         .events
         .iter()
-        .filter(|event| event.source == GOVERNANCE_ID)
+        .filter(|event| event.source == ACCESS_CONTROL_ID)
         .collect();
-    assert_eq!(governance_events.len(), 1);
+    assert_eq!(access_control_events.len(), 1);
     assert_eq!(
-        governance_events[0].topic,
+        access_control_events[0].topic,
         events::UpdatePublicKeys::NEW_OPERATORS
     );
     // check updated operators
     assert_eq!(
         session
-            .query_governance::<(), Vec<AccountPublicKey>>("operators", &())?
+            .query_access_control::<(), Vec<AccountPublicKey>>(
+                "operators",
+                &()
+            )?
             .data,
         keys.test_pk
     );
@@ -292,7 +295,7 @@ fn set_operators() -> Result<(), ContractError> {
     owner_nonce += 1;
     assert_eq!(
         session
-            .query_governance::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("owner_nonce", &())?
             .data,
         owner_nonce,
     );
@@ -315,13 +318,14 @@ fn set_operators() -> Result<(), ContractError> {
     let signers = vec![4u8, 5, 6, 7, 8, 9];
     let sig = test_keys_signature(&keys, &sig_msg, &signers);
 
-    let governance_call_name = "operator_token_call";
-    let governance_call_args = (token_call_name, token_call_args, sig, signers);
+    let access_control_call_name = "operator_token_call";
+    let access_control_call_args =
+        (token_call_name, token_call_args, sig, signers);
 
-    session.execute_governance::<_, ()>(
+    session.execute_access_control::<_, ()>(
         &keys.test_sk[1],
-        governance_call_name,
-        &governance_call_args,
+        access_control_call_name,
+        &access_control_call_args,
     )?;
 
     // check updated balance for mint-receiver
@@ -336,7 +340,7 @@ fn set_operators() -> Result<(), ContractError> {
     operator_nonce += 1;
     assert_eq!(
         session
-            .query_governance::<(), u64>("operator_nonce", &())?
+            .query_access_control::<(), u64>("operator_nonce", &())?
             .data,
         operator_nonce,
     );
@@ -364,7 +368,7 @@ fn transfer_governance() -> Result<(), ContractError> {
     // call contract
     let call_name = "transfer_governance";
     let call_args = (new_governance, sig, signers);
-    session.execute_governance::<_, ()>(
+    session.execute_access_control::<_, ()>(
         &keys.test_sk[0],
         call_name,
         &call_args,
@@ -374,7 +378,7 @@ fn transfer_governance() -> Result<(), ContractError> {
     owner_nonce += 1;
     assert_eq!(
         session
-            .query_governance::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("owner_nonce", &())?
             .data,
         owner_nonce,
     );
@@ -405,7 +409,7 @@ fn renounce_governance() -> Result<(), ContractError> {
     // call contract
     let call_name = "renounce_governance";
     let call_args = (sig, signers);
-    session.execute_governance::<_, ()>(
+    session.execute_access_control::<_, ()>(
         &keys.test_sk[0],
         call_name,
         &call_args,
@@ -415,7 +419,7 @@ fn renounce_governance() -> Result<(), ContractError> {
     owner_nonce += 1;
     assert_eq!(
         session
-            .query_governance::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("owner_nonce", &())?
             .data,
         owner_nonce,
     );
@@ -453,7 +457,11 @@ fn executing_operator_operations_fails() -> Result<(), ContractError> {
     let call_name = "operator_token_call";
     let call_args = (token_call_name, token_call_args, sig, signers);
     let contract_err = session
-        .execute_governance::<_, ()>(&keys.test_sk[0], call_name, &call_args)
+        .execute_access_control::<_, ()>(
+            &keys.test_sk[0],
+            call_name,
+            &call_args,
+        )
         .expect_err("Call should not pass");
 
     // check contract panic
@@ -465,7 +473,7 @@ fn executing_operator_operations_fails() -> Result<(), ContractError> {
     // check owner nonce is not incremented
     assert_eq!(
         session
-            .query_governance::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("owner_nonce", &())?
             .data,
         owner_nonce,
     );

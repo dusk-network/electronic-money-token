@@ -12,15 +12,15 @@ use alloc::vec::Vec;
 
 use dusk_core::abi::{self, ContractId, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::{MultisigSignature, PublicKey};
-use emt_core::governance::{error, events, signature_messages};
+use emt_core::access_control::{error, events, signature_messages};
 use emt_core::Account;
 
 use crate::{contains_duplicates, supermajority};
 
 const EMPTY: ContractId = ContractId::from_bytes([0u8; CONTRACT_ID_BYTES]);
 
-/// The state of the token governance contract.
-pub struct Governance {
+/// The state of the token access-control-contract.
+pub struct AccessControl {
     // The contract-id of the token-contract.
     token_contract: ContractId,
     // Only the owners of a token-contract are authorized to change the owners
@@ -29,7 +29,7 @@ pub struct Governance {
     // The nonce for the owners, initialized at 0 and strictly increasing.
     owner_nonce: u64,
     // The operators of the token-contract are authorized to execute all
-    // inter-contract calls to the token-contract except changing governance.
+    // inter-contract calls to the token-contract except changing ownership.
     operators: Vec<PublicKey>,
     // The nonce for the operators, initialized at 0 and strictly increasing.
     operator_nonce: u64,
@@ -40,12 +40,12 @@ pub struct Governance {
     operator_token_calls: BTreeMap<String, u8>,
 }
 
-/// The state of the governance contract at deployment.
-pub static mut STATE: Governance = Governance::new();
+/// The state of the access-control-contract at deployment.
+pub static mut STATE: AccessControl = AccessControl::new();
 
 /// Basic contract implementation.
-impl Governance {
-    /// Create a new empty instance of the governance-contract.
+impl AccessControl {
+    /// Create a new empty instance of the access-control-contract.
     #[must_use]
     const fn new() -> Self {
         Self {
@@ -58,8 +58,8 @@ impl Governance {
         }
     }
 
-    /// Initialize the governance contract state with sets of owners, operators
-    /// and inter-contract calls.
+    /// Initialize the access-control-contract state with sets of owners,
+    /// operators and inter-contract calls.
     ///
     /// # Panics
     /// This function will panic if:
@@ -132,7 +132,7 @@ impl Governance {
         self.token_contract
     }
 
-    /// Return the current owners stored in the governance-contract.
+    /// Return the current owners stored in the access-control-contract.
     #[must_use]
     pub fn owners(&self) -> Vec<PublicKey> {
         self.owners.clone()
@@ -145,7 +145,7 @@ impl Governance {
         self.owner_nonce
     }
 
-    /// Return the current operators stored in the governance contract.
+    /// Return the current operators stored in the access-control-contract.
     #[must_use]
     pub fn operators(&self) -> Vec<PublicKey> {
         self.operators.clone()
@@ -177,11 +177,11 @@ impl Governance {
 }
 
 // Methods that need the owners' approval.
-impl Governance {
+impl AccessControl {
     /// Since the token-contract will execute every inter-contract call that
-    /// comes from the governance contract, every token-contract call that need
-    /// authorization by the owners **must** be excluded from the calls that the
-    /// operators need to authorize.
+    /// comes from the access-control-contract, every token-contract call that
+    /// need authorization by the owners **must** be excluded from the calls
+    /// that the operators need to authorize.
     const OWNER_TOKEN_CALLS: [&'static str; 2] = [
         // 'set_token_contract`, `set_owners` and `set_operators` also need
         // owners approval but because they don't contain a call to the
@@ -190,10 +190,10 @@ impl Governance {
         "renounce_governance",
     ];
 
-    /// Update the token-contract in the governance-contract and return the old
-    /// token-contract ID.
+    /// Update the token-contract in the access-control-contract and return the
+    /// old token-contract ID.
     /// This allows for changing the token-contract while keeping the same
-    /// governance.
+    /// access-control.
     ///
     /// The signature message for this inter-contract call is the current
     /// owner-nonce in be-bytes appended by the new token-contract `ContractId`.
@@ -228,7 +228,7 @@ impl Governance {
         let old_token_contract =
             core::mem::replace(&mut self.token_contract, new_token_contract);
 
-        // alert network of the changes to the governance state
+        // alert network of the changes to the state
         abi::emit(
             events::UpdateToken::TOPIC,
             events::UpdateToken {
@@ -240,7 +240,7 @@ impl Governance {
         old_token_contract
     }
 
-    /// Update the owner public-keys in the governance-contract.
+    /// Update the owner public-keys in the access-control-contract.
     ///
     /// The signature message for this inter-contract call is the current
     /// owner-nonce in be-bytes appended by the serialized public-keys of
@@ -290,14 +290,14 @@ impl Governance {
         // increment the owners nonce
         self.owner_nonce += 1;
 
-        // alert network of the changes to the governance state
+        // alert network of the changes to the state
         abi::emit(
             events::UpdatePublicKeys::NEW_OWNERS,
             events::UpdatePublicKeys { pks: new_owners },
         );
     }
 
-    /// Update the operator public-keys in the governance-contract.
+    /// Update the operator public-keys in the access-control-contract.
     ///
     /// The signature message for this inter-contract call is the current
     /// owner-nonce in be-bytes appended by the serialized public-keys of
@@ -344,7 +344,7 @@ impl Governance {
         // increment the owners nonce
         self.owner_nonce += 1;
 
-        // alert network of the changes to the governance state
+        // alert network of the changes to the state
         abi::emit(
             events::UpdatePublicKeys::NEW_OPERATORS,
             events::UpdatePublicKeys { pks: new_operators },
@@ -432,7 +432,7 @@ impl Governance {
 }
 
 // Methods that need the operators' approval
-impl Governance {
+impl AccessControl {
     /// Execute a call to the token-contract, that doesn't require owner's
     /// approval.
     ///
@@ -521,7 +521,7 @@ impl Governance {
         // increment the operator nonce
         self.operator_nonce += 1;
 
-        // alert network of the changes to the governance state
+        // alert network of the changes to the state
         abi::emit(
             events::UpdateTokenCall::TOPIC,
             events::UpdateTokenCall {
@@ -533,7 +533,7 @@ impl Governance {
 }
 
 /// Access control implementation.
-impl Governance {
+impl AccessControl {
     /// Check if the aggregated signature of the given owners is valid.
     ///
     /// # Panics

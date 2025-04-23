@@ -26,14 +26,14 @@ use emt_tests::network::NetworkSession;
 const TOKEN_BYTECODE: &[u8] = include_bytes!(
     "../../../target/wasm64-unknown-unknown/release/emt_token.wasm"
 );
-const GOVERNANCE_BYTECODE: &[u8] = include_bytes!(
-    "../../../target/wasm64-unknown-unknown/release/emt_governance.wasm"
+const ACCESS_CONTROL_BYTECODE: &[u8] = include_bytes!(
+    "../../../target/wasm64-unknown-unknown/release/emt_access_control.wasm"
 );
 
 const DEPLOYER: [u8; 64] = [0u8; 64];
 
 pub const TOKEN_ID: ContractId = ContractId::from_bytes([1; 32]);
-pub const GOVERNANCE_ID: ContractId = ContractId::from_bytes([2; 32]);
+pub const ACCESS_CONTROL_ID: ContractId = ContractId::from_bytes([2; 32]);
 
 pub const INITIAL_BALANCE: u64 = 1000;
 
@@ -115,18 +115,18 @@ impl TestSession {
         let mut network_session = NetworkSession::instantiate(public_balances);
 
         // deploy the token-contract
-        // fund all keys and the governance-contract itself with an initial
+        // fund all keys and the access-control-contract itself with an initial
         // balance
         let mut initial_balances = public_keys
             .iter()
             .map(|pk| (Account::from(*pk), INITIAL_BALANCE))
             .collect::<Vec<_>>();
         initial_balances
-            .push((Account::Contract(GOVERNANCE_ID), INITIAL_BALANCE));
+            .push((Account::Contract(ACCESS_CONTROL_ID), INITIAL_BALANCE));
         let token_init_args = (
             initial_balances,
-            // set the governance-contract as token-contract governance
-            Account::from(GOVERNANCE_ID),
+            // set the access-control-contract as token-contract access-control
+            Account::from(ACCESS_CONTROL_ID),
         );
         network_session
             .deploy(
@@ -138,9 +138,9 @@ impl TestSession {
             )
             .expect("Deploying the token-contract should succeed");
 
-        // deploy the governance-contract
-        let governance_init_args = (
-            // set the token-contract in the governance state
+        // deploy the access-control-contract
+        let access_control_init_args = (
+            // set the token-contract in the access-control state
             TOKEN_ID,
             // set the owner and operator keys
             test_keys.owners_pk.to_vec(),
@@ -161,13 +161,13 @@ impl TestSession {
         );
         network_session
             .deploy(
-                GOVERNANCE_BYTECODE,
+                ACCESS_CONTROL_BYTECODE,
                 ContractData::builder()
                     .owner(DEPLOYER)
-                    .init_arg(&governance_init_args)
-                    .contract_id(GOVERNANCE_ID),
+                    .init_arg(&access_control_init_args)
+                    .contract_id(ACCESS_CONTROL_ID),
             )
-            .expect("Deploying the governance-contract should succeed");
+            .expect("Deploying the access-control-contract should succeed");
 
         let session = Self {
             session: network_session,
@@ -176,9 +176,9 @@ impl TestSession {
         session
     }
 
-    /// Execute a state-transition of the governance-contract, paying gas with
-    /// `tx_sk`.
-    pub fn execute_governance<A, R>(
+    /// Execute a state-transition of the access-control-contract, paying gas
+    /// with `tx_sk`.
+    pub fn execute_access_control<A, R>(
         &mut self,
         tx_sk: &AccountSecretKey,
         fn_name: &str,
@@ -192,11 +192,11 @@ impl TestSession {
             + for<'b> CheckBytes<DefaultValidator<'b>>,
     {
         self.session
-            .icc_transaction(tx_sk, GOVERNANCE_ID, fn_name, fn_arg)
+            .icc_transaction(tx_sk, ACCESS_CONTROL_ID, fn_name, fn_arg)
     }
 
-    /// Query the governance-contract directly without paying gas.
-    pub fn query_governance<A, R>(
+    /// Query the access-control-contract directly without paying gas.
+    pub fn query_access_control<A, R>(
         &mut self,
         fn_name: &str,
         fn_arg: &A,
@@ -209,7 +209,7 @@ impl TestSession {
             + for<'b> CheckBytes<DefaultValidator<'b>>,
     {
         self.session
-            .direct_call::<A, R>(GOVERNANCE_ID, fn_name, fn_arg)
+            .direct_call::<A, R>(ACCESS_CONTROL_ID, fn_name, fn_arg)
     }
 
     /// Query the token-contract directly without paying gas.
