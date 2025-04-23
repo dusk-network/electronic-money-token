@@ -13,16 +13,16 @@ use emt_core::access_control::error;
 use emt_core::{Account, AccountInfo};
 mod common;
 use common::instantiate::{TestKeys, TestSession, INITIAL_BALANCE, TOKEN_ID};
-use common::{operator_signature, owner_signature, test_keys_signature};
+use common::{admin_signature, operator_signature, test_keys_signature};
 
-const OWNER: usize = 10;
+const ADMIN: usize = 10;
 const OPERATOR: usize = 10;
 const TEST: usize = 10;
 
 #[test]
 fn init() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
 
     // check correct initialization of token-contract
     assert_eq!(
@@ -32,16 +32,16 @@ fn init() -> Result<(), ContractError> {
         TOKEN_ID,
     );
 
-    // check correct initialization of owners and operators
+    // check correct initialization of admins and operators
     assert_eq!(
         session
-            .query_access_control::<(), Vec<AccountPublicKey>>("owners", &())?
+            .query_access_control::<(), Vec<AccountPublicKey>>("admins", &())?
             .data,
-        keys.owners_pk
+        keys.admins_pk
     );
     assert_eq!(
         session
-            .query_access_control::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("admin_nonce", &())?
             .data,
         0
     );
@@ -109,7 +109,7 @@ fn init() -> Result<(), ContractError> {
         session
             .query_token::<Account, AccountInfo>(
                 "account",
-                &Account::from(keys.owners_pk[5]),
+                &Account::from(keys.admins_pk[5]),
             )?
             .data
             .balance,
@@ -131,10 +131,10 @@ fn init() -> Result<(), ContractError> {
 
 #[test]
 fn double_init_fails() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
 
-    // create new init arguments with different owner and operator keys
+    // create new init arguments with different admin and operator keys
     let access_control_init_args = (
         TOKEN_ID,
         keys.test_pk[..5].to_vec(),
@@ -152,12 +152,12 @@ fn double_init_fails() -> Result<(), ContractError> {
         ), ()>(&keys.test_sk[0], "init", &access_control_init_args)
         .expect_err("Call should not pass");
 
-    // check that owner didn't change
+    // check that admins didn't change
     assert_eq!(
         session
-            .query_access_control::<(), Vec<AccountPublicKey>>("owners", &())?
+            .query_access_control::<(), Vec<AccountPublicKey>>("admins", &())?
             .data,
-        keys.owners_pk,
+        keys.admins_pk,
     );
 
     // check that operator didn't change
@@ -175,19 +175,19 @@ fn double_init_fails() -> Result<(), ContractError> {
 }
 
 #[test]
-fn authorize_owners_passes() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+fn authorize_admins_passes() -> Result<(), ContractError> {
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let sig_msg = rand::random::<[u8; 32]>().to_vec();
 
     // more signers than threshold
     let threshold = 6;
     let signers = vec![0u8, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
             .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
-                "authorize_owners",
+                "authorize_admins",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
             .data,
@@ -197,11 +197,11 @@ fn authorize_owners_passes() -> Result<(), ContractError> {
     // more signers than threshold
     let threshold = 1;
     let signers = vec![0u8, 6, 7, 8, 9];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
             .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
-                "authorize_owners",
+                "authorize_admins",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
             .data,
@@ -211,11 +211,11 @@ fn authorize_owners_passes() -> Result<(), ContractError> {
     // signers equal threshold
     let threshold = 1;
     let signers = vec![6u8];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
             .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
-                "authorize_owners",
+                "authorize_admins",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
             .data,
@@ -225,11 +225,11 @@ fn authorize_owners_passes() -> Result<(), ContractError> {
     // signers equal threshold
     let threshold = 10;
     let signers = vec![0u8, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
             .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
-                "authorize_owners",
+                "authorize_admins",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
             .data,
@@ -239,11 +239,11 @@ fn authorize_owners_passes() -> Result<(), ContractError> {
     // signers equal threshold
     let threshold = 6;
     let signers = vec![1u8, 3, 4, 5, 7, 9];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
     assert_eq!(
         session
             .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
-                "authorize_owners",
+                "authorize_admins",
                 &(threshold, sig_msg.clone(), sig, signers)
             )?
             .data,
@@ -254,19 +254,19 @@ fn authorize_owners_passes() -> Result<(), ContractError> {
 }
 
 #[test]
-fn authorize_owners_fails() -> Result<(), ContractError> {
-    // we need one less owner key in the test session
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<{ OWNER + 1 }, OPERATOR, TEST> = TestKeys::new();
+fn authorize_admins_fails() -> Result<(), ContractError> {
+    // we need one less admin key in the test session
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<{ ADMIN + 1 }, OPERATOR, TEST> = TestKeys::new();
     let sig_msg = rand::random::<[u8; 32]>().to_vec();
 
     // threshold is zero
     let threshold = 0;
     let signers = vec![0u8, 1, 2, 3, 4];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
     let contract_err = session
         .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
-            "authorize_owners",
+            "authorize_admins",
             &(threshold, sig_msg.clone(), sig, signers),
         )
         .expect_err("Call should panic");
@@ -279,10 +279,10 @@ fn authorize_owners_fails() -> Result<(), ContractError> {
     // duplicate signer
     let threshold = 2;
     let signers = vec![0u8, 0];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
     let contract_err = session
         .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
-            "authorize_owners",
+            "authorize_admins",
             &(threshold, sig_msg.clone(), sig, signers),
         )
         .expect_err("Call should panic");
@@ -292,15 +292,15 @@ fn authorize_owners_fails() -> Result<(), ContractError> {
         panic!("Expected panic, got error: {contract_err}",);
     }
 
-    // invalid signer index, since we initialized the session with 10 owner
+    // invalid signer index, since we initialized the session with 10 admin
     // keys, the index = 10 is invalid
     let threshold = 1;
     let signers = vec![10u8];
     println!("here");
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
     let contract_err = session
         .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
-            "authorize_owners",
+            "authorize_admins",
             &(threshold, sig_msg.clone(), sig, signers),
         )
         .expect_err("Call should panic");
@@ -313,10 +313,10 @@ fn authorize_owners_fails() -> Result<(), ContractError> {
     // less signers than threshold
     let threshold = 6;
     let signers = vec![0u8, 1, 2, 3, 4];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
     let contract_err = session
         .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
-            "authorize_owners",
+            "authorize_admins",
             &(threshold, sig_msg.clone(), sig, signers),
         )
         .expect_err("Call should panic");
@@ -332,7 +332,7 @@ fn authorize_owners_fails() -> Result<(), ContractError> {
     let sig = operator_signature(&keys, &sig_msg, &signers);
     let contract_err = session
         .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
-            "authorize_owners",
+            "authorize_admins",
             &(threshold, sig_msg.clone(), sig, signers),
         )
         .expect_err("Call should panic");
@@ -348,7 +348,7 @@ fn authorize_owners_fails() -> Result<(), ContractError> {
     let sig = test_keys_signature(&keys, &sig_msg, &signers);
     let contract_err = session
         .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
-            "authorize_owners",
+            "authorize_admins",
             &(threshold, sig_msg.clone(), sig, signers),
         )
         .expect_err("Call should panic");
@@ -363,8 +363,8 @@ fn authorize_owners_fails() -> Result<(), ContractError> {
 
 #[test]
 fn authorize_operators_passes() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let sig_msg = rand::random::<[u8; 32]>().to_vec();
 
     // more signers than threshold
@@ -442,9 +442,9 @@ fn authorize_operators_passes() -> Result<(), ContractError> {
 
 #[test]
 fn authorize_operators_fails() -> Result<(), ContractError> {
-    // we need one less owner key in the test session
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, { OPERATOR + 2 }, TEST> = TestKeys::new();
+    // we need one less admin key in the test session
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, { OPERATOR + 2 }, TEST> = TestKeys::new();
     let sig_msg = rand::random::<[u8; 32]>().to_vec();
 
     // threshold is zero
@@ -513,10 +513,10 @@ fn authorize_operators_fails() -> Result<(), ContractError> {
         panic!("Expected panic, got error: {contract_err}",);
     }
 
-    // owner signature fails
+    // admin signature fails
     let threshold = 4;
     let signers = vec![0u8, 3, 4, 7];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
     let contract_err = session
         .query_access_control::<(u8, Vec<u8>, MultisigSignature, Vec<u8>), ()>(
             "authorize_operators",

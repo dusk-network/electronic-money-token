@@ -40,8 +40,8 @@ pub const INITIAL_BALANCE: u64 = 1000;
 type Result<T, Error = VMError> = core::result::Result<T, Error>;
 
 pub struct TestKeys<const O: usize, const P: usize, const H: usize> {
-    pub owners_sk: [AccountSecretKey; O],
-    pub owners_pk: [AccountPublicKey; O],
+    pub admins_sk: [AccountSecretKey; O],
+    pub admins_pk: [AccountPublicKey; O],
     pub operators_sk: [AccountSecretKey; P],
     pub operators_pk: [AccountPublicKey; P],
     pub test_sk: [AccountSecretKey; H],
@@ -52,14 +52,14 @@ impl<const O: usize, const P: usize, const H: usize> TestKeys<O, P, H> {
     pub fn new() -> Self {
         let mut rng = StdRng::seed_from_u64(0x5EAF00D);
 
-        // generate owners keys
-        let mut owners_sk = Vec::with_capacity(O);
-        let mut owners_pk = Vec::with_capacity(O);
+        // generate admin keys
+        let mut admins_sk = Vec::with_capacity(O);
+        let mut admins_pk = Vec::with_capacity(O);
         for _ in 0..O {
             let sk = AccountSecretKey::random(&mut rng);
             let pk = AccountPublicKey::from(&sk);
-            owners_sk.push(sk);
-            owners_pk.push(pk);
+            admins_sk.push(sk);
+            admins_pk.push(pk);
         }
 
         // generate operators keys
@@ -83,8 +83,8 @@ impl<const O: usize, const P: usize, const H: usize> TestKeys<O, P, H> {
         }
 
         Self {
-            owners_sk: owners_sk.try_into().unwrap(),
-            owners_pk: owners_pk.try_into().unwrap(),
+            admins_sk: admins_sk.try_into().unwrap(),
+            admins_pk: admins_pk.try_into().unwrap(),
             operators_sk: operators_sk.try_into().unwrap(),
             operators_pk: operators_pk.try_into().unwrap(),
             test_sk: test_sk.try_into().unwrap(),
@@ -105,7 +105,7 @@ impl TestSession {
         // of public accounts that own DUSK for gas-costs
         const MOONLIGHT_BALANCE: u64 = dusk(1_000.0);
         let mut public_keys = Vec::with_capacity(O + P + H);
-        public_keys.extend_from_slice(&test_keys.owners_pk);
+        public_keys.extend_from_slice(&test_keys.admins_pk);
         public_keys.extend_from_slice(&test_keys.operators_pk);
         public_keys.extend_from_slice(&test_keys.test_pk);
         let public_balances = public_keys
@@ -142,8 +142,8 @@ impl TestSession {
         let access_control_init_args = (
             // set the token-contract in the access-control state
             TOKEN_ID,
-            // set the owner and operator keys
-            test_keys.owners_pk.to_vec(),
+            // set the admin and operator keys
+            test_keys.admins_pk.to_vec(),
             test_keys.operators_pk.to_vec(),
             // register all operator token-contract calls
             vec![

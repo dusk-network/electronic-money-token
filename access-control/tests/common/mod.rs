@@ -12,14 +12,14 @@ use dusk_core::signatures::bls::{
 pub mod instantiate;
 use instantiate::TestKeys;
 
-pub fn owner_signature<const O: usize, const P: usize, const H: usize>(
+pub fn admin_signature<const O: usize, const P: usize, const H: usize>(
     keys: &TestKeys<O, P, H>,
     sig_msg: &[u8],
     signer_idx: &[u8],
 ) -> MultisigSignature {
     signature(
-        &keys.owners_sk[..],
-        &keys.owners_pk[..],
+        &keys.admins_sk[..],
+        &keys.admins_pk[..],
         sig_msg,
         signer_idx,
     )

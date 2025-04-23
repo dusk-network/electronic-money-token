@@ -16,26 +16,26 @@ pub mod common;
 use common::instantiate::{
     TestKeys, TestSession, ACCESS_CONTROL_ID, INITIAL_BALANCE, TOKEN_ID,
 };
-use common::{owner_signature, test_keys_signature};
+use common::{admin_signature, test_keys_signature};
 
-const OWNER: usize = 10;
+const ADMIN: usize = 10;
 const OPERATOR: usize = 10;
 const TEST: usize = 10;
 
 #[test]
 fn set_token_contract() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
-    let mut owner_nonce = 0u64;
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
+    let mut admin_nonce = 0u64;
 
     // generate signature
     let new_token_contract = ContractId::from_bytes([42; CONTRACT_ID_BYTES]);
     let sig_msg = signature_messages::set_token_contract(
-        owner_nonce,
+        admin_nonce,
         &new_token_contract,
     );
     let signers = vec![0u8, 1, 4, 5, 6, 9];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
 
     // call contract
     let call_name = "set_token_contract";
@@ -65,37 +65,37 @@ fn set_token_contract() -> Result<(), ContractError> {
             .data,
         new_token_contract,
     );
-    // check owner nonce is incremented
-    owner_nonce += 1;
+    // check admin nonce is incremented
+    admin_nonce += 1;
     assert_eq!(
         session
-            .query_access_control::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("admin_nonce", &())?
             .data,
-        owner_nonce,
+        admin_nonce,
     );
 
     Ok(())
 }
 
 #[test]
-fn set_owners() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
-    let mut owner_nonce = 0u64;
+fn set_admins() -> Result<(), ContractError> {
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
+    let mut admin_nonce = 0u64;
 
     //
-    // test empty owner
+    // test empty admin
     //
 
     // generate signature
-    let new_owners = Vec::new();
-    let sig_msg = signature_messages::set_owners(owner_nonce, vec![]);
+    let new_admins = Vec::new();
+    let sig_msg = signature_messages::set_admins(admin_nonce, vec![]);
     let signers = vec![0u8, 2, 5, 7, 8, 9];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
 
     // call contract
-    let call_name = "set_owners";
-    let call_args = (new_owners, sig, signers);
+    let call_name = "set_admins";
+    let call_args = (new_admins, sig, signers);
     let contract_err = session
         .execute_access_control
         ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>), ()>
@@ -108,38 +108,38 @@ fn set_owners() -> Result<(), ContractError> {
 
     // check contract panic
     if let ContractError::Panic(panic_msg) = contract_err {
-        assert_eq!(panic_msg, error::EMPTY_OWNER);
+        assert_eq!(panic_msg, error::EMPTY_ADMINS);
     } else {
         panic!("Expected panic, got error: {contract_err}",);
     }
-    // check owners not updated
+    // check admins not updated
     assert_eq!(
         session
-            .query_access_control::<(), Vec<AccountPublicKey>>("owners", &())?
+            .query_access_control::<(), Vec<AccountPublicKey>>("admins", &())?
             .data,
-        keys.owners_pk
+        keys.admins_pk
     );
     // check nonce is not incremented
     assert_eq!(
         session
-            .query_access_control::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("admin_nonce", &())?
             .data,
-        owner_nonce,
+        admin_nonce,
     );
 
     //
-    // test valid owner
+    // test valid admin
     //
 
     // generate signature
-    let new_owners: Vec<AccountPublicKey> = keys.test_pk.to_vec();
-    let sig_msg = signature_messages::set_owners(owner_nonce, &new_owners);
+    let new_admins: Vec<AccountPublicKey> = keys.test_pk.to_vec();
+    let sig_msg = signature_messages::set_admins(admin_nonce, &new_admins);
     let signers = vec![0u8, 2, 5, 7, 8, 9];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
 
     // call contract
-    let call_name = "set_owners";
-    let call_args = (new_owners, sig, signers);
+    let call_name = "set_admins";
+    let call_args = (new_admins, sig, signers);
     let receipt = session
         .execute_access_control
         ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>), ()>
@@ -159,42 +159,42 @@ fn set_owners() -> Result<(), ContractError> {
     assert_eq!(access_control_events.len(), 1);
     assert_eq!(
         access_control_events[0].topic,
-        events::UpdatePublicKeys::NEW_OWNERS
+        events::UpdatePublicKeys::NEW_ADMINS
     );
-    // check updated owners
+    // check updated admins
     assert_eq!(
         session
-            .query_access_control::<(), Vec<AccountPublicKey>>("owners", &())?
+            .query_access_control::<(), Vec<AccountPublicKey>>("admins", &())?
             .data,
         keys.test_pk
     );
     // check nonce is incremented
-    owner_nonce += 1;
+    admin_nonce += 1;
     assert_eq!(
         session
-            .query_access_control::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("admin_nonce", &())?
             .data,
-        owner_nonce,
+        admin_nonce,
     );
 
     //
-    // test old owner keys don't work anymore
+    // test old admin keys don't work anymore
     //
 
-    // sign with old owner keys
-    let new_owners = vec![
-        keys.owners_pk[0],
-        keys.owners_pk[1],
-        keys.owners_pk[2],
-        keys.owners_pk[3],
+    // sign with old admin keys
+    let new_admins = vec![
+        keys.admins_pk[0],
+        keys.admins_pk[1],
+        keys.admins_pk[2],
+        keys.admins_pk[3],
     ];
-    let sig_msg = signature_messages::set_owners(owner_nonce, &new_owners);
+    let sig_msg = signature_messages::set_admins(admin_nonce, &new_admins);
     let signers = vec![0u8, 2, 5, 7, 8, 9];
-    let old_owner_sig = owner_signature(&keys, &sig_msg, &signers);
+    let old_admin_sig = admin_signature(&keys, &sig_msg, &signers);
 
     // call contract
-    let call_name = "set_owners";
-    let call_args = (new_owners.clone(), old_owner_sig, signers.clone());
+    let call_name = "set_admins";
+    let call_args = (new_admins.clone(), old_admin_sig, signers.clone());
     let contract_err = session
         .execute_access_control
         ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>), ()>
@@ -216,29 +216,29 @@ fn set_owners() -> Result<(), ContractError> {
     // test new keys do work
     //
 
-    // sign with new owner keys
-    let new_owner_sig = test_keys_signature(&keys, &sig_msg, &signers);
-    let call_args = (new_owners.clone(), new_owner_sig, signers);
+    // sign with new admin keys
+    let new_admin_sig = test_keys_signature(&keys, &sig_msg, &signers);
+    let call_args = (new_admins.clone(), new_admin_sig, signers);
     session
         .execute_access_control
         ::<(Vec<AccountPublicKey>, MultisigSignature, Vec<u8>), ()>
         (&keys.test_sk[0], call_name, &call_args)
         ?;
 
-    // check updated owners
+    // check updated admins
     assert_eq!(
         session
-            .query_access_control::<(), Vec<AccountPublicKey>>("owners", &())?
+            .query_access_control::<(), Vec<AccountPublicKey>>("admins", &())?
             .data,
-        new_owners
+        new_admins
     );
     // check nonce is incremented
-    owner_nonce += 1;
+    admin_nonce += 1;
     assert_eq!(
         session
-            .query_access_control::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("admin_nonce", &())?
             .data,
-        owner_nonce,
+        admin_nonce,
     );
 
     Ok(())
@@ -246,9 +246,9 @@ fn set_owners() -> Result<(), ContractError> {
 
 #[test]
 fn set_operators() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
-    let mut owner_nonce = 0u64;
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
+    let mut admin_nonce = 0u64;
 
     //
     // test updating operator works
@@ -257,9 +257,9 @@ fn set_operators() -> Result<(), ContractError> {
     // generate signature
     let new_operators: Vec<AccountPublicKey> = keys.test_pk.to_vec();
     let sig_msg =
-        signature_messages::set_operators(owner_nonce, &new_operators);
+        signature_messages::set_operators(admin_nonce, &new_operators);
     let signers = vec![0u8, 2, 5, 7, 8, 9];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
 
     // call contract
     let call_name = "set_operators";
@@ -291,13 +291,13 @@ fn set_operators() -> Result<(), ContractError> {
             .data,
         keys.test_pk
     );
-    // check owner nonce is incremented
-    owner_nonce += 1;
+    // check admin nonce is incremented
+    admin_nonce += 1;
     assert_eq!(
         session
-            .query_access_control::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("admin_nonce", &())?
             .data,
-        owner_nonce,
+        admin_nonce,
     );
 
     //
@@ -350,9 +350,9 @@ fn set_operators() -> Result<(), ContractError> {
 
 #[test]
 fn transfer_governance() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
-    let mut owner_nonce = 0u64;
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
+    let mut admin_nonce = 0u64;
 
     //
     // test transferring governance on token-contract to a public key works
@@ -361,9 +361,9 @@ fn transfer_governance() -> Result<(), ContractError> {
     // generate signature
     let new_governance = Account::External(keys.test_pk[0]);
     let sig_msg =
-        signature_messages::transfer_governance(owner_nonce, &new_governance);
+        signature_messages::transfer_governance(admin_nonce, &new_governance);
     let signers = vec![0u8, 2, 5, 7, 8, 9];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
 
     // call contract
     let call_name = "transfer_governance";
@@ -374,13 +374,13 @@ fn transfer_governance() -> Result<(), ContractError> {
         &call_args,
     )?;
 
-    // check owner nonce is incremented
-    owner_nonce += 1;
+    // check admin nonce is incremented
+    admin_nonce += 1;
     assert_eq!(
         session
-            .query_access_control::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("admin_nonce", &())?
             .data,
-        owner_nonce,
+        admin_nonce,
     );
     // check governance updated on token-contract
     assert_eq!(
@@ -393,18 +393,18 @@ fn transfer_governance() -> Result<(), ContractError> {
 
 #[test]
 fn renounce_governance() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
-    let mut owner_nonce = 0u64;
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
+    let mut admin_nonce = 0u64;
 
     //
     // test renouncing governance on token-contract works
     //
 
     // generate signature
-    let sig_msg = signature_messages::renounce_governance(owner_nonce);
+    let sig_msg = signature_messages::renounce_governance(admin_nonce);
     let signers = vec![0u8, 2, 5, 7, 8, 9];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
 
     // call contract
     let call_name = "renounce_governance";
@@ -415,13 +415,13 @@ fn renounce_governance() -> Result<(), ContractError> {
         &call_args,
     )?;
 
-    // check owner nonce is incremented
-    owner_nonce += 1;
+    // check admin nonce is incremented
+    admin_nonce += 1;
     assert_eq!(
         session
-            .query_access_control::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("admin_nonce", &())?
             .data,
-        owner_nonce,
+        admin_nonce,
     );
     // check governance updated on token-contract
     assert_eq!(
@@ -434,9 +434,9 @@ fn renounce_governance() -> Result<(), ContractError> {
 
 #[test]
 fn executing_operator_operations_fails() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
-    let owner_nonce = 0u64;
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
+    let admin_nonce = 0u64;
 
     //
     // test executing toggle-pause on token contract doesn't work
@@ -446,12 +446,12 @@ fn executing_operator_operations_fails() -> Result<(), ContractError> {
     let token_call_name = String::from("toggle_pause");
     let token_call_args = vec![];
     let sig_msg = signature_messages::operator_token_call(
-        owner_nonce,
+        admin_nonce,
         token_call_name.as_str(),
         &token_call_args,
     );
     let signers = vec![0u8, 2, 5, 7, 8, 9];
-    let sig = owner_signature(&keys, &sig_msg, &signers);
+    let sig = admin_signature(&keys, &sig_msg, &signers);
 
     // call contract
     let call_name = "operator_token_call";
@@ -470,12 +470,12 @@ fn executing_operator_operations_fails() -> Result<(), ContractError> {
     } else {
         panic!("Expected panic, got error: {contract_err}",);
     }
-    // check owner nonce is not incremented
+    // check admin nonce is not incremented
     assert_eq!(
         session
-            .query_access_control::<(), u64>("owner_nonce", &())?
+            .query_access_control::<(), u64>("admin_nonce", &())?
             .data,
-        owner_nonce,
+        admin_nonce,
     );
     // check token-contract is not paused
     assert_eq!(

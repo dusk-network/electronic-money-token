@@ -15,7 +15,7 @@ use common::instantiate::{
 };
 use common::{operator_signature, test_keys_signature};
 
-const OWNER: usize = 10;
+const ADMIN: usize = 10;
 const OPERATOR: usize = 10;
 const TEST: usize = 10;
 
@@ -25,8 +25,8 @@ const TEST: usize = 10;
 
 #[test]
 fn unregistered_operator_token_call_fails() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let operator_nonce = 0u64;
 
     // generate signature
@@ -70,8 +70,8 @@ fn unregistered_operator_token_call_fails() -> Result<(), ContractError> {
 
 #[test]
 fn freeze_operator_token_call() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let mut operator_nonce = 0u64;
 
     // generate signature
@@ -116,11 +116,11 @@ fn freeze_operator_token_call() -> Result<(), ContractError> {
 
 #[test]
 fn invalid_signature_operator_token_call_fails() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let operator_nonce = 0u64;
 
-    // generate signature with the owner keys
+    // generate signature with the admin keys
     let token_call_name = String::from("freeze");
     let freeze_account = Account::External(keys.test_pk[0]);
     let token_call_args = rkyv_serialize(&freeze_account);
@@ -162,8 +162,8 @@ fn invalid_signature_operator_token_call_fails() -> Result<(), ContractError> {
 
 #[test]
 fn burn_operator_token_call() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let mut operator_nonce = 0u64;
 
     //
@@ -210,7 +210,7 @@ fn burn_operator_token_call() -> Result<(), ContractError> {
     // all keys and the access-control-contract hold the initial balance at
     // initialization
     let initial_supply =
-        (OWNER + OPERATOR + TEST) as u64 * INITIAL_BALANCE + INITIAL_BALANCE;
+        (ADMIN + OPERATOR + TEST) as u64 * INITIAL_BALANCE + INITIAL_BALANCE;
     assert_eq!(
         session.query_token::<_, u64>("total_supply", &())?.data,
         initial_supply,
@@ -260,8 +260,8 @@ fn burn_operator_token_call() -> Result<(), ContractError> {
 
 #[test]
 fn force_transfer_operator_token_call() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let mut operator_nonce = 0u64;
 
     //
@@ -325,8 +325,8 @@ fn force_transfer_operator_token_call() -> Result<(), ContractError> {
 
 #[test]
 fn set_operator_token_call() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let mut operator_nonce = 0u64;
 
     //
@@ -452,13 +452,13 @@ fn set_operator_token_call() -> Result<(), ContractError> {
 }
 
 /*
- * Test token calls needing owner approval fail
+ * Test token calls needing admin approval fail
  */
 
 #[test]
 fn renounce_access_control_fails() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let operator_nonce = 0u64;
 
     //
