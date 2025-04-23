@@ -70,41 +70,41 @@ impl PauseToggled {
     pub const TOPIC: &'static str = "pause_toggled";
 }
 
-/// Event emitted when the governance of a contract is transferred.
+/// Event emitted when the ownership of a contract is transferred.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
 )]
 #[archive_attr(derive(CheckBytes))]
-pub struct GovernanceTransferred {
-    /// The previous governance of the contract.
-    pub previous_governance: Account,
-    /// The new governance of the contract.
-    pub new_governance: Account,
+pub struct OwnershipTransferred {
+    /// The previous ownership of the contract.
+    pub previous_ownership: Account,
+    /// The new ownership of the contract.
+    pub new_ownership: Account,
 }
 
-impl GovernanceTransferred {
-    /// Event Topic for transferring the governance.
-    pub const GOVERNANCE_TRANSFERRED: &'static str = "governance_transferred";
-    /// Event Topic for renouncing the governance.
-    pub const GOVERNANCE_RENOUNCED: &'static str = "governance_renounced";
+impl OwnershipTransferred {
+    /// Event Topic for transferring the ownership.
+    pub const OWNERSHIP_TRANSFERRED: &'static str = "ownership_transferred";
+    /// Event Topic for renouncing the ownership.
+    pub const OWNERSHIP_RENOUNCED: &'static str = "ownership_renounced";
 }
 
-/// Event emitted when the governance of a contract is accepted in a two
+/// Event emitted when the ownership of a contract is accepted in a two
 /// step transfer process.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Archive, Serialize, Deserialize,
 )]
 #[archive_attr(derive(CheckBytes))]
-pub struct GovernanceAccepted {
-    /// The previous governance of the contract.
-    pub previous_governance: Account,
-    /// The new governance of the contract.
-    pub new_governance: Account,
+pub struct OwnershipAccepted {
+    /// The previous ownership of the contract.
+    pub previous_ownership: Account,
+    /// The new ownership of the contract.
+    pub new_ownership: Account,
 }
 
-impl GovernanceAccepted {
+impl OwnershipAccepted {
     /// Event Topic
-    pub const TOPIC: &'static str = "governance_accepted";
+    pub const TOPIC: &'static str = "ownership_accepted";
 }
 
 /// Event emitted when an account status changes.

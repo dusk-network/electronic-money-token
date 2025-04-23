@@ -68,17 +68,17 @@ fn set_admin_or_operator(
     sig_msg
 }
 
-/// The signature message for transferring the governance of the
+/// The signature message for transferring the ownership of the
 /// token-contract is the current admin-nonce in big endian appended by the
-/// new governance.
+/// new ownership.
 #[must_use]
-pub fn transfer_governance(
+pub fn transfer_ownership(
     admin_nonce: u64,
-    new_governance: &Account,
+    new_ownership: &Account,
 ) -> Vec<u8> {
     let mut sig_msg = Vec::with_capacity(size_of::<u64>() + ACCOUNT_MAX_SIZE);
     sig_msg.extend(&admin_nonce.to_be_bytes());
-    sig_msg.extend(&account_to_bytes(new_governance));
+    sig_msg.extend(&account_to_bytes(new_ownership));
 
     sig_msg
 }
@@ -91,10 +91,10 @@ fn account_to_bytes(account: &Account) -> Vec<u8> {
     }
 }
 
-/// The signature message for renouncing the governance of the
+/// The signature message for renouncing the ownership of the
 /// token-contract is the current admin-nonce in big endian.
 #[must_use]
-pub fn renounce_governance(admin_nonce: u64) -> Vec<u8> {
+pub fn renounce_ownership(admin_nonce: u64) -> Vec<u8> {
     admin_nonce.to_be_bytes().into()
 }
 

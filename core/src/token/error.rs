@@ -16,9 +16,9 @@ pub const SHIELDED_NOT_SUPPORTED: &str =
     "Shielded transactions are not supported";
 
 /// Error message for when the admin account is not found in the contract.
-pub const GOVERNANCE_NOT_FOUND: &str = "The governance does not exist";
+pub const OWNERSHIP_NOT_FOUND: &str = "The ownership does not exist";
 
-/// Error message for when the governance is not authorized i.e., wrong
+/// Error message for when the ownership is not authorized i.e., wrong
 /// `public_sender` value.
 pub const UNAUTHORIZED_ACCOUNT: &str = "Unauthorized account";
 
