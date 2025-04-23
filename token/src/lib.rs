@@ -719,21 +719,24 @@ unsafe extern "C" fn frozen(arg_len: u32) -> u32 {
 /// - If no public sender is available (shielded transactions are not supported)
 /// - If no caller can be determined (impossible case)
 fn sender_account() -> Account {
-    let tx_origin = abi::public_sender().expect(error::SHIELDED_NOT_SUPPORTED);
-
-    let caller = abi::caller().expect("ICC expects a caller");
-
     // Identifies the sender by checking the call stack and transaction origin:
     // - For direct external account transactions (call stack length = 1),
     //   returns the transaction origin
     // - For non-protocol contracts that call the token (call stack length > 1),
     //   returns the immediate calling contract
+    // - This function panics for contract queries because their call stack
+    //   length is 0. It is not intended for "view" calls to use this function,
+    //   as they don't create traceable transactions with a sender/caller.
+    //   Instead, query functions should explicitly take information to query
+    //   for as an argument.
     if abi::callstack().len() == 1 {
         // This also implies, that the call directly originates via the protocol
         // transfer contract i.e., the caller is the transfer
         // contract
-        Account::External(tx_origin)
+        Account::External(
+            abi::public_sender().expect(error::SHIELDED_NOT_SUPPORTED),
+        )
     } else {
-        Account::Contract(caller)
+        Account::Contract(abi::caller().expect("ICC expects a caller"))
     }
 }
