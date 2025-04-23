@@ -5,7 +5,7 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_core::abi::ContractError;
-use emt_core::governance::{error, signature_messages};
+use emt_core::governance::{error, events, signature_messages};
 use emt_core::{Account, AccountInfo};
 use emt_tests::utils::rkyv_serialize;
 
@@ -335,12 +335,20 @@ fn set_operator_token_call() -> Result<(), ContractError> {
     // call contract
     let call_name = "set_operator_token_call";
     let call_args = (token_call_name.clone(), new_threshold, sig, signers);
-    session.execute_governance::<_, ()>(
+    let receipt = session.execute_governance::<_, ()>(
         &keys.test_sk[0],
         call_name,
         &call_args,
     )?;
 
+    // check that the correct event has been emitted
+    let governance_events: Vec<_> = receipt
+        .events
+        .iter()
+        .filter(|event| event.source == GOVERNANCE_ID)
+        .collect();
+    assert_eq!(governance_events.len(), 1);
+    assert_eq!(governance_events[0].topic, events::UpdateTokenCall::TOPIC);
     // check operator nonce is incremented
     operator_nonce += 1;
     assert_eq!(
