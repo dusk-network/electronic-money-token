@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-// The error messages given by the governance-contract.
+// The error messages given by the access-control-contract.
 
 /// Error message given when the state is about to be updated to an empty set of
 /// owners.

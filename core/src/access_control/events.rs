@@ -32,7 +32,7 @@ impl UpdateToken {
 #[derive(Debug, Clone, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct UpdatePublicKeys {
-    /// The new public keys stored in the governance-state.
+    /// The new public keys stored in the access-control-state.
     pub pks: Vec<PublicKey>,
 }
 
