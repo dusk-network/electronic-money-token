@@ -28,7 +28,7 @@ impl UpdateToken {
     pub const TOPIC: &'static str = "new_token-contract";
 }
 
-/// Event emitted when the owners or operators are updated.
+/// Event emitted when the admins or operators are updated.
 #[derive(Debug, Clone, PartialEq, Eq, Archive, Serialize, Deserialize)]
 #[archive_attr(derive(CheckBytes))]
 pub struct UpdatePublicKeys {
@@ -37,8 +37,8 @@ pub struct UpdatePublicKeys {
 }
 
 impl UpdatePublicKeys {
-    /// Event topic used when the owners have been updated.
-    pub const NEW_OWNERS: &'static str = "new_owners";
+    /// Event topic used when the admins have been updated.
+    pub const NEW_ADMINS: &'static str = "new_admins";
     /// Event topic used when the operators have been updated.
     pub const NEW_OPERATORS: &'static str = "new_operators";
 }

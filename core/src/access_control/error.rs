@@ -7,12 +7,13 @@
 // The error messages given by the access-control-contract.
 
 /// Error message given when the state is about to be updated to an empty set of
-/// owners.
-pub const EMPTY_OWNER: &str = "The owner-set must not be empty";
+/// admins.
+pub const EMPTY_ADMINS: &str = "The admins-set must not be empty";
 
-/// Error message given when the state is about to be updated to a set of owners
+/// Error message given when the state is about to be updated to a set of admins
 /// that is larger than `u8::MAX`.
-pub const TOO_MANY_OWNERS: &str = "The owner-set cannot be larger than u8::MAX";
+pub const TOO_MANY_ADMINS: &str =
+    "The admins-set cannot be larger than u8::MAX";
 
 /// Error message given when the state is about to be updated to a set of
 /// operators that is larger than `u8::MAX`.
@@ -28,8 +29,8 @@ pub const ALLREADY_INITIALIZED: &str =
 pub const TOKEN_CALL_NOT_FOUND: &str =
     "The given token-contract call is not registered";
 
-/// Error message given when there are duplicate owner-keys.
-pub const DUPLICATE_OWNER: &str = "Duplicate owner-key found";
+/// Error message given when there are duplicate admins-keys.
+pub const DUPLICATE_ADMINS: &str = "Duplicate admins-key found";
 
 /// Error message given when there are duplicate operator-keys.
 pub const DUPLICATE_OPERATOR: &str = "Duplicate operator-key found";
@@ -53,9 +54,9 @@ pub const THRESHOLD_ZERO: &str =
     "The threshold shouldn't be 0 at authorization";
 
 /// Error message given when an operator tries to trigger an inter-contract call
-/// that only the owners can authorize.
+/// that only the admins can authorize.
 pub const UNAUTHORIZED_TOKEN_CALL: &str =
-    "This inter-contract call need owners authorization";
+    "This inter-contract call need admins authorization";
 
 /// Error message given when an operator token-contract call panics
 pub const OPERATOR_TOKEN_CALL_PANIC: &str =
