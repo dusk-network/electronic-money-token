@@ -29,13 +29,13 @@ struct TokenState {
     allowances: BTreeMap<Account, BTreeMap<Account, u64>>,
     supply: u64,
 
-    governance: Account,
+    ownership: Account,
 
     is_paused: bool,
 }
 
 impl TokenState {
-    fn init(&mut self, accounts: Vec<(Account, u64)>, governance: Account) {
+    fn init(&mut self, accounts: Vec<(Account, u64)>, ownership: Account) {
         for (account, balance) in accounts {
             let account_entry =
                 self.accounts.entry(account).or_insert(AccountInfo::EMPTY);
@@ -53,19 +53,19 @@ impl TokenState {
             );
         }
 
-        // Set the governance
-        self.governance = governance;
+        // Set the ownership
+        self.ownership = ownership;
 
-        // Always insert governance
+        // Always insert ownership
         self.accounts
-            .entry(self.governance)
+            .entry(self.ownership)
             .or_insert(AccountInfo::EMPTY);
 
         abi::emit(
-            events::GovernanceTransferred::GOVERNANCE_TRANSFERRED,
-            events::GovernanceTransferred {
-                previous_governance: ZERO_ADDRESS,
-                new_governance: governance,
+            events::OwnershipTransferred::OWNERSHIP_TRANSFERRED,
+            events::OwnershipTransferred {
+                previous_ownership: ZERO_ADDRESS,
+                new_ownership: ownership,
             },
         );
     }
@@ -75,90 +75,90 @@ static mut STATE: TokenState = TokenState {
     accounts: BTreeMap::new(),
     allowances: BTreeMap::new(),
     supply: 0,
-    governance: ZERO_ADDRESS,
+    ownership: ZERO_ADDRESS,
     is_paused: false,
 };
 
 /// Access control implementation.
 impl TokenState {
-    fn governance(&self) -> Account {
-        self.governance
+    fn ownership(&self) -> Account {
+        self.ownership
     }
 
-    fn governance_info_mut(&mut self) -> &mut AccountInfo {
+    fn ownership_info_mut(&mut self) -> &mut AccountInfo {
         self.accounts
-            .get_mut(&self.governance)
-            .expect(error::GOVERNANCE_NOT_FOUND)
+            .get_mut(&self.ownership)
+            .expect(error::OWNERSHIP_NOT_FOUND)
     }
 
-    fn authorize_governance(&self) {
+    fn authorize_ownership(&self) {
         assert!(
-            sender_account() == self.governance,
+            sender_account() == self.ownership,
             "{}",
             error::UNAUTHORIZED_ACCOUNT
         );
     }
 
-    fn transfer_governance(&mut self, new_governance: Account) {
-        self.authorize_governance();
+    fn transfer_ownership(&mut self, new_ownership: Account) {
+        self.authorize_ownership();
 
-        let previous_governance = self.governance;
+        let previous_ownership = self.ownership;
 
-        self.governance = new_governance;
-        // Always insert governance
+        self.ownership = new_ownership;
+        // Always insert ownership
         self.accounts
-            .entry(new_governance)
+            .entry(new_ownership)
             .or_insert(AccountInfo::EMPTY);
 
         abi::emit(
-            events::GovernanceTransferred::GOVERNANCE_TRANSFERRED,
-            events::GovernanceTransferred {
-                previous_governance,
-                new_governance,
+            events::OwnershipTransferred::OWNERSHIP_TRANSFERRED,
+            events::OwnershipTransferred {
+                previous_ownership,
+                new_ownership,
             },
         );
     }
 
-    fn renounce_governance(&mut self) {
-        self.authorize_governance();
+    fn renounce_ownership(&mut self) {
+        self.authorize_ownership();
 
-        let previous_governance = self.governance;
-        self.governance = ZERO_ADDRESS;
+        let previous_ownership = self.ownership;
+        self.ownership = ZERO_ADDRESS;
 
         abi::emit(
-            events::GovernanceTransferred::GOVERNANCE_RENOUNCED,
-            events::GovernanceTransferred {
-                previous_governance,
-                new_governance: ZERO_ADDRESS,
+            events::OwnershipTransferred::OWNERSHIP_RENOUNCED,
+            events::OwnershipTransferred {
+                previous_ownership,
+                new_ownership: ZERO_ADDRESS,
             },
         );
     }
 
     fn blocked(&self, account: Account) -> bool {
-        let governance_account = self.accounts.get(&account);
+        let ownership_account = self.accounts.get(&account);
 
-        match governance_account {
+        match ownership_account {
             Some(account) => account.is_blocked(),
             None => false,
         }
     }
 
     fn frozen(&self, account: Account) -> bool {
-        let governance_account = self.accounts.get(&account);
+        let ownership_account = self.accounts.get(&account);
 
-        match governance_account {
+        match ownership_account {
             Some(account) => account.is_frozen(),
             None => false,
         }
     }
 
     fn block(&mut self, account: Account) {
-        self.authorize_governance();
+        self.authorize_ownership();
 
         let account_info = self
             .accounts
             .get_mut(&account)
-            .expect(error::GOVERNANCE_NOT_FOUND);
+            .expect(error::OWNERSHIP_NOT_FOUND);
 
         account_info.block();
 
@@ -169,12 +169,12 @@ impl TokenState {
     }
 
     fn freeze(&mut self, account: Account) {
-        self.authorize_governance();
+        self.authorize_ownership();
 
         let account_info = self
             .accounts
             .get_mut(&account)
-            .expect(error::GOVERNANCE_NOT_FOUND);
+            .expect(error::OWNERSHIP_NOT_FOUND);
 
         account_info.freeze();
 
@@ -185,12 +185,12 @@ impl TokenState {
     }
 
     fn unblock(&mut self, account: Account) {
-        self.authorize_governance();
+        self.authorize_ownership();
 
         let account_info = self
             .accounts
             .get_mut(&account)
-            .expect(error::GOVERNANCE_NOT_FOUND);
+            .expect(error::OWNERSHIP_NOT_FOUND);
 
         assert!(account_info.is_blocked(), "The account is not blocked");
 
@@ -203,12 +203,12 @@ impl TokenState {
     }
 
     fn unfreeze(&mut self, account: Account) {
-        self.authorize_governance();
+        self.authorize_ownership();
 
         let account_info = self
             .accounts
             .get_mut(&account)
-            .expect(error::GOVERNANCE_NOT_FOUND);
+            .expect(error::OWNERSHIP_NOT_FOUND);
 
         assert!(account_info.is_frozen(), "The account is not frozen");
 
@@ -224,7 +224,7 @@ impl TokenState {
 /// Supply management implementation.
 impl TokenState {
     fn mint(&mut self, receiver: Account, amount: u64) {
-        self.authorize_governance();
+        self.authorize_ownership();
 
         let receiver_account =
             self.accounts.entry(receiver).or_insert(AccountInfo::EMPTY);
@@ -250,9 +250,9 @@ impl TokenState {
     }
 
     fn burn(&mut self, amount: u64) {
-        self.authorize_governance();
+        self.authorize_ownership();
 
-        let burn_account = self.governance_info_mut();
+        let burn_account = self.ownership_info_mut();
 
         if burn_account.balance < amount {
             panic!("{}", error::BALANCE_TOO_LOW);
@@ -266,7 +266,7 @@ impl TokenState {
         abi::emit(
             events::Transfer::BURN_TOPIC,
             events::Transfer {
-                sender: self.governance,
+                sender: self.ownership,
                 spender: None,
                 receiver: ZERO_ADDRESS,
                 value: amount,
@@ -282,7 +282,7 @@ impl TokenState {
     }
 
     fn toggle_pause(&mut self) {
-        self.authorize_governance();
+        self.authorize_ownership();
 
         self.is_paused = !self.is_paused;
 
@@ -302,7 +302,7 @@ impl TokenState {
         receiver: Account,
         value: u64,
     ) {
-        self.authorize_governance();
+        self.authorize_ownership();
 
         let obliged_sender_account = self
             .accounts
@@ -547,8 +547,8 @@ impl TokenState {
 
 #[no_mangle]
 unsafe extern "C" fn init(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |(initial_accounts, governance)| {
-        STATE.init(initial_accounts, governance);
+    abi::wrap_call(arg_len, |(initial_accounts, ownership)| {
+        STATE.init(initial_accounts, ownership);
     })
 }
 
@@ -616,20 +616,20 @@ unsafe extern "C" fn approve(arg_len: u32) -> u32 {
  */
 
 #[no_mangle]
-unsafe extern "C" fn transfer_governance(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |new_governance| {
-        STATE.transfer_governance(new_governance);
+unsafe extern "C" fn transfer_ownership(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |new_ownership| {
+        STATE.transfer_ownership(new_ownership);
     })
 }
 
 #[no_mangle]
-unsafe extern "C" fn renounce_governance(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |(): ()| STATE.renounce_governance())
+unsafe extern "C" fn renounce_ownership(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(): ()| STATE.renounce_ownership())
 }
 
 #[no_mangle]
-unsafe extern "C" fn governance(arg_len: u32) -> u32 {
-    abi::wrap_call(arg_len, |(): ()| STATE.governance())
+unsafe extern "C" fn ownership(arg_len: u32) -> u32 {
+    abi::wrap_call(arg_len, |(): ()| STATE.ownership())
 }
 
 /*

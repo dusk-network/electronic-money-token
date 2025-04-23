@@ -76,7 +76,7 @@ fn double_init() {
     );
 
     assert_ne!(
-        session.governance(),
+        session.ownership(),
         Account::External(pk),
         "The token-contract owner shouldn't have changed"
     );
@@ -451,39 +451,39 @@ fn transfer_from() {
     );
 }
 
-/// Test transfer of governance to test account.
+/// Test transfer of ownership to test account.
 #[test]
-fn transfer_governance() {
+fn transfer_ownership() {
     let mut session = TestSession::new();
-    let new_governance = Account::from(*TestSession::PK_2);
+    let new_ownership = Account::from(*TestSession::PK_2);
 
     session
         .call_token::<_, ()>(
             &*TestSession::SK_0,
-            "transfer_governance",
-            &new_governance,
+            "transfer_ownership",
+            &new_ownership,
         )
         .expect("Call should pass");
 
-    assert_eq!(session.governance(), new_governance);
+    assert_eq!(session.ownership(), new_ownership);
 }
 
-/// Test TransferGovernance, RenounceGovernance with wrong governance
+/// Test TransferOwnership, RenounceOwnership with wrong ownership
 /// and check for correct error message.
 ///
-/// TODO: Squash wrong sk case with transfer governance & renounce governance
+/// TODO: Squash wrong sk case with transfer ownership & renounce ownership
 /// tests functions as the other tests (mint, burn etc) do it.
 #[test]
-fn governance_fails() {
+fn ownership_fails() {
     let mut session = TestSession::new();
 
-    let wrong_governance_sk = &*TestSession::SK_2;
-    let new_governance = Account::from(*TestSession::PK_2);
+    let wrong_ownership_sk = &*TestSession::SK_2;
+    let new_ownership = Account::from(*TestSession::PK_2);
 
     let receipt = session.call_token::<_, ()>(
-        &wrong_governance_sk,
-        "transfer_governance",
-        &new_governance,
+        &wrong_ownership_sk,
+        "transfer_ownership",
+        &new_ownership,
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
@@ -493,8 +493,8 @@ fn governance_fails() {
     }
 
     let receipt = session.call_token::<_, ()>(
-        wrong_governance_sk,
-        "renounce_governance",
+        wrong_ownership_sk,
+        "renounce_ownership",
         &(),
     );
 
@@ -504,26 +504,26 @@ fn governance_fails() {
         panic!("Expected a panic error");
     }
 
-    assert_eq!(session.governance(), Account::from(*TestSession::PK_0));
+    assert_eq!(session.ownership(), Account::from(*TestSession::PK_0));
 }
 
-/// Test renounce governance.
+/// Test renounce ownership.
 #[test]
-fn renounce_governance() {
+fn renounce_ownership() {
     let mut session = TestSession::new();
 
     session
-        .call_token::<_, ()>(&*TestSession::SK_0, "renounce_governance", &())
+        .call_token::<_, ()>(&*TestSession::SK_0, "renounce_ownership", &())
         .expect("Call should pass");
 
     assert_eq!(
-        session.governance(),
+        session.ownership(),
         // TODO: consider defining this as ZERO_ADDRESS in core?
         Account::Contract(ContractId::from_bytes([0; CONTRACT_ID_BYTES]))
     );
 }
 
-/// Test mint with governance sk
+/// Test mint with ownership sk
 /// Test mint with wrong sk
 /// Test mint with overflow
 #[test]
@@ -538,7 +538,7 @@ fn test_mint() {
 
     assert_eq!(session.total_supply(), INITIAL_SUPPLY);
 
-    // mint with governance sk
+    // mint with ownership sk
     let receipt = session
         .call_token::<_, ()>(
             &*TestSession::SK_0,
@@ -602,7 +602,7 @@ fn test_mint() {
     }
 }
 
-/// Test burn with governance sk
+/// Test burn with ownership sk
 /// Test burn with wrong sk
 /// Test burn with balance too low / underflow
 #[test]
@@ -616,7 +616,7 @@ fn test_burn() {
 
     assert_eq!(session.total_supply(), INITIAL_SUPPLY - burn_amount);
 
-    // burn more than the governance account has
+    // burn more than the ownership account has
     let burn_amount = u64::MAX;
 
     let receipt =
@@ -716,7 +716,7 @@ fn test_force_transfer() {
     let mut session = TestSession::new();
     let account_1 = Account::from(*TestSession::PK_1);
     let account_2 = Account::from(*TestSession::PK_2);
-    let governance_account = Account::from(*TestSession::PK_0);
+    let ownership_account = Account::from(*TestSession::PK_0);
 
     // Make a normal transfer from deploy account to the test account
     session
@@ -738,13 +738,13 @@ fn test_force_transfer() {
         "The test account should have the transferred amount"
     );
 
-    // Force transfer from test account to governance account
+    // Force transfer from test account to ownership account
     let obliged_sender = account_2;
     session
         .call_token::<_, ()>(
             &*TestSession::SK_0,
             "force_transfer",
-            &(obliged_sender, governance_account, VALUE),
+            &(obliged_sender, ownership_account, VALUE),
         )
         .expect("Call should pass");
 
@@ -755,17 +755,17 @@ fn test_force_transfer() {
     );
 
     assert_eq!(
-        session.account(governance_account).balance,
+        session.account(ownership_account).balance,
         INITIAL_BALANCE + VALUE,
-        "The governance account should have the transferred amount added"
+        "The ownership account should have the transferred amount added"
     );
 
-    // Force transfer from test account to governance account again (balance
+    // Force transfer from test account to ownership account again (balance
     // will be too low)
     let receipt = session.call_token::<_, ()>(
         &*TestSession::SK_0,
         "force_transfer",
-        &(obliged_sender, governance_account, VALUE),
+        &(obliged_sender, ownership_account, VALUE),
     );
 
     if let ContractError::Panic(panic_msg) = receipt.unwrap_err() {
@@ -775,7 +775,7 @@ fn test_force_transfer() {
     }
 
     // unauthorized account
-    let obliged_sender = Account::from(governance_account);
+    let obliged_sender = Account::from(ownership_account);
     let receipt = session.call_token::<_, ()>(
         &*TestSession::SK_2,
         "force_transfer",
