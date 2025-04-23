@@ -132,16 +132,16 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn transfer_governance(arg_len: u32) -> u32 {
-        abi::wrap_call(arg_len, |(new_governance, sig, signers)| {
-            STATE.transfer_governance(new_governance, sig, signers);
+    unsafe extern "C" fn transfer_ownership(arg_len: u32) -> u32 {
+        abi::wrap_call(arg_len, |(new_ownership, sig, signers)| {
+            STATE.transfer_ownership(new_ownership, sig, signers);
         })
     }
 
     #[no_mangle]
-    unsafe extern "C" fn renounce_governance(arg_len: u32) -> u32 {
+    unsafe extern "C" fn renounce_ownership(arg_len: u32) -> u32 {
         abi::wrap_call(arg_len, |(sig, signers)| {
-            STATE.renounce_governance(sig, signers);
+            STATE.renounce_ownership(sig, signers);
         })
     }
 

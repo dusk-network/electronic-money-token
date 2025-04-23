@@ -462,16 +462,16 @@ fn renounce_access_control_fails() -> Result<(), ContractError> {
     let operator_nonce = 0u64;
 
     //
-    // test renouncing governance on token-contract fails with operator approval
+    // test renouncing ownership on token-contract fails with operator approval
     //
 
     // generate signature
-    let sig_msg = signature_messages::renounce_governance(operator_nonce);
+    let sig_msg = signature_messages::renounce_ownership(operator_nonce);
     let signers = vec![0u8, 2, 5, 7, 8, 9];
     let sig = operator_signature(&keys, &sig_msg, &signers);
 
     // call contract
-    let call_name = "renounce_governance";
+    let call_name = "renounce_ownership";
     let call_args = (sig, signers);
     let contract_err = session
         .execute_access_control::<_, ()>(
@@ -494,9 +494,9 @@ fn renounce_access_control_fails() -> Result<(), ContractError> {
             .data,
         operator_nonce,
     );
-    // check governance not updated on token-contract
+    // check ownership not updated on token-contract
     assert_eq!(
-        session.query_token::<(), Account>("governance", &())?.data,
+        session.query_token::<(), Account>("ownership", &())?.data,
         ACCESS_CONTROL_ID.into(),
     );
 

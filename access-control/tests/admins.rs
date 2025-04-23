@@ -349,25 +349,25 @@ fn set_operators() -> Result<(), ContractError> {
 }
 
 #[test]
-fn transfer_governance() -> Result<(), ContractError> {
+fn transfer_ownership() -> Result<(), ContractError> {
     let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
     let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let mut admin_nonce = 0u64;
 
     //
-    // test transferring governance on token-contract to a public key works
+    // test transferring ownership on token-contract to a public key works
     //
 
     // generate signature
-    let new_governance = Account::External(keys.test_pk[0]);
+    let new_ownership = Account::External(keys.test_pk[0]);
     let sig_msg =
-        signature_messages::transfer_governance(admin_nonce, &new_governance);
+        signature_messages::transfer_ownership(admin_nonce, &new_ownership);
     let signers = vec![0u8, 2, 5, 7, 8, 9];
     let sig = admin_signature(&keys, &sig_msg, &signers);
 
     // call contract
-    let call_name = "transfer_governance";
-    let call_args = (new_governance, sig, signers);
+    let call_name = "transfer_ownership";
+    let call_args = (new_ownership, sig, signers);
     session.execute_access_control::<_, ()>(
         &keys.test_sk[0],
         call_name,
@@ -382,32 +382,32 @@ fn transfer_governance() -> Result<(), ContractError> {
             .data,
         admin_nonce,
     );
-    // check governance updated on token-contract
+    // check ownership updated on token-contract
     assert_eq!(
-        session.query_token::<(), Account>("governance", &())?.data,
-        new_governance,
+        session.query_token::<(), Account>("ownership", &())?.data,
+        new_ownership,
     );
 
     Ok(())
 }
 
 #[test]
-fn renounce_governance() -> Result<(), ContractError> {
+fn renounce_ownership() -> Result<(), ContractError> {
     let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
     let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let mut admin_nonce = 0u64;
 
     //
-    // test renouncing governance on token-contract works
+    // test renouncing ownership on token-contract works
     //
 
     // generate signature
-    let sig_msg = signature_messages::renounce_governance(admin_nonce);
+    let sig_msg = signature_messages::renounce_ownership(admin_nonce);
     let signers = vec![0u8, 2, 5, 7, 8, 9];
     let sig = admin_signature(&keys, &sig_msg, &signers);
 
     // call contract
-    let call_name = "renounce_governance";
+    let call_name = "renounce_ownership";
     let call_args = (sig, signers);
     session.execute_access_control::<_, ()>(
         &keys.test_sk[0],
@@ -423,9 +423,9 @@ fn renounce_governance() -> Result<(), ContractError> {
             .data,
         admin_nonce,
     );
-    // check governance updated on token-contract
+    // check ownership updated on token-contract
     assert_eq!(
-        session.query_token::<(), Account>("governance", &())?.data,
+        session.query_token::<(), Account>("ownership", &())?.data,
         ZERO_ADDRESS,
     );
 

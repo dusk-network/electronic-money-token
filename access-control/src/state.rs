@@ -186,8 +186,8 @@ impl AccessControl {
         // 'set_token_contract`, `set_admins` and `set_operators` also need
         // admins approval but because they don't contain a call to the
         // token-contract, they don't need to be added here.
-        "transfer_governance",
-        "renounce_governance",
+        "transfer_ownership",
+        "renounce_ownership",
     ];
 
     /// Update the token-contract in the access-control-contract and return the
@@ -351,15 +351,15 @@ impl AccessControl {
         );
     }
 
-    /// Authorize the transfer of the governance stored in the state of the
+    /// Authorize the transfer of the ownership stored in the state of the
     /// token-contract to a new account. After executing this call, this
-    /// governance contract will **no longer be authorized** to do any
+    /// ownership contract will **no longer be authorized** to do any
     /// inter-contract calls on the token-contract and the new account needs to
     /// be used for authorization instead.
     ///
-    /// The signature message for transferring the governance of the
+    /// The signature message for transferring the ownership of the
     /// token-contract is the current admin-nonce in big endian appended by the
-    /// new governance.
+    /// new ownership.
     ///
     /// Note: A super-majority of admin signatures is required to perform this
     /// action.
@@ -367,9 +367,9 @@ impl AccessControl {
     /// # Panics
     /// This function will panic if:
     /// - The signature is incorrect or not signed by a super-majority of admins
-    pub fn transfer_governance(
+    pub fn transfer_ownership(
         &mut self,
-        new_governance: Account,
+        new_ownership: Account,
         sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
@@ -377,30 +377,30 @@ impl AccessControl {
         let threshold = supermajority(self.admins.len());
 
         // check the signature
-        let sig_msg = signature_messages::transfer_governance(
+        let sig_msg = signature_messages::transfer_ownership(
             self.admin_nonce,
-            &new_governance,
+            &new_ownership,
         );
         self.authorize_admins(threshold, sig_msg, sig, signers);
 
         // transfer the ownership of the token-contract
         let _: () = abi::call(
             self.token_contract(),
-            "transfer_governance",
-            &new_governance,
+            "transfer_ownership",
+            &new_ownership,
         )
-        .expect("transferring the governance should succeed");
+        .expect("transferring the ownership should succeed");
 
         // increment the admins nonce
         self.admin_nonce += 1;
     }
 
-    /// Renounce the governance of the token-contract.
-    /// Note: After executing this call, neither this governance-contract nor
+    /// Renounce the ownership of the token-contract.
+    /// Note: After executing this call, neither this ownership-contract nor
     /// any other account will be authorized to call any functions on the
-    /// token-contract that require authorization from the governance account.
+    /// token-contract that require authorization from the ownership account.
     ///
-    /// The signature message for renouncing the governance of the
+    /// The signature message for renouncing the ownership of the
     /// token-contract is the current admin-nonce in big endian.
     ///
     /// Note: A super-majority of admin signatures is required to perform this
@@ -409,7 +409,7 @@ impl AccessControl {
     /// # Panics
     /// This function will panic if:
     /// - The signature is incorrect or not signed by a super-majority of admins
-    pub fn renounce_governance(
+    pub fn renounce_ownership(
         &mut self,
         sig: MultisigSignature,
         signers: Vec<u8>,
@@ -418,13 +418,12 @@ impl AccessControl {
         let threshold = supermajority(self.admins.len());
 
         // check the signature
-        let sig_msg = signature_messages::renounce_governance(self.admin_nonce);
+        let sig_msg = signature_messages::renounce_ownership(self.admin_nonce);
         self.authorize_admins(threshold, sig_msg, sig, signers);
 
-        // removing the governance on the token-contract
-        let _: () =
-            abi::call(self.token_contract(), "renounce_governance", &())
-                .expect("renouncing the governance should succeed");
+        // removing the ownership on the token-contract
+        let _: () = abi::call(self.token_contract(), "renounce_ownership", &())
+            .expect("renouncing the ownership should succeed");
 
         // increment the admins nonce
         self.admin_nonce += 1;
