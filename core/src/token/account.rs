@@ -4,6 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use alloc::vec::Vec;
 use core::cmp::Ordering;
 
 use bytecheck::CheckBytes;
@@ -61,6 +62,18 @@ impl Ord for Account {
             // when ordering.
             (External(_lhs), Contract(_rhs)) => Ordering::Greater,
             (Contract(_lhs), External(_rhs)) => Ordering::Less,
+        }
+    }
+}
+
+impl Account {
+    /// Converts the `Account` to a vector of bytes of 193 bytes in case of an
+    /// external account, and 32 bytes in case of a contract account.
+    #[must_use]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Account::External(pk) => pk.to_raw_bytes().to_vec(),
+            Account::Contract(id) => id.to_bytes().to_vec(),
         }
     }
 }
