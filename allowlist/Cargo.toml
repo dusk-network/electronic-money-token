@@ -1,0 +1,23 @@
+[package]
+name = "emt-allowlist"
+version.workspace = true
+edition.workspace = true
+
+# [dependencies]
+# dusk-core = { workspace = true }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+dusk-core = { workspace = true, features = ["abi-dlmalloc"] }
+emt-core = { workspace = true }
+
+[dev-dependencies]
+emt-tests = { workspace = true }
+emt-core = { workspace = true }
+dusk-core = { workspace = true }
+dusk-vm = { workspace = true }
+rkyv = { workspace = true }
+bytecheck = { workspace = true }
+rand = { workspace = true }
+
+[lib]
+crate-type = ["cdylib"]
