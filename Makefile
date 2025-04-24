@@ -10,6 +10,7 @@ help: ## Display this help screen
 test: ## Run the tests
 	$(MAKE) -C ./token/ $@
 	$(MAKE) -C ./access-control/ $@
+	$(MAKE) -C ./allowlist/ $@
 
 token: setup-compiler ## Compile the token-contract
 	@RUSTFLAGS="-C link-args=-zstack-size=65536" \
@@ -31,6 +32,21 @@ access-control: setup-compiler ## Compile the contract
 	cargo +dusk build \
 	  --release \
 	  --manifest-path=access-control/Cargo.toml \
+	  --color=always \
+	  -Z build-std=core,alloc \
+	  --target wasm64-unknown-unknown
+	@mkdir -p build
+	@find target/wasm64-unknown-unknown/release -maxdepth 1 -name "*.wasm" \
+	    | xargs -I % basename % \
+	    | xargs -I % ./scripts/strip.sh \
+		target/wasm64-unknown-unknown/release/% \
+		build/%
+
+allowlist: setup-compiler ## Compile the contract
+	@RUSTFLAGS="-C link-args=-zstack-size=65536" \
+	cargo +dusk build \
+	  --release \
+	  --manifest-path=allowlist/Cargo.toml \
 	  --color=always \
 	  -Z build-std=core,alloc \
 	  --target wasm64-unknown-unknown
