@@ -41,9 +41,9 @@ pub const HOLDER_ID: ContractId = ContractId::from_bytes([2; 32]);
 pub const MOONLIGHT_BALANCE: u64 = dusk(1_000.0);
 pub const INITIAL_BALANCE: u64 = 1000;
 pub const INITIAL_HOLDER_BALANCE: u64 = 1000;
-pub const INITIAL_GOVERNANCE_BALANCE: u64 = 1000;
+pub const INITIAL_OWNERSHIP_BALANCE: u64 = 1000;
 pub const INITIAL_SUPPLY: u64 =
-    INITIAL_BALANCE + INITIAL_HOLDER_BALANCE + INITIAL_GOVERNANCE_BALANCE;
+    INITIAL_BALANCE + INITIAL_HOLDER_BALANCE + INITIAL_OWNERSHIP_BALANCE;
 
 type Result<T, Error = VMError> = core::result::Result<T, Error>;
 
@@ -99,7 +99,7 @@ impl TestSession {
                         vec![
                             (
                                 Account::from(*Self::PK_0),
-                                INITIAL_GOVERNANCE_BALANCE,
+                                INITIAL_OWNERSHIP_BALANCE,
                             ),
                             (Account::from(*Self::PK_1), INITIAL_BALANCE),
                             (Account::from(HOLDER_ID), INITIAL_HOLDER_BALANCE),
@@ -127,7 +127,7 @@ impl TestSession {
 
         assert_eq!(
             session.account(*Self::PK_0).balance,
-            INITIAL_GOVERNANCE_BALANCE
+            INITIAL_OWNERSHIP_BALANCE
         );
         assert_eq!(session.account(*Self::PK_1).balance, INITIAL_BALANCE);
         assert_eq!(session.account(*Self::PK_2).balance, 0);
@@ -211,8 +211,8 @@ impl TestSession {
             .data
     }
 
-    pub fn governance(&mut self) -> Account {
-        self.call_token_getter("governance").data
+    pub fn ownership(&mut self) -> Account {
+        self.call_token_getter("ownership").data
     }
 
     pub fn total_supply(&mut self) -> u64 {

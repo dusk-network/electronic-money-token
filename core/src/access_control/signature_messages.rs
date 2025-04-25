@@ -16,51 +16,51 @@ use crate::Account;
 const ACCOUNT_MAX_SIZE: usize = 194;
 
 /// The signature message for changing the token-contract is the current
-/// owner-nonce in be-bytes appended by the new token-contract `ContractId`.
+/// admin-nonce in be-bytes appended by the new token-contract `ContractId`.
 #[must_use]
 pub fn set_token_contract(
-    owner_nonce: u64,
+    admin_nonce: u64,
     new_token_contract: &ContractId,
 ) -> Vec<u8> {
     let mut sig_msg = Vec::with_capacity(size_of::<u64>() + CONTRACT_ID_BYTES);
-    sig_msg.extend(&owner_nonce.to_be_bytes());
+    sig_msg.extend(&admin_nonce.to_be_bytes());
     sig_msg.extend(&new_token_contract.to_bytes());
 
     sig_msg
 }
 
-/// The signature message for changing the owners, is the current
-/// owner-nonce in be-bytes appended by the serialized public-keys of
-/// the new owners.
+/// The signature message for changing the admins, is the current
+/// admin-nonce in be-bytes appended by the serialized public-keys of
+/// the new admins.
 #[must_use]
-pub fn set_owners(
-    owner_nonce: u64,
-    new_owners: impl AsRef<[PublicKey]>,
+pub fn set_admins(
+    admin_nonce: u64,
+    new_admins: impl AsRef<[PublicKey]>,
 ) -> Vec<u8> {
-    set_owner_or_operator(owner_nonce, new_owners)
+    set_admin_or_operator(admin_nonce, new_admins)
 }
 
 /// The signature message for changing the operators, is the current
-/// owner-nonce in be-bytes appended by the serialized public-keys of
+/// admin-nonce in be-bytes appended by the serialized public-keys of
 /// the new operators.
 #[must_use]
 pub fn set_operators(
-    owner_nonce: u64,
+    admin_nonce: u64,
     new_operators: impl AsRef<[PublicKey]>,
 ) -> Vec<u8> {
-    set_owner_or_operator(owner_nonce, new_operators)
+    set_admin_or_operator(admin_nonce, new_operators)
 }
 
 #[must_use]
-fn set_owner_or_operator(
-    owner_nonce: u64,
+fn set_admin_or_operator(
+    admin_nonce: u64,
     new_keys: impl AsRef<[PublicKey]>,
 ) -> Vec<u8> {
     let new_keys = new_keys.as_ref();
     let mut sig_msg = Vec::with_capacity(
         size_of::<u64>() + new_keys.len() * ACCOUNT_MAX_SIZE,
     );
-    sig_msg.extend(&owner_nonce.to_be_bytes());
+    sig_msg.extend(&admin_nonce.to_be_bytes());
     new_keys
         .iter()
         .for_each(|pk| sig_msg.extend(&pk.to_raw_bytes()));
@@ -68,17 +68,17 @@ fn set_owner_or_operator(
     sig_msg
 }
 
-/// The signature message for transferring the governance of the
-/// token-contract is the current owner-nonce in big endian appended by the
-/// new governance.
+/// The signature message for transferring the ownership of the
+/// token-contract is the current admin-nonce in big endian appended by the
+/// new ownership.
 #[must_use]
-pub fn transfer_governance(
-    owner_nonce: u64,
-    new_governance: &Account,
+pub fn transfer_ownership(
+    admin_nonce: u64,
+    new_ownership: &Account,
 ) -> Vec<u8> {
     let mut sig_msg = Vec::with_capacity(size_of::<u64>() + ACCOUNT_MAX_SIZE);
-    sig_msg.extend(&owner_nonce.to_be_bytes());
-    sig_msg.extend(&account_to_bytes(new_governance));
+    sig_msg.extend(&admin_nonce.to_be_bytes());
+    sig_msg.extend(&account_to_bytes(new_ownership));
 
     sig_msg
 }
@@ -91,11 +91,11 @@ fn account_to_bytes(account: &Account) -> Vec<u8> {
     }
 }
 
-/// The signature message for renouncing the governance of the
-/// token-contract is the current owner-nonce in big endian.
+/// The signature message for renouncing the ownership of the
+/// token-contract is the current admin-nonce in big endian.
 #[must_use]
-pub fn renounce_governance(owner_nonce: u64) -> Vec<u8> {
-    owner_nonce.to_be_bytes().into()
+pub fn renounce_ownership(admin_nonce: u64) -> Vec<u8> {
+    admin_nonce.to_be_bytes().into()
 }
 
 /// The signature message for executing an operator approved token-contract

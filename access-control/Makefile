@@ -1,5 +1,5 @@
 TOKEN_WASM:="../target/wasm64-unknown-unknown/release/emt_token.wasm"
-GOVERNANCE_WASM:="../target/wasm64-unknown-unknown/release/emt_governance.wasm"
+ACCESS_CONTROL_WASM:="../target/wasm64-unknown-unknown/release/emt_access_control.wasm"
 
 all: ## Build the token contract
 	@cargo build --release
@@ -12,10 +12,10 @@ help: ## Display this help screen
 $(TOKEN_WASM): ## Build token contract wasm file if it doesn't exist
 	$(MAKE) -C ../ token
 
-$(GOVERNANCE_WASM): ## Build governance contract wasm file if it doesn't exist
-	$(MAKE) -C ../ governance
+$(ACCESS_CONTROL_WASM): ## Build access-control-contract wasm file if it doesn't exist
+	$(MAKE) -C ../ access-control
 
-test: $(TOKEN_WASM) $(GOVERNANCE_WASM) ## Run the token contract tests
+test: $(TOKEN_WASM) $(ACCESS_CONTROL_WASM) ## Run the token contract tests
 	@cargo test --release -- --test-threads=1 # piecrust throws persistence error when using more threads
 
 clippy: ## Run clippy

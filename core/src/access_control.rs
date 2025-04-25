@@ -4,9 +4,9 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-/// Error messages given by governance-contract.
+/// Error messages given by access-control-contract.
 pub mod error;
-/// Events emitted by the governance-contract.
+/// Events emitted by the access-control-contract.
 pub mod events;
-/// The signature messages for the respective governance contract functions.
+/// The signature messages for the respective access-control-contract functions.
 pub mod signature_messages;

@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-//! The governance contract for electronic money tokens.
+//! The access-control-contract for electronic money tokens.
 
 #![no_std]
 #![deny(unused_extern_crates)]
@@ -33,10 +33,10 @@ mod wasm {
     unsafe extern "C" fn init(arg_len: u32) -> u32 {
         abi::wrap_call(
             arg_len,
-            |(token_contract, owner, operator, operator_token_call_data)| {
+            |(token_contract, admin, operator, operator_token_call_data)| {
                 STATE.init(
                     token_contract,
-                    owner,
+                    admin,
                     operator,
                     operator_token_call_data,
                 );
@@ -50,13 +50,13 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn owners(arg_len: u32) -> u32 {
-        abi::wrap_call(arg_len, |(): ()| STATE.owners())
+    unsafe extern "C" fn admins(arg_len: u32) -> u32 {
+        abi::wrap_call(arg_len, |(): ()| STATE.admins())
     }
 
     #[no_mangle]
-    unsafe extern "C" fn owner_nonce(arg_len: u32) -> u32 {
-        abi::wrap_call(arg_len, |(): ()| STATE.owner_nonce())
+    unsafe extern "C" fn admin_nonce(arg_len: u32) -> u32 {
+        abi::wrap_call(arg_len, |(): ()| STATE.admin_nonce())
     }
 
     #[no_mangle]
@@ -77,7 +77,7 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn authorize_owners(arg_len: u32) -> u32 {
+    unsafe extern "C" fn authorize_admins(arg_len: u32) -> u32 {
         abi::wrap_call(
             arg_len,
             |(threshold, sig_msg, sig, signers): (
@@ -86,7 +86,7 @@ mod wasm {
                 MultisigSignature,
                 Vec<u8>,
             )| {
-                STATE.authorize_owners(threshold, sig_msg, sig, signers);
+                STATE.authorize_admins(threshold, sig_msg, sig, signers);
             },
         )
     }
@@ -107,7 +107,7 @@ mod wasm {
     }
 
     /*
-     * Functions that need the owners' approval.
+     * Functions that need the admins' approval.
      */
 
     #[no_mangle]
@@ -118,9 +118,9 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn set_owners(arg_len: u32) -> u32 {
-        abi::wrap_call(arg_len, |(new_owners, sig, signers)| {
-            STATE.set_owners(new_owners, sig, signers);
+    unsafe extern "C" fn set_admins(arg_len: u32) -> u32 {
+        abi::wrap_call(arg_len, |(new_admins, sig, signers)| {
+            STATE.set_admins(new_admins, sig, signers);
         })
     }
 
@@ -132,16 +132,16 @@ mod wasm {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn transfer_governance(arg_len: u32) -> u32 {
-        abi::wrap_call(arg_len, |(new_governance, sig, signers)| {
-            STATE.transfer_governance(new_governance, sig, signers);
+    unsafe extern "C" fn transfer_ownership(arg_len: u32) -> u32 {
+        abi::wrap_call(arg_len, |(new_ownership, sig, signers)| {
+            STATE.transfer_ownership(new_ownership, sig, signers);
         })
     }
 
     #[no_mangle]
-    unsafe extern "C" fn renounce_governance(arg_len: u32) -> u32 {
+    unsafe extern "C" fn renounce_ownership(arg_len: u32) -> u32 {
         abi::wrap_call(arg_len, |(sig, signers)| {
-            STATE.renounce_governance(sig, signers);
+            STATE.renounce_ownership(sig, signers);
         })
     }
 
@@ -193,7 +193,7 @@ mod wasm {
 fn supermajority(amt: usize) -> u8 {
     assert!(amt > 0, "Cannot calculate supermajority of 0");
     let amt = u8::try_from(amt).expect(
-        "Neither owner nor operator key sets are larger than `u8::MAX`",
+        "Neither admin nor operator key sets are larger than `u8::MAX`",
     );
     amt / 2 + 1
 }
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Neither owner nor operator key sets are larger than `u8::MAX`"
+        expected = "Neither admin nor operator key sets are larger than `u8::MAX`"
     )]
     fn test_supermajority_upper_bound() {
         let _ = supermajority(u8::MAX as usize + 1);

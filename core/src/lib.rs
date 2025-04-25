@@ -27,5 +27,5 @@ pub mod token;
 pub use token::account::{Account, AccountInfo};
 pub use token::ZERO_ADDRESS;
 
-/// Additional types used to interact with the governance-contract.
-pub mod governance;
+/// Additional types used to interact with the access-control-contract.
+pub mod access_control;

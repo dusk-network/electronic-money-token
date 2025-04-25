@@ -5,17 +5,17 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_core::abi::ContractError;
-use emt_core::governance::{error, events, signature_messages};
+use emt_core::access_control::{error, events, signature_messages};
 use emt_core::{Account, AccountInfo};
 use emt_tests::utils::rkyv_serialize;
 
 pub mod common;
 use common::instantiate::{
-    TestKeys, TestSession, GOVERNANCE_ID, INITIAL_BALANCE,
+    TestKeys, TestSession, ACCESS_CONTROL_ID, INITIAL_BALANCE,
 };
 use common::{operator_signature, test_keys_signature};
 
-const OWNER: usize = 10;
+const ADMIN: usize = 10;
 const OPERATOR: usize = 10;
 const TEST: usize = 10;
 
@@ -25,8 +25,8 @@ const TEST: usize = 10;
 
 #[test]
 fn unregistered_operator_token_call_fails() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let operator_nonce = 0u64;
 
     // generate signature
@@ -44,7 +44,11 @@ fn unregistered_operator_token_call_fails() -> Result<(), ContractError> {
     let call_name = "operator_token_call";
     let call_args = (token_call_name, token_call_args, sig, signers);
     let contract_err = session
-        .execute_governance::<_, ()>(&keys.test_sk[0], call_name, &call_args)
+        .execute_access_control::<_, ()>(
+            &keys.test_sk[0],
+            call_name,
+            &call_args,
+        )
         .expect_err("Call should not pass");
 
     // check contract panic
@@ -56,7 +60,7 @@ fn unregistered_operator_token_call_fails() -> Result<(), ContractError> {
     // check operator nonce is not incremented
     assert_eq!(
         session
-            .query_governance::<(), u64>("operator_nonce", &())?
+            .query_access_control::<(), u64>("operator_nonce", &())?
             .data,
         operator_nonce,
     );
@@ -66,8 +70,8 @@ fn unregistered_operator_token_call_fails() -> Result<(), ContractError> {
 
 #[test]
 fn freeze_operator_token_call() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let mut operator_nonce = 0u64;
 
     // generate signature
@@ -85,7 +89,7 @@ fn freeze_operator_token_call() -> Result<(), ContractError> {
     // call contract
     let call_name = "operator_token_call";
     let call_args = (token_call_name, token_call_args, sig, signers);
-    session.execute_governance::<_, ()>(
+    session.execute_access_control::<_, ()>(
         &keys.test_sk[0],
         call_name,
         &call_args,
@@ -95,7 +99,7 @@ fn freeze_operator_token_call() -> Result<(), ContractError> {
     operator_nonce += 1;
     assert_eq!(
         session
-            .query_governance::<(), u64>("operator_nonce", &())?
+            .query_access_control::<(), u64>("operator_nonce", &())?
             .data,
         operator_nonce,
     );
@@ -112,11 +116,11 @@ fn freeze_operator_token_call() -> Result<(), ContractError> {
 
 #[test]
 fn invalid_signature_operator_token_call_fails() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let operator_nonce = 0u64;
 
-    // generate signature with the owner keys
+    // generate signature with the admin keys
     let token_call_name = String::from("freeze");
     let freeze_account = Account::External(keys.test_pk[0]);
     let token_call_args = rkyv_serialize(&freeze_account);
@@ -132,7 +136,11 @@ fn invalid_signature_operator_token_call_fails() -> Result<(), ContractError> {
     let call_name = "operator_token_call";
     let call_args = (token_call_name, token_call_args, sig, signers);
     let contract_err = session
-        .execute_governance::<_, ()>(&keys.test_sk[0], call_name, &call_args)
+        .execute_access_control::<_, ()>(
+            &keys.test_sk[0],
+            call_name,
+            &call_args,
+        )
         .expect_err("Call should not pass");
 
     // check contract panic
@@ -144,7 +152,7 @@ fn invalid_signature_operator_token_call_fails() -> Result<(), ContractError> {
     // check operator nonce is not incremented
     assert_eq!(
         session
-            .query_governance::<(), u64>("operator_nonce", &())?
+            .query_access_control::<(), u64>("operator_nonce", &())?
             .data,
         operator_nonce,
     );
@@ -154,8 +162,8 @@ fn invalid_signature_operator_token_call_fails() -> Result<(), ContractError> {
 
 #[test]
 fn burn_operator_token_call() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let mut operator_nonce = 0u64;
 
     //
@@ -178,7 +186,11 @@ fn burn_operator_token_call() -> Result<(), ContractError> {
     let call_name = "operator_token_call";
     let call_args = (token_call_name, token_call_args, sig, signers);
     let contract_err = session
-        .execute_governance::<_, ()>(&keys.test_sk[0], call_name, &call_args)
+        .execute_access_control::<_, ()>(
+            &keys.test_sk[0],
+            call_name,
+            &call_args,
+        )
         .expect_err("Call should not pass");
 
     // check contract panic
@@ -190,15 +202,15 @@ fn burn_operator_token_call() -> Result<(), ContractError> {
     // check operator nonce not incremented
     assert_eq!(
         session
-            .query_governance::<_, u64>("operator_nonce", &())?
+            .query_access_control::<_, u64>("operator_nonce", &())?
             .data,
         operator_nonce,
     );
     // check total-supply didn't change
-    // all keys and the governance-contract hold the initial balance at
+    // all keys and the access-control-contract hold the initial balance at
     // initialization
     let initial_supply =
-        (OWNER + OPERATOR + TEST) as u64 * INITIAL_BALANCE + INITIAL_BALANCE;
+        (ADMIN + OPERATOR + TEST) as u64 * INITIAL_BALANCE + INITIAL_BALANCE;
     assert_eq!(
         session.query_token::<_, u64>("total_supply", &())?.data,
         initial_supply,
@@ -223,7 +235,7 @@ fn burn_operator_token_call() -> Result<(), ContractError> {
     // call contract
     let call_name = "operator_token_call";
     let call_args = (token_call_name, token_call_args, sig, signers);
-    session.execute_governance::<_, ()>(
+    session.execute_access_control::<_, ()>(
         &keys.test_sk[0],
         call_name,
         &call_args,
@@ -233,7 +245,7 @@ fn burn_operator_token_call() -> Result<(), ContractError> {
     operator_nonce += 1;
     assert_eq!(
         session
-            .query_governance::<_, u64>("operator_nonce", &())?
+            .query_access_control::<_, u64>("operator_nonce", &())?
             .data,
         operator_nonce,
     );
@@ -248,8 +260,8 @@ fn burn_operator_token_call() -> Result<(), ContractError> {
 
 #[test]
 fn force_transfer_operator_token_call() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let mut operator_nonce = 0u64;
 
     //
@@ -273,7 +285,7 @@ fn force_transfer_operator_token_call() -> Result<(), ContractError> {
     // call contract
     let call_name = "operator_token_call";
     let call_args = (token_call_name, token_call_args, sig, signers);
-    session.execute_governance::<_, ()>(
+    session.execute_access_control::<_, ()>(
         &keys.test_sk[0],
         call_name,
         &call_args,
@@ -283,7 +295,7 @@ fn force_transfer_operator_token_call() -> Result<(), ContractError> {
     operator_nonce += 1;
     assert_eq!(
         session
-            .query_governance::<_, u64>("operator_nonce", &())?
+            .query_access_control::<_, u64>("operator_nonce", &())?
             .data,
         operator_nonce,
     );
@@ -313,8 +325,8 @@ fn force_transfer_operator_token_call() -> Result<(), ContractError> {
 
 #[test]
 fn set_operator_token_call() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let mut operator_nonce = 0u64;
 
     //
@@ -335,32 +347,35 @@ fn set_operator_token_call() -> Result<(), ContractError> {
     // call contract
     let call_name = "set_operator_token_call";
     let call_args = (token_call_name.clone(), new_threshold, sig, signers);
-    let receipt = session.execute_governance::<_, ()>(
+    let receipt = session.execute_access_control::<_, ()>(
         &keys.test_sk[0],
         call_name,
         &call_args,
     )?;
 
     // check that the correct event has been emitted
-    let governance_events: Vec<_> = receipt
+    let access_control_events: Vec<_> = receipt
         .events
         .iter()
-        .filter(|event| event.source == GOVERNANCE_ID)
+        .filter(|event| event.source == ACCESS_CONTROL_ID)
         .collect();
-    assert_eq!(governance_events.len(), 1);
-    assert_eq!(governance_events[0].topic, events::UpdateTokenCall::TOPIC);
+    assert_eq!(access_control_events.len(), 1);
+    assert_eq!(
+        access_control_events[0].topic,
+        events::UpdateTokenCall::TOPIC
+    );
     // check operator nonce is incremented
     operator_nonce += 1;
     assert_eq!(
         session
-            .query_governance::<(), u64>("operator_nonce", &())?
+            .query_access_control::<(), u64>("operator_nonce", &())?
             .data,
         operator_nonce,
     );
     // check threshold updated
     assert_eq!(
         session
-            .query_governance::<String, u8>(
+            .query_access_control::<String, u8>(
                 "operator_signature_threshold",
                 &token_call_name
             )?
@@ -380,7 +395,11 @@ fn set_operator_token_call() -> Result<(), ContractError> {
     let call_name = "operator_token_call";
     let call_args = (token_call_name, token_call_args, sig, signers);
     let contract_err = session
-        .execute_governance::<_, ()>(&keys.test_sk[0], call_name, &call_args)
+        .execute_access_control::<_, ()>(
+            &keys.test_sk[0],
+            call_name,
+            &call_args,
+        )
         .expect_err("Call should not pass");
     if let ContractError::Panic(panic_msg) = contract_err {
         assert_eq!(panic_msg, error::THRESHOLD_NOT_MET);
@@ -404,7 +423,7 @@ fn set_operator_token_call() -> Result<(), ContractError> {
     // call contract
     let call_name = "set_operator_token_call";
     let call_args = (token_call_name.clone(), new_threshold, sig, signers);
-    session.execute_governance::<_, ()>(
+    session.execute_access_control::<_, ()>(
         &keys.test_sk[0],
         call_name,
         &call_args,
@@ -414,14 +433,14 @@ fn set_operator_token_call() -> Result<(), ContractError> {
     operator_nonce += 1;
     assert_eq!(
         session
-            .query_governance::<(), u64>("operator_nonce", &())?
+            .query_access_control::<(), u64>("operator_nonce", &())?
             .data,
         operator_nonce,
     );
     // check threshold is correct
     assert_eq!(
         session
-            .query_governance::<String, u8>(
+            .query_access_control::<String, u8>(
                 "operator_signature_threshold",
                 &token_call_name
             )?
@@ -433,29 +452,33 @@ fn set_operator_token_call() -> Result<(), ContractError> {
 }
 
 /*
- * Test token calls needing owner approval fail
+ * Test token calls needing admin approval fail
  */
 
 #[test]
-fn renounce_governance_fails() -> Result<(), ContractError> {
-    let mut session = TestSession::new::<OWNER, OPERATOR, TEST>();
-    let keys: TestKeys<OWNER, OPERATOR, TEST> = TestKeys::new();
+fn renounce_access_control_fails() -> Result<(), ContractError> {
+    let mut session = TestSession::new::<ADMIN, OPERATOR, TEST>();
+    let keys: TestKeys<ADMIN, OPERATOR, TEST> = TestKeys::new();
     let operator_nonce = 0u64;
 
     //
-    // test renouncing governance on token-contract fails with operator approval
+    // test renouncing ownership on token-contract fails with operator approval
     //
 
     // generate signature
-    let sig_msg = signature_messages::renounce_governance(operator_nonce);
+    let sig_msg = signature_messages::renounce_ownership(operator_nonce);
     let signers = vec![0u8, 2, 5, 7, 8, 9];
     let sig = operator_signature(&keys, &sig_msg, &signers);
 
     // call contract
-    let call_name = "renounce_governance";
+    let call_name = "renounce_ownership";
     let call_args = (sig, signers);
     let contract_err = session
-        .execute_governance::<_, ()>(&keys.test_sk[0], call_name, &call_args)
+        .execute_access_control::<_, ()>(
+            &keys.test_sk[0],
+            call_name,
+            &call_args,
+        )
         .expect_err("Call should not pass");
 
     // check contract panic
@@ -467,14 +490,14 @@ fn renounce_governance_fails() -> Result<(), ContractError> {
     // check operator nonce is not incremented
     assert_eq!(
         session
-            .query_governance::<(), u64>("operator_nonce", &())?
+            .query_access_control::<(), u64>("operator_nonce", &())?
             .data,
         operator_nonce,
     );
-    // check governance not updated on token-contract
+    // check ownership not updated on token-contract
     assert_eq!(
-        session.query_token::<(), Account>("governance", &())?.data,
-        GOVERNANCE_ID.into(),
+        session.query_token::<(), Account>("ownership", &())?.data,
+        ACCESS_CONTROL_ID.into(),
     );
 
     Ok(())

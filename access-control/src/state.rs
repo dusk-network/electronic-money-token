@@ -12,24 +12,24 @@ use alloc::vec::Vec;
 
 use dusk_core::abi::{self, ContractId, CONTRACT_ID_BYTES};
 use dusk_core::signatures::bls::{MultisigSignature, PublicKey};
-use emt_core::governance::{error, events, signature_messages};
+use emt_core::access_control::{error, events, signature_messages};
 use emt_core::Account;
 
 use crate::{contains_duplicates, supermajority};
 
 const EMPTY: ContractId = ContractId::from_bytes([0u8; CONTRACT_ID_BYTES]);
 
-/// The state of the token governance contract.
-pub struct Governance {
+/// The state of the token access-control-contract.
+pub struct AccessControl {
     // The contract-id of the token-contract.
     token_contract: ContractId,
-    // Only the owners of a token-contract are authorized to change the owners
+    // Only the admins of a token-contract are authorized to change the admins
     // or operators of the token-contract.
-    owners: Vec<PublicKey>,
-    // The nonce for the owners, initialized at 0 and strictly increasing.
-    owner_nonce: u64,
+    admins: Vec<PublicKey>,
+    // The nonce for the admins, initialized at 0 and strictly increasing.
+    admin_nonce: u64,
     // The operators of the token-contract are authorized to execute all
-    // inter-contract calls to the token-contract except changing governance.
+    // inter-contract calls to the token-contract except changing ownership.
     operators: Vec<PublicKey>,
     // The nonce for the operators, initialized at 0 and strictly increasing.
     operator_nonce: u64,
@@ -40,65 +40,65 @@ pub struct Governance {
     operator_token_calls: BTreeMap<String, u8>,
 }
 
-/// The state of the governance contract at deployment.
-pub static mut STATE: Governance = Governance::new();
+/// The state of the access-control-contract at deployment.
+pub static mut STATE: AccessControl = AccessControl::new();
 
 /// Basic contract implementation.
-impl Governance {
-    /// Create a new empty instance of the governance-contract.
+impl AccessControl {
+    /// Create a new empty instance of the access-control-contract.
     #[must_use]
     const fn new() -> Self {
         Self {
             token_contract: EMPTY,
-            owners: Vec::new(),
-            owner_nonce: 0,
+            admins: Vec::new(),
+            admin_nonce: 0,
             operators: Vec::new(),
             operator_nonce: 0,
             operator_token_calls: BTreeMap::new(),
         }
     }
 
-    /// Initialize the governance contract state with sets of owners, operators
-    /// and inter-contract calls.
+    /// Initialize the access-control-contract state with sets of admins,
+    /// operators and inter-contract calls.
     ///
     /// # Panics
     /// This function will panic if:
     /// - The contract is already initialized.
-    /// - The given set of owner keys is empty.
-    /// - The given set of owner keys is larger than `u8::MAX`.
+    /// - The given set of admin keys is empty.
+    /// - The given set of admin keys is larger than `u8::MAX`.
     /// - The given set of operator keys is larger than `u8::MAX`.
-    /// - There are duplicate owner keys.
+    /// - There are duplicate admin keys.
     /// - There are duplicate operator keys.
-    /// - One of the new operator-calls is reserved for owner-calls.
+    /// - One of the new operator-calls is reserved for admin-calls.
     pub fn init(
         &mut self,
         token_contract: ContractId,
-        owners: Vec<PublicKey>,
+        admins: Vec<PublicKey>,
         operators: Vec<PublicKey>,
         operator_token_call_data: Vec<(String, u8)>,
     ) {
         // panic if the contract has already been initialized
-        assert!(self.owners.is_empty(), "{}", error::ALLREADY_INITIALIZED);
-        // panic if no owners are given
-        assert!(!owners.is_empty(), "{}", error::EMPTY_OWNER);
-        // panic if there are more than `u8::MAX` owners
+        assert!(self.admins.is_empty(), "{}", error::ALLREADY_INITIALIZED);
+        // panic if no admins are given
+        assert!(!admins.is_empty(), "{}", error::EMPTY_ADMINS);
+        // panic if there are more than `u8::MAX` admins
         assert!(
-            !owners.len() > u8::MAX as usize,
+            !admins.len() > u8::MAX as usize,
             "{}",
-            error::TOO_MANY_OWNERS
+            error::TOO_MANY_ADMINS
         );
         // panic if there are more than `u8::MAX` operators
         assert!(
-            !owners.len() > u8::MAX as usize,
+            !admins.len() > u8::MAX as usize,
             "{}",
             error::TOO_MANY_OPERATORS
         );
-        // panic if there are duplicate owners
-        assert!(!contains_duplicates(&owners), "{}", error::DUPLICATE_OWNER);
+        // panic if there are duplicate admins
+        assert!(!contains_duplicates(&admins), "{}", error::DUPLICATE_ADMINS);
 
-        // initialize token-contract and owners
+        // initialize token-contract and admins
         self.token_contract = token_contract;
-        self.owners = owners;
+        self.admins = admins;
 
         // initialize operators (if any)
         if !operators.is_empty() {
@@ -114,10 +114,10 @@ impl Governance {
         // initialize inter-contract calls (if any)
         let mut operator_token_calls = BTreeMap::new();
         for (call_name, signature_threshold) in operator_token_call_data {
-            // panic if inter-contract calls that need owner approval are
+            // panic if inter-contract calls that need admin approval are
             // added
             assert!(
-                !Self::OWNER_TOKEN_CALLS.contains(&call_name.as_str()),
+                !Self::ADMIN_TOKEN_CALLS.contains(&call_name.as_str()),
                 "{}",
                 error::UNAUTHORIZED_TOKEN_CALL,
             );
@@ -132,20 +132,20 @@ impl Governance {
         self.token_contract
     }
 
-    /// Return the current owners stored in the governance-contract.
+    /// Return the current admins stored in the access-control-contract.
     #[must_use]
-    pub fn owners(&self) -> Vec<PublicKey> {
-        self.owners.clone()
+    pub fn admins(&self) -> Vec<PublicKey> {
+        self.admins.clone()
     }
 
     /// Return the current nonce for executing anything that requires a
-    /// signature of the owners.
+    /// signature of the admins.
     #[must_use]
-    pub fn owner_nonce(&self) -> u64 {
-        self.owner_nonce
+    pub fn admin_nonce(&self) -> u64 {
+        self.admin_nonce
     }
 
-    /// Return the current operators stored in the governance contract.
+    /// Return the current operators stored in the access-control-contract.
     #[must_use]
     pub fn operators(&self) -> Vec<PublicKey> {
         self.operators.clone()
@@ -176,34 +176,34 @@ impl Governance {
     }
 }
 
-// Methods that need the owners' approval.
-impl Governance {
+// Methods that need the admins' approval.
+impl AccessControl {
     /// Since the token-contract will execute every inter-contract call that
-    /// comes from the governance contract, every token-contract call that need
-    /// authorization by the owners **must** be excluded from the calls that the
-    /// operators need to authorize.
-    const OWNER_TOKEN_CALLS: [&'static str; 2] = [
-        // 'set_token_contract`, `set_owners` and `set_operators` also need
-        // owners approval but because they don't contain a call to the
+    /// comes from the access-control-contract, every token-contract call that
+    /// need authorization by the admins **must** be excluded from the calls
+    /// that the operators need to authorize.
+    const ADMIN_TOKEN_CALLS: [&'static str; 2] = [
+        // 'set_token_contract`, `set_admins` and `set_operators` also need
+        // admins approval but because they don't contain a call to the
         // token-contract, they don't need to be added here.
-        "transfer_governance",
-        "renounce_governance",
+        "transfer_ownership",
+        "renounce_ownership",
     ];
 
-    /// Update the token-contract in the governance-contract and return the old
-    /// token-contract ID.
+    /// Update the token-contract in the access-control-contract and return the
+    /// old token-contract ID.
     /// This allows for changing the token-contract while keeping the same
-    /// governance.
+    /// access-control.
     ///
     /// The signature message for this inter-contract call is the current
-    /// owner-nonce in be-bytes appended by the new token-contract `ContractId`.
+    /// admin-nonce in be-bytes appended by the new token-contract `ContractId`.
     ///
-    /// Note: A super-majority of owner signatures is required to perform this
+    /// Note: A super-majority of admin signatures is required to perform this
     /// action.
     ///
     /// # Panics
     /// This function will panic if:
-    /// - The signature is incorrect or not signed by a super-majority of owners
+    /// - The signature is incorrect or not signed by a super-majority of admins
     #[must_use]
     pub fn set_token_contract(
         &mut self,
@@ -212,23 +212,23 @@ impl Governance {
         signers: Vec<u8>,
     ) -> ContractId {
         // the threshold needs to be a super-majority
-        let threshold = supermajority(self.owners.len());
+        let threshold = supermajority(self.admins.len());
 
         // check the signature
         let sig_msg = signature_messages::set_token_contract(
-            self.owner_nonce,
+            self.admin_nonce,
             &new_token_contract,
         );
-        self.authorize_owners(threshold, sig_msg, sig, signers);
+        self.authorize_admins(threshold, sig_msg, sig, signers);
 
-        // increment the owners nonce
-        self.owner_nonce += 1;
+        // increment the admins nonce
+        self.admin_nonce += 1;
 
         // replace the token-contract
         let old_token_contract =
             core::mem::replace(&mut self.token_contract, new_token_contract);
 
-        // alert network of the changes to the governance state
+        // alert network of the changes to the state
         abi::emit(
             events::UpdateToken::TOPIC,
             events::UpdateToken {
@@ -240,75 +240,75 @@ impl Governance {
         old_token_contract
     }
 
-    /// Update the owner public-keys in the governance-contract.
+    /// Update the admin public-keys in the access-control-contract.
     ///
     /// The signature message for this inter-contract call is the current
-    /// owner-nonce in be-bytes appended by the serialized public-keys of
-    /// the new owners.
+    /// admin-nonce in be-bytes appended by the serialized public-keys of
+    /// the new admins.
     ///
-    /// Note: A super-majority of owner signatures is required to perform this
+    /// Note: A super-majority of admin signatures is required to perform this
     /// action.
     ///
     /// # Panics
     /// This function will panic if:
-    /// - The signature is incorrect or not signed by a super-majority of owners
-    /// - The new set of owner keys is empty.
-    /// - The new set of owner keys is larger than `u8::MAX`.
-    /// - The new set of owner keys contains duplicates.
-    pub fn set_owners(
+    /// - The signature is incorrect or not signed by a super-majority of admins
+    /// - The new set of admin keys is empty.
+    /// - The new set of admin keys is larger than `u8::MAX`.
+    /// - The new set of admin keys contains duplicates.
+    pub fn set_admins(
         &mut self,
-        new_owners: Vec<PublicKey>,
+        new_admins: Vec<PublicKey>,
         sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
-        // panic if no owners are given
-        assert!(!new_owners.is_empty(), "{}", error::EMPTY_OWNER);
-        // panic if more than `u8::MAX` owners are given
+        // panic if no admins are given
+        assert!(!new_admins.is_empty(), "{}", error::EMPTY_ADMINS);
+        // panic if more than `u8::MAX` admins are given
         assert!(
-            !new_owners.len() > u8::MAX as usize,
+            !new_admins.len() > u8::MAX as usize,
             "{}",
-            error::TOO_MANY_OWNERS
+            error::TOO_MANY_ADMINS
         );
-        // panic if there are duplicate owners
+        // panic if there are duplicate admins
         assert!(
-            !contains_duplicates(&new_owners),
+            !contains_duplicates(&new_admins),
             "{}",
-            error::DUPLICATE_OWNER
+            error::DUPLICATE_ADMINS
         );
 
         // the threshold needs to be a super-majority
-        let threshold = supermajority(self.owners.len());
+        let threshold = supermajority(self.admins.len());
 
         // check the signature
         let sig_msg =
-            signature_messages::set_owners(self.owner_nonce, &new_owners);
-        self.authorize_owners(threshold, sig_msg, sig, signers);
+            signature_messages::set_admins(self.admin_nonce, &new_admins);
+        self.authorize_admins(threshold, sig_msg, sig, signers);
 
-        // update the owners to the new set
-        self.owners = new_owners.clone();
+        // update the admins to the new set
+        self.admins = new_admins.clone();
 
-        // increment the owners nonce
-        self.owner_nonce += 1;
+        // increment the admins nonce
+        self.admin_nonce += 1;
 
-        // alert network of the changes to the governance state
+        // alert network of the changes to the state
         abi::emit(
-            events::UpdatePublicKeys::NEW_OWNERS,
-            events::UpdatePublicKeys { pks: new_owners },
+            events::UpdatePublicKeys::NEW_ADMINS,
+            events::UpdatePublicKeys { pks: new_admins },
         );
     }
 
-    /// Update the operator public-keys in the governance-contract.
+    /// Update the operator public-keys in the access-control-contract.
     ///
     /// The signature message for this inter-contract call is the current
-    /// owner-nonce in be-bytes appended by the serialized public-keys of
+    /// admin-nonce in be-bytes appended by the serialized public-keys of
     /// the new operators.
     ///
-    /// Note: A super-majority of owner signatures is required to perform this
+    /// Note: A super-majority of admin signatures is required to perform this
     /// action.
     ///
     /// # Panics
     /// This function will panic if:
-    /// - The signature is incorrect or not signed by a super-majority of owners
+    /// - The signature is incorrect or not signed by a super-majority of admins
     /// - The new set of operator keys is larger than `u8::MAX`.
     /// - The new set of operator keys contains duplicates.
     pub fn set_operators(
@@ -331,109 +331,108 @@ impl Governance {
         );
 
         // the threshold needs to be a super-majority
-        let threshold = supermajority(self.owners.len());
+        let threshold = supermajority(self.admins.len());
 
         // check the signature
         let sig_msg =
-            signature_messages::set_operators(self.owner_nonce, &new_operators);
-        self.authorize_owners(threshold, sig_msg, sig, signers);
+            signature_messages::set_operators(self.admin_nonce, &new_operators);
+        self.authorize_admins(threshold, sig_msg, sig, signers);
 
         // update the operators to the new set
         self.operators = new_operators.clone();
 
-        // increment the owners nonce
-        self.owner_nonce += 1;
+        // increment the admins nonce
+        self.admin_nonce += 1;
 
-        // alert network of the changes to the governance state
+        // alert network of the changes to the state
         abi::emit(
             events::UpdatePublicKeys::NEW_OPERATORS,
             events::UpdatePublicKeys { pks: new_operators },
         );
     }
 
-    /// Authorize the transfer of the governance stored in the state of the
+    /// Authorize the transfer of the ownership stored in the state of the
     /// token-contract to a new account. After executing this call, this
-    /// governance contract will **no longer be authorized** to do any
+    /// ownership contract will **no longer be authorized** to do any
     /// inter-contract calls on the token-contract and the new account needs to
     /// be used for authorization instead.
     ///
-    /// The signature message for transferring the governance of the
-    /// token-contract is the current owner-nonce in big endian appended by the
-    /// new governance.
+    /// The signature message for transferring the ownership of the
+    /// token-contract is the current admin-nonce in big endian appended by the
+    /// new ownership.
     ///
-    /// Note: A super-majority of owner signatures is required to perform this
+    /// Note: A super-majority of admin signatures is required to perform this
     /// action.
     ///
     /// # Panics
     /// This function will panic if:
-    /// - The signature is incorrect or not signed by a super-majority of owners
-    pub fn transfer_governance(
+    /// - The signature is incorrect or not signed by a super-majority of admins
+    pub fn transfer_ownership(
         &mut self,
-        new_governance: Account,
+        new_ownership: Account,
         sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
         // the threshold needs to be a super-majority
-        let threshold = supermajority(self.owners.len());
+        let threshold = supermajority(self.admins.len());
 
         // check the signature
-        let sig_msg = signature_messages::transfer_governance(
-            self.owner_nonce,
-            &new_governance,
+        let sig_msg = signature_messages::transfer_ownership(
+            self.admin_nonce,
+            &new_ownership,
         );
-        self.authorize_owners(threshold, sig_msg, sig, signers);
+        self.authorize_admins(threshold, sig_msg, sig, signers);
 
         // transfer the ownership of the token-contract
         let _: () = abi::call(
             self.token_contract(),
-            "transfer_governance",
-            &new_governance,
+            "transfer_ownership",
+            &new_ownership,
         )
-        .expect("transferring the governance should succeed");
+        .expect("transferring the ownership should succeed");
 
-        // increment the owners nonce
-        self.owner_nonce += 1;
+        // increment the admins nonce
+        self.admin_nonce += 1;
     }
 
-    /// Renounce the governance of the token-contract.
-    /// Note: After executing this call, neither this governance-contract nor
+    /// Renounce the ownership of the token-contract.
+    /// Note: After executing this call, neither this ownership-contract nor
     /// any other account will be authorized to call any functions on the
-    /// token-contract that require authorization from the governance account.
+    /// token-contract that require authorization from the ownership account.
     ///
-    /// The signature message for renouncing the governance of the
-    /// token-contract is the current owner-nonce in big endian.
+    /// The signature message for renouncing the ownership of the
+    /// token-contract is the current admin-nonce in big endian.
     ///
-    /// Note: A super-majority of owner signatures is required to perform this
+    /// Note: A super-majority of admin signatures is required to perform this
     /// action.
     ///
     /// # Panics
     /// This function will panic if:
-    /// - The signature is incorrect or not signed by a super-majority of owners
-    pub fn renounce_governance(
+    /// - The signature is incorrect or not signed by a super-majority of admins
+    pub fn renounce_ownership(
         &mut self,
         sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
         // the threshold needs to be a super-majority
-        let threshold = supermajority(self.owners.len());
+        let threshold = supermajority(self.admins.len());
 
         // check the signature
-        let sig_msg = signature_messages::renounce_governance(self.owner_nonce);
-        self.authorize_owners(threshold, sig_msg, sig, signers);
+        let sig_msg = signature_messages::renounce_ownership(self.admin_nonce);
+        self.authorize_admins(threshold, sig_msg, sig, signers);
 
-        // removing the governance on the token-contract
-        let _: () =
-            abi::call(self.token_contract(), "renounce_governance", &())
-                .expect("renouncing the governance should succeed");
+        // removing the ownership on the token-contract
+        let _: () = abi::call(self.token_contract(), "renounce_ownership", &())
+            .expect("renouncing the ownership should succeed");
 
-        // increment the owners nonce
-        self.owner_nonce += 1;
+        // increment the admins nonce
+        self.admin_nonce += 1;
     }
 }
 
 // Methods that need the operators' approval
-impl Governance {
-    /// Execute a call to the token-contract, that doesn't require owner's
+impl AccessControl {
+    /// Execute a call to the token-contract, that doesn't require admin's
     /// approval.
     ///
     /// The signature message for executing an operator approved token-contract
@@ -488,7 +487,7 @@ impl Governance {
     /// This function will panic if:
     /// - The signature is incorrect or not signed by a super-majority of
     ///   operators
-    /// - The new operator-calls is reserved for owner-calls.
+    /// - The new operator-calls is reserved for admin-calls.
     pub fn set_operator_token_call(
         &mut self,
         call_name: String,
@@ -496,9 +495,9 @@ impl Governance {
         sig: MultisigSignature,
         signers: Vec<u8>,
     ) {
-        // panic if inter-contract calls that need owner approval are added
+        // panic if inter-contract calls that need admin approval are added
         assert!(
-            !Self::OWNER_TOKEN_CALLS.contains(&call_name.as_str()),
+            !Self::ADMIN_TOKEN_CALLS.contains(&call_name.as_str()),
             "{}",
             error::UNAUTHORIZED_TOKEN_CALL,
         );
@@ -521,7 +520,7 @@ impl Governance {
         // increment the operator nonce
         self.operator_nonce += 1;
 
-        // alert network of the changes to the governance state
+        // alert network of the changes to the state
         abi::emit(
             events::UpdateTokenCall::TOPIC,
             events::UpdateTokenCall {
@@ -533,16 +532,16 @@ impl Governance {
 }
 
 /// Access control implementation.
-impl Governance {
-    /// Check if the aggregated signature of the given owners is valid.
+impl AccessControl {
+    /// Check if the aggregated signature of the given admins is valid.
     ///
     /// # Panics
     /// This function will panic if:
     /// - The signature is incorrect given the signature-message and public-keys
     /// - There are less signers than the specified threshold
-    /// - One of the signers exceeds the owner-index
+    /// - One of the signers exceeds the admin-index
     /// - There are duplicate signers
-    pub fn authorize_owners(
+    pub fn authorize_admins(
         &self,
         threshold: u8,
         sig_msg: Vec<u8>,
@@ -583,7 +582,7 @@ impl Governance {
         sig_msg: Vec<u8>,
         sig: MultisigSignature,
         signers: impl AsRef<[u8]>,
-        is_owner: bool,
+        is_admin: bool,
     ) {
         let signer_idx = signers.as_ref();
 
@@ -600,7 +599,7 @@ impl Governance {
         // panic if one of the signer's indices doesn't exist
         assert!(
             (signer_idx.iter().max().copied().unwrap_or_default() as usize)
-                < self.owners.len(),
+                < self.admins.len(),
             "{}",
             error::SIGNER_NOT_FOUND
         );
@@ -613,8 +612,8 @@ impl Governance {
         );
 
         // get the signers public keys
-        let public_keys = if is_owner {
-            self.owners()
+        let public_keys = if is_admin {
+            self.admins()
         } else {
             self.operators()
         };
