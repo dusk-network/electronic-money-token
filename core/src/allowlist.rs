@@ -52,3 +52,20 @@ impl From<&str> for Role {
         unimplemented!()
     }
 }
+
+//
+// TODO: these are useful for tests but can be removed once From<bls-pk> is
+// implemented
+//
+
+impl From<&[u8; 32]> for Address {
+    fn from(bytes: &[u8; 32]) -> Self {
+        Self(*bytes)
+    }
+}
+
+impl From<&[u8; 32]> for Role {
+    fn from(bytes: &[u8; 32]) -> Self {
+        Self(*bytes)
+    }
+}
