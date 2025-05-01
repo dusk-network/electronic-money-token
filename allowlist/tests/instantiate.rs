@@ -7,43 +7,47 @@
 use std::sync::LazyLock;
 
 use dusk_core::abi::ContractError;
-use dusk_core::abi::{ContractId, StandardBufSerializer};
+use dusk_core::abi::{
+    ContractId,
+    // StandardBufSerializer
+};
 use dusk_core::dusk;
 use dusk_core::signatures::bls::{
     PublicKey as AccountPublicKey, SecretKey as AccountSecretKey,
 };
 use dusk_vm::{CallReceipt, ContractData, Error as VMError};
 
-use bytecheck::CheckBytes;
-
-use rkyv::validation::validators::DefaultValidator;
-use rkyv::{Archive, Deserialize, Infallible, Serialize};
+// use bytecheck::CheckBytes;
+//
+// use rkyv::validation::validators::DefaultValidator;
+// use rkyv::{Archive, Deserialize, Infallible, Serialize};
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use emt_core::*;
+use emt_core::allowlist::{Address, Role};
+use emt_core::Account;
 
 use emt_tests::network::NetworkSession;
 
-const TOKEN_BYTECODE: &[u8] = include_bytes!(
-    "../../target/wasm64-unknown-unknown/release/emt_token.wasm"
+const ALLOWLIST_BYTECODE: &[u8] = include_bytes!(
+    "../../target/wasm64-unknown-unknown/release/emt_allowlist.wasm"
 );
+// const TOKEN_BYTECODE: &[u8] = include_bytes!(
+//     "../../target/wasm64-unknown-unknown/release/emt_token.wasm"
+// );
 const HOLDER_BYTECODE: &[u8] = include_bytes!(
     "../../target/wasm64-unknown-unknown/release/emt_holder_contract.wasm"
 );
 
 const DEPLOYER: [u8; 64] = [0u8; 64];
 
-pub const TOKEN_ID: ContractId = ContractId::from_bytes([1; 32]);
-pub const HOLDER_ID: ContractId = ContractId::from_bytes([2; 32]);
+pub const ALLOWLIST_ID: ContractId = ContractId::from_bytes([1; 32]);
+pub const TOKEN_ID: ContractId = ContractId::from_bytes([2; 32]);
+pub const HOLDER_ID: ContractId = ContractId::from_bytes([3; 32]);
 
-pub const MOONLIGHT_BALANCE: u64 = dusk(1_000.0);
-pub const INITIAL_BALANCE: u64 = 1000;
-pub const INITIAL_HOLDER_BALANCE: u64 = 1000;
-pub const INITIAL_OWNERSHIP_BALANCE: u64 = 1000;
-pub const INITIAL_SUPPLY: u64 =
-    INITIAL_BALANCE + INITIAL_HOLDER_BALANCE + INITIAL_OWNERSHIP_BALANCE;
+pub const INITIAL_DUSK_BALANCE: u64 = dusk(1_000.0);
+pub const INITIAL_EMT_BALANCE: u64 = 1000;
 
 type Result<T, Error = VMError> = core::result::Result<T, Error>;
 
@@ -52,31 +56,31 @@ pub struct TestSession {
 }
 
 impl TestSession {
+    // first test key-pair, funded with some DUSK to be able to pay for gas
     pub const SK_0: LazyLock<AccountSecretKey> = LazyLock::new(|| {
         let mut rng = StdRng::seed_from_u64(0x5EAF00D);
         AccountSecretKey::random(&mut rng)
     });
-
     pub const PK_0: LazyLock<AccountPublicKey> =
         LazyLock::new(|| AccountPublicKey::from(&*Self::SK_0));
+    // TODO: change once From<bls-pk> is implemented
+    pub const ADDRESS_0: LazyLock<Address> =
+        LazyLock::new(|| Address::from(&[1u8; 32]));
+    // TODO: change once From<&str> is implemented
+    pub const ROLE_0: LazyLock<Role> = LazyLock::new(|| Role::from(&[2u8; 32]));
 
+    // second test key-pair, funded with some DUSK to be able to pay for gas
     pub const SK_1: LazyLock<AccountSecretKey> = LazyLock::new(|| {
         let mut rng = StdRng::seed_from_u64(0xF0CACC1A);
         AccountSecretKey::random(&mut rng)
     });
-
     pub const PK_1: LazyLock<AccountPublicKey> =
         LazyLock::new(|| AccountPublicKey::from(&*Self::SK_1));
-
-    pub const SK_2: LazyLock<AccountSecretKey> = LazyLock::new(|| {
-        let mut rng = StdRng::seed_from_u64(0x5A1AD);
-        AccountSecretKey::random(&mut rng)
-    });
-
-    /// Test session public key for the second account. Does not have any
-    /// tokens.
-    pub const PK_2: LazyLock<AccountPublicKey> =
-        LazyLock::new(|| AccountPublicKey::from(&*Self::SK_2));
+    // TODO: change once From<bls-pk> is implemented
+    pub const ADDRESS_1: LazyLock<Address> =
+        LazyLock::new(|| Address::from(&[3u8; 32]));
+    // TODO: change once From<&str> is implemented
+    pub const ROLE_1: LazyLock<Role> = LazyLock::new(|| Role::from(&[4u8; 32]));
 }
 
 impl TestSession {
@@ -84,31 +88,27 @@ impl TestSession {
         // deploy a session with transfer & stake contract deployed
         // pass a list of accounts to fund
         let mut network_session = NetworkSession::instantiate(vec![
-            (&*Self::PK_0, MOONLIGHT_BALANCE),
-            (&*Self::PK_1, MOONLIGHT_BALANCE),
-            (&*Self::PK_2, MOONLIGHT_BALANCE),
+            (&*Self::PK_0, INITIAL_DUSK_BALANCE),
+            (&*Self::PK_1, INITIAL_DUSK_BALANCE),
         ]);
 
-        // deploy the Token contract
+        // deploy the allowlist contract
         network_session
             .deploy(
-                TOKEN_BYTECODE,
+                ALLOWLIST_BYTECODE,
                 ContractData::builder()
                     .owner(DEPLOYER)
                     .init_arg(&(
                         vec![
-                            (
-                                Account::from(*Self::PK_0),
-                                INITIAL_OWNERSHIP_BALANCE,
-                            ),
-                            (Account::from(*Self::PK_1), INITIAL_BALANCE),
-                            (Account::from(HOLDER_ID), INITIAL_HOLDER_BALANCE),
+                            (*Self::ADDRESS_0, *Self::ROLE_0),
+                            (*Self::ADDRESS_1, *Self::ROLE_1),
                         ],
+                        // set pk_0 as contract ownership
                         Account::from(*Self::PK_0),
                     ))
-                    .contract_id(TOKEN_ID),
+                    .contract_id(ALLOWLIST_ID),
             )
-            .expect("Deploying the token-contract should succeed");
+            .expect("Deploying the allowlist-contract should succeed");
 
         // deploy the holder contract
         network_session
@@ -116,128 +116,107 @@ impl TestSession {
                 HOLDER_BYTECODE,
                 ContractData::builder()
                     .owner(DEPLOYER)
-                    .init_arg(&(TOKEN_ID, INITIAL_HOLDER_BALANCE))
+                    .init_arg(&(TOKEN_ID, 0u64))
                     .contract_id(HOLDER_ID),
             )
             .expect("Deploying the holder contract should succeed");
 
-        let mut session = Self {
+        Self {
             session: network_session,
-        };
-
-        assert_eq!(
-            session.account(*Self::PK_0).balance,
-            INITIAL_OWNERSHIP_BALANCE
-        );
-        assert_eq!(session.account(*Self::PK_1).balance, INITIAL_BALANCE);
-        assert_eq!(session.account(*Self::PK_2).balance, 0);
-        assert_eq!(session.account(HOLDER_ID).balance, INITIAL_HOLDER_BALANCE);
-
-        session
+        }
     }
 
-    pub fn call_token<A, R>(
+    //
+    // allowlist-contract functionality
+    //
+
+    /// call `is_allowed(user)` on the allowlist-contract.
+    pub fn allowlist_is_allowed(
+        &mut self,
+        user: &Address,
+    ) -> Result<CallReceipt<bool>, ContractError> {
+        self.session.direct_call(ALLOWLIST_ID, "is_allowed", user)
+    }
+
+    /// call `has_role(user)` on the allowlist-contract.
+    pub fn allowlist_has_role(
+        &mut self,
+        user: &Address,
+    ) -> Result<CallReceipt<Option<Role>>, ContractError> {
+        self.session.direct_call(ALLOWLIST_ID, "has_role", user)
+    }
+
+    /// call `register(user, role)` on the allowlist-contract
+    pub fn allowlist_register(
         &mut self,
         tx_sk: &AccountSecretKey,
-        fn_name: &str,
-        fn_arg: &A,
-    ) -> Result<CallReceipt<R>, ContractError>
-    where
-        A: for<'b> Serialize<StandardBufSerializer<'b>>,
-        A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
-        R: Archive,
-        R::Archived: Deserialize<R, Infallible>
-            + for<'b> CheckBytes<DefaultValidator<'b>>,
-    {
-        self.session
-            .icc_transaction(tx_sk, TOKEN_ID, fn_name, fn_arg)
-    }
-
-    fn call_token_getter<R>(&mut self, fn_name: &str) -> CallReceipt<R>
-    where
-        R: Archive,
-        R::Archived: Deserialize<R, Infallible>
-            + for<'b> CheckBytes<DefaultValidator<'b>>,
-    {
-        self.session.direct_call::<(), R>(TOKEN_ID, fn_name, &()).expect(
-            format!(
-                "Calling the getter function {} on the token-contract should succeed",
-                fn_name
-            )
-            .as_str(),
+        user: Address,
+        role: Role,
+    ) -> Result<CallReceipt<()>, ContractError> {
+        self.session.icc_transaction(
+            tx_sk,
+            ALLOWLIST_ID,
+            "register",
+            &(user, role),
         )
     }
 
-    fn call_holder_getter<R>(&mut self, fn_name: &str) -> CallReceipt<R>
-    where
-        R: Archive,
-        R::Archived: Deserialize<R, Infallible>
-            + for<'b> CheckBytes<DefaultValidator<'b>>,
-    {
-        self.session.direct_call::<(), R>(HOLDER_ID, fn_name, &()).expect(format!(
-            "Calling the getter function {} on the holder-contract should succeed",
-            fn_name
-        ).as_str())
-    }
-
-    pub fn call_holder<A, R>(
+    /// call `update(user, role)` on the allowlist-contract
+    pub fn allowlist_update(
         &mut self,
         tx_sk: &AccountSecretKey,
-        fn_name: &str,
-        fn_arg: &A,
-    ) -> Result<CallReceipt<R>, ContractError>
-    where
-        A: for<'b> Serialize<StandardBufSerializer<'b>>,
-        A::Archived: for<'b> CheckBytes<DefaultValidator<'b>>,
-        R: Archive,
-        R::Archived: Deserialize<R, Infallible>
-            + for<'b> CheckBytes<DefaultValidator<'b>>,
-    {
-        self.session
-            .icc_transaction(tx_sk, HOLDER_ID, fn_name, fn_arg)
+        user: Address,
+        role: Role,
+    ) -> Result<CallReceipt<()>, ContractError> {
+        self.session.icc_transaction(
+            tx_sk,
+            ALLOWLIST_ID,
+            "update",
+            &(user, role),
+        )
     }
 
-    pub fn account(&mut self, account: impl Into<Account>) -> AccountInfo {
-        self.session
-            .direct_call(TOKEN_ID, "account", &account.into())
-            .expect("call to pass")
-            .data
-    }
-
-    pub fn balance_of(&mut self, account: impl Into<Account>) -> u64 {
-        self.session
-            .direct_call(TOKEN_ID, "balance_of", &account.into())
-            .expect("call to pass")
-            .data
-    }
-
-    pub fn ownership(&mut self) -> Account {
-        self.call_token_getter("ownership").data
-    }
-
-    pub fn total_supply(&mut self) -> u64 {
-        self.call_token_getter("total_supply").data
-    }
-
-    /// Query the paused status of the EMT token contract.
-    pub fn is_paused(&mut self) -> bool {
-        self.call_token_getter("is_paused").data
-    }
-
-    /// Query the balance the holder contract is tracking and therefore aware
-    /// of.
-    pub fn holder_tracked_balance(&mut self) -> u64 {
-        self.call_holder_getter::<u64>("tracked_balance").data
-    }
-
-    pub fn allowance(
+    /// call `remove(user)` on the allowlist-contract
+    pub fn allowlist_remove(
         &mut self,
-        owner: impl Into<Account>,
-        spender: impl Into<Account>,
-    ) -> u64 {
+        tx_sk: &AccountSecretKey,
+        user: &Address,
+    ) -> Result<CallReceipt<()>, ContractError> {
         self.session
-            .direct_call(TOKEN_ID, "allowance", &(owner.into(), spender.into()))
-            .expect("call to pass")
-            .data
+            .icc_transaction(tx_sk, ALLOWLIST_ID, "remove", user)
+    }
+
+    /// call `ownership()` on the allowlist-contract.
+    pub fn allowlist_ownership(
+        &mut self,
+    ) -> Result<CallReceipt<Account>, ContractError> {
+        self.session.direct_call(ALLOWLIST_ID, "ownership", &())
+    }
+
+    /// call `transfer_ownership(new_ownership)` on the allowlist-contract
+    pub fn allowlist_transfer_ownership(
+        &mut self,
+        tx_sk: &AccountSecretKey,
+        new_ownership: &Account,
+    ) -> Result<CallReceipt<()>, ContractError> {
+        self.session.icc_transaction(
+            tx_sk,
+            ALLOWLIST_ID,
+            "transfer_ownership",
+            new_ownership,
+        )
+    }
+
+    /// call `renounce_ownership()` on the allowlist-contract
+    pub fn allowlist_renounce_ownership(
+        &mut self,
+        tx_sk: &AccountSecretKey,
+    ) -> Result<CallReceipt<()>, ContractError> {
+        self.session.icc_transaction(
+            tx_sk,
+            ALLOWLIST_ID,
+            "renounce_ownership",
+            &(),
+        )
     }
 }

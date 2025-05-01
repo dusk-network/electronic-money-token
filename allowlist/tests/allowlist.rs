@@ -5,24 +5,29 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_core::abi::ContractError;
-use dusk_core::abi::{ContractId, CONTRACT_ID_BYTES};
-use dusk_core::signatures::bls::{
-    PublicKey as AccountPublicKey, SecretKey as AccountSecretKey,
+// use dusk_core::abi::{ContractId, CONTRACT_ID_BYTES};
+// use dusk_core::signatures::bls::{
+//     PublicKey as AccountPublicKey, SecretKey as AccountSecretKey,
+// };
+// use dusk_core::transfer::data::ContractCall;
+// use dusk_core::transfer::MoonlightTransactionEvent;
+//
+// use rand::rngs::StdRng;
+// use rand::SeedableRng;
+//
+// use emt_core::token::error;
+// use emt_core::token::events;
+use emt_core::allowlist::error;
+use emt_core::allowlist::{Address, Role};
+use emt_core::{
+    Account,
+    // AccountInfo, ZERO_ADDRESS
 };
-use dusk_core::transfer::data::ContractCall;
-use dusk_core::transfer::MoonlightTransactionEvent;
-
-use rand::rngs::StdRng;
-use rand::SeedableRng;
-
-use emt_core::token::error;
-use emt_core::token::events;
-use emt_core::{Account, AccountInfo, ZERO_ADDRESS};
 
 pub mod instantiate;
 use instantiate::{
-    TestSession, HOLDER_ID, INITIAL_BALANCE, INITIAL_HOLDER_BALANCE,
-    INITIAL_SUPPLY,
+    TestSession,
+    // HOLDER_ID, INITIAL_EMT_BALANCE
 };
 
 #[test]
@@ -30,6 +35,218 @@ fn deploy() {
     TestSession::new();
 }
 
+#[test]
+fn is_allowed() -> Result<(), ContractError> {
+    let mut session = TestSession::new();
+
+    // test address_0 and address_1 are allowed
+    assert_eq!(
+        session.allowlist_is_allowed(&*TestSession::ADDRESS_0)?.data,
+        true
+    );
+    assert_eq!(
+        session.allowlist_is_allowed(&*TestSession::ADDRESS_1)?.data,
+        true
+    );
+
+    // test unregistered user address isn't allowed
+    let unregistered: [u8; 32] = rand::random();
+    let unregistered = Address::from(&unregistered);
+    assert_eq!(session.allowlist_is_allowed(&unregistered)?.data, false);
+
+    Ok(())
+}
+
+#[test]
+fn has_role() -> Result<(), ContractError> {
+    let mut session = TestSession::new();
+
+    // assert that the registered user roles are correct
+    assert_eq!(
+        session
+            .allowlist_has_role(&*TestSession::ADDRESS_0)
+            .expect("call should be successfull")
+            .data,
+        Some(*TestSession::ROLE_0),
+    );
+    assert_eq!(
+        session
+            .allowlist_has_role(&*TestSession::ADDRESS_1)
+            .expect("call should be successfull")
+            .data,
+        Some(*TestSession::ROLE_1),
+    );
+
+    // assert that unregistered user has no role
+    let unregistered: [u8; 32] = rand::random();
+    let unregistered = Address::from(&unregistered);
+    assert_eq!(session.allowlist_has_role(&unregistered)?.data, None);
+
+    Ok(())
+}
+
+#[test]
+fn register() -> Result<(), ContractError> {
+    let mut session = TestSession::new();
+    let ownership_sk = &*TestSession::SK_0;
+
+    // create new unregistered user address
+    let new_user: [u8; 32] = rand::random();
+    let new_user = Address::from(&new_user);
+    assert_eq!(session.allowlist_is_allowed(&new_user)?.data, false);
+
+    // register user
+    let role: [u8; 32] = rand::random();
+    let role = Role::from(&role);
+    session.allowlist_register(ownership_sk, new_user, role)?;
+
+    // make sure user is allowed after registration
+    assert_eq!(session.allowlist_is_allowed(&new_user)?.data, true);
+    assert_eq!(session.allowlist_has_role(&new_user)?.data, Some(role));
+
+    Ok(())
+}
+
+#[test]
+fn register_from_incorrect_ownership_panics() -> Result<(), ContractError> {
+    let mut session = TestSession::new();
+    let wrong_ownership_sk = &*TestSession::SK_1;
+
+    // create new unregistered user address
+    let new_user: [u8; 32] = rand::random();
+    let new_user = Address::from(&new_user);
+    assert_eq!(session.allowlist_is_allowed(&new_user)?.data, false);
+
+    // attempting to register user from an account not registered as ownership
+    let role: [u8; 32] = rand::random();
+    let role = Role::from(&role);
+    let contract_err = session
+        .allowlist_register(wrong_ownership_sk, new_user, role)
+        .expect_err("Expect contract to panic");
+
+    // check contract panic
+    if let ContractError::Panic(panic_msg) = contract_err {
+        assert_eq!(panic_msg, error::UNAUTHORIZED_ACCOUNT);
+    } else {
+        panic!("Expected panic, got error: {contract_err}",);
+    }
+
+    // make sure user is not allowed after registration
+    assert_eq!(session.allowlist_is_allowed(&new_user)?.data, false);
+    assert_eq!(session.allowlist_has_role(&new_user)?.data, None);
+
+    Ok(())
+}
+
+#[test]
+fn register_existing_user_panics() -> Result<(), ContractError> {
+    let mut session = TestSession::new();
+    let ownership_sk = &*TestSession::SK_0;
+
+    // attempt to register a user address that is already registered
+    let contract_err = session
+        .allowlist_register(
+            ownership_sk,
+            *TestSession::ADDRESS_1,
+            *TestSession::ROLE_0,
+        )
+        .expect_err("Expect contract to panic");
+
+    // check contract panic
+    if let ContractError::Panic(panic_msg) = contract_err {
+        assert_eq!(panic_msg, error::DUPLICATE_USER);
+    } else {
+        panic!("Expected panic, got error: {contract_err}",);
+    }
+
+    // make sure user is still allowed and has correct role
+    assert_eq!(
+        session.allowlist_is_allowed(&*TestSession::ADDRESS_1)?.data,
+        true
+    );
+    assert_eq!(
+        session.allowlist_has_role(&*TestSession::ADDRESS_1)?.data,
+        Some(*TestSession::ROLE_1)
+    );
+
+    Ok(())
+}
+
+#[test]
+fn update() -> Result<(), ContractError> {
+    let mut session = TestSession::new();
+    let ownership_sk = &*TestSession::SK_0;
+
+    // assign role_1 to address_0
+    session.allowlist_update(
+        ownership_sk,
+        *TestSession::ADDRESS_0,
+        *TestSession::ROLE_1,
+    )?;
+    // check that update was successful
+    assert_eq!(
+        session.allowlist_has_role(&*TestSession::ADDRESS_0)?.data,
+        Some(*TestSession::ROLE_1)
+    );
+
+    // check that role the other address didn't change
+    assert_eq!(
+        session.allowlist_has_role(&*TestSession::ADDRESS_1)?.data,
+        Some(*TestSession::ROLE_1)
+    );
+
+    Ok(())
+}
+
+#[test]
+fn remove() -> Result<(), ContractError> {
+    let mut session = TestSession::new();
+    let ownership_sk = &*TestSession::SK_0;
+
+    // remove address_0
+    session.allowlist_remove(ownership_sk, &*TestSession::ADDRESS_0)?;
+    // check that removal was successful
+    assert_eq!(
+        session.allowlist_is_allowed(&*TestSession::ADDRESS_0)?.data,
+        false
+    );
+    // check that address_1 is still allowed
+    assert_eq!(
+        session.allowlist_is_allowed(&*TestSession::ADDRESS_1)?.data,
+        true
+    );
+
+    // remove address_1
+    session.allowlist_remove(ownership_sk, &*TestSession::ADDRESS_1)?;
+    // check that removal was successful
+    assert_eq!(
+        session.allowlist_is_allowed(&*TestSession::ADDRESS_1)?.data,
+        false
+    );
+
+    Ok(())
+}
+
+/// Test transfer of ownership to test account.
+#[test]
+fn transfer_ownership() {
+    let mut session = TestSession::new();
+
+    let new_ownership = Account::from(*TestSession::PK_1);
+    session
+        .allowlist_transfer_ownership(&*TestSession::SK_0, &new_ownership)
+        .expect("Call should pass");
+
+    assert_eq!(
+        session
+            .allowlist_ownership()
+            .expect("call should pass")
+            .data,
+        new_ownership
+    );
+}
+
+/*
 #[test]
 fn empty_account() {
     let mut session = TestSession::new();
@@ -450,23 +667,9 @@ fn transfer_from() {
         "The account should have the transferred amount subtracted from its allowance"
     );
 }
+*/
 
-/// Test transfer of ownership to test account.
-#[test]
-fn transfer_ownership() {
-    let mut session = TestSession::new();
-    let new_ownership = Account::from(*TestSession::PK_2);
-
-    session
-        .call_token::<_, ()>(
-            &*TestSession::SK_0,
-            "transfer_ownership",
-            &new_ownership,
-        )
-        .expect("Call should pass");
-
-    assert_eq!(session.ownership(), new_ownership);
-}
+/*
 
 /// Test TransferOwnership, RenounceOwnership with wrong ownership
 /// and check for correct error message.
@@ -968,3 +1171,4 @@ fn test_sanctions() {
         )
         .expect("Transfer should succeed again");
 }
+*/
