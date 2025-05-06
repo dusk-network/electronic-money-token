@@ -29,3 +29,6 @@ pub use token::ZERO_ADDRESS;
 
 /// Additional types used to interact with the access-control-contract.
 pub mod access_control;
+
+/// Additional types used to interact with the allowlist-contract.
+pub mod allowlist;
