@@ -4,6 +4,7 @@ members = [
 	"core",
 	"token",
 	"access-control",
+	"allowlist",
 	"tests",
 	"tests/holder"
 ]

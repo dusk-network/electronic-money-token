@@ -8,3 +8,6 @@ dusk-core = { workspace = true }
 
 bytecheck = { workspace = true }
 rkyv = { workspace = true }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+dusk-core = { workspace = true, features = ["abi-dlmalloc"] }
